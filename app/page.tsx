@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { LoginView } from '@/components/LoginView';
 import { KhataProvider } from '@/context/KhataContext';
 import { Navbar, NavTab } from '@/components/Navbar';
 import { AppSidebar } from '@/components/AppSidebar';
@@ -14,6 +15,7 @@ import { RecordTransactionModal } from '@/components/Modals/RecordTransactionMod
 import { CustomerStatementModal } from '@/components/Modals/CustomerStatementModal';
 import { AddEditProductModal } from '@/components/Modals/AddEditProductModal';
 import { QuickStockAdjustModal } from '@/components/Modals/QuickStockAdjustModal';
+import { PageLoader } from '@/components/Loader';
 import { Product, LedgerTransactionType } from '@/types';
 
 function MainApp() {
@@ -68,9 +70,6 @@ function MainApp() {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onToggleLeftMenu={() => setIsLeftMenuOpen(true)}
-          onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
-          onOpenAddProduct={handleOpenAddProduct}
-          onOpenRecordTx={() => handleOpenRecordTx()}
         />
 
         {/* Mobile Left-Side Navigation Drawer */}
@@ -161,6 +160,26 @@ function MainApp() {
 }
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const authStatus = localStorage.getItem('hisabflow_auth');
+    setIsAuthenticated(authStatus === 'true');
+  }, []);
+
+  // Show loader while checking auth
+  if (isAuthenticated === null) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <PageLoader text="Starting HisabFlow..." />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginView onLoginSuccess={() => setIsAuthenticated(true)} />;
+  }
+
   return (
     <KhataProvider>
       <MainApp />

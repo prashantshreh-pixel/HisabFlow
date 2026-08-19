@@ -3,17 +3,11 @@
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
 import {
-  Store,
+  LogOut, Store,
   LayoutDashboard,
   BookOpen,
   Boxes,
-  RotateCcw,
   Menu,
-  Wallet,
-  UserPlus,
-  PackagePlus,
-  Sparkles,
-  Search,
 } from 'lucide-react';
 
 export type NavTab = 'DASHBOARD' | 'KHATA' | 'PRODUCTS';
@@ -22,20 +16,14 @@ interface NavbarProps {
   currentTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   onToggleLeftMenu: () => void;
-  onOpenAddCustomer: () => void;
-  onOpenAddProduct: () => void;
-  onOpenRecordTx: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onTabChange,
   onToggleLeftMenu,
-  onOpenAddCustomer,
-  onOpenAddProduct,
-  onOpenRecordTx,
 }) => {
-  const { stats, resetToDefaults } = useKhata();
+  const { stats } = useKhata();
 
   return (
     <header className="sticky top-0 z-20 bg-slate-950/85 backdrop-blur-md border-b border-slate-800">
@@ -74,13 +62,13 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
               <div className="text-xs text-slate-400">
                 Debtors: <span className="font-bold text-rose-400">{stats.activeDebtorsCount}</span>
-                <span className="mx-2">•</span>
+                <span className="mx-2">&middot;</span>
                 Stock Alerts: <span className="font-bold text-amber-400">{stats.lowStockCount + stats.outOfStockCount}</span>
               </div>
             </div>
           </div>
 
-          {/* Center Tabs (Visible on mobile/tablet or secondary bar) */}
+          {/* Center Tabs (Visible on mobile/tablet) */}
           <nav className="flex lg:hidden items-center gap-1">
             <button
               type="button"
@@ -124,50 +112,18 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
           </nav>
 
-          {/* Desktop Right Quick Drawer Launchers */}
+          {/* Right: Sign Out only */}
           <div className="flex items-center gap-2">
             <button
-              id="top-record-payment-btn"
-              type="button"
-              onClick={onOpenRecordTx}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm transition-all"
-            >
-              <Wallet className="w-3.5 h-3.5" />
-              <span>+ Record Payment</span>
-            </button>
-
-            <button
-              id="top-add-customer-btn"
-              type="button"
-              onClick={onOpenAddCustomer}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-all"
-            >
-              <UserPlus className="w-3.5 h-3.5 text-amber-400" />
-              <span>+ Customer</span>
-            </button>
-
-            <button
-              id="top-add-product-btn"
-              type="button"
-              onClick={onOpenAddProduct}
-              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-all"
-            >
-              <PackagePlus className="w-3.5 h-3.5 text-amber-400" />
-              <span>+ Product</span>
-            </button>
-
-            <button
-              id="reset-mock-data-btn"
               type="button"
               onClick={() => {
-                if (confirm('Reset sample retail data (customers, transactions, products) back to default demo state?')) {
-                  resetToDefaults();
-                }
+                localStorage.removeItem('hisabflow_auth');
+                window.location.reload();
               }}
-              title="Reset Sample Data"
-              className="p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-900 rounded-xl border border-slate-800 transition-colors"
+              title="Sign Out"
+              className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-900 rounded-xl border border-slate-800 transition-colors"
             >
-              <RotateCcw className="w-4 h-4" />
+              <LogOut className="w-4 h-4" />
             </button>
           </div>
         </div>

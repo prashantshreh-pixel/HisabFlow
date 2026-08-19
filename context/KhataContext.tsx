@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { Customer, CreditLedgerEntry, Product, DashboardStats, LedgerTransactionType } from '@/types';
-import { INITIAL_CUSTOMERS, INITIAL_LEDGER_ENTRIES, INITIAL_PRODUCTS } from '@/lib/mockData';
+import { customersApi, RecordTransactionPayload } from '@/lib/api';
 
 interface ToastNotification {
   id: string;
@@ -12,6 +12,7 @@ interface ToastNotification {
 }
 
 interface KhataContextType {
+  isLoading: boolean;
   customers: Customer[];
   ledgerEntries: CreditLedgerEntry[];
   products: Product[];
@@ -21,11 +22,11 @@ interface KhataContextType {
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
   
   // Customer operations
-  addCustomer: (data: { name: string; phone: string; address?: string; creditLimit: number; initialBalance?: number; initialNote?: string }) => Customer;
-  updateCustomer: (id: string, updates: Partial<Customer>) => void;
-  deleteCustomer: (id: string) => void;
+  addCustomer: (data: { name: string; phone: string; address?: string; creditLimit: number; initialBalance?: number; initialNote?: string }) => Promise<Customer>;
+  updateCustomer: (id: string, updates: Partial<Customer>) => Promise<void>;
+  deleteCustomer: (id: string) => Promise<void>;
   getCustomerById: (id: string) => Customer | undefined;
-  getCustomerLedger: (customerId: string) => CreditLedgerEntry[];
+  getCustomerLedger: (customerId: string) => Promise<CreditLedgerEntry[]>;
 
   // Ledger operations
   recordTransaction: (params: {
@@ -36,51 +37,31 @@ interface KhataContextType {
     paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE';
     billNumber?: string;
     date?: string;
-  }) => CreditLedgerEntry | null;
+  }) => Promise<CreditLedgerEntry | null>;
 
   // Product operations
   addProduct: (data: Omit<Product, 'id' | 'updatedAt'>) => Product;
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   adjustStock: (productId: string, delta: number, reason?: string) => void;
-
-  // Utilities
-  resetToDefaults: () => void;
+  
+  // Refresh utility
+  refreshData: () => Promise<void>;
 }
 
 const KhataContext = createContext<KhataContextType | null>(null);
 
 const STORAGE_KEYS = {
-  CUSTOMERS: 'pasalkhata_customers_v1',
-  LEDGER: 'pasalkhata_ledger_v1',
   PRODUCTS: 'pasalkhata_products_v1',
 };
 
 export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [customers, setCustomers] = useState<Customer[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEYS.CUSTOMERS);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return INITIAL_CUSTOMERS;
-  });
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [ledgerEntries, setLedgerEntries] = useState<CreditLedgerEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [toasts, setToasts] = useState<ToastNotification[]>([]);
 
-  const [ledgerEntries, setLedgerEntries] = useState<CreditLedgerEntry[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEYS.LEDGER);
-        if (saved) return JSON.parse(saved);
-      } catch (e) {
-        console.warn(e);
-      }
-    }
-    return INITIAL_LEDGER_ENTRIES;
-  });
-
+  // Products remain local storage based for now
   const [products, setProducts] = useState<Product[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -90,21 +71,17 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.warn(e);
       }
     }
-    return INITIAL_PRODUCTS;
+    return []; // No default mock products either
   });
 
-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
-
-  // Save to localStorage
+  // Save products only to local storage
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
-      localStorage.setItem(STORAGE_KEYS.LEDGER, JSON.stringify(ledgerEntries));
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
     } catch (e) {
       console.warn('LocalStorage save failed', e);
     }
-  }, [customers, ledgerEntries, products]);
+  }, [products]);
 
   const showToast = (toast: Omit<ToastNotification, 'id'>) => {
     const id = 'toast-' + Math.random().toString(36).substr(2, 9);
@@ -118,18 +95,85 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  // Helper to fetch customer
+  const refreshData = async () => {
+    try {
+      setIsLoading(true);
+      const fetchedCustomers = await customersApi.getAll();
+      const fetchedTransactions = await customersApi.getRecentTransactions(50);
+
+      const mappedCustomers: Customer[] = fetchedCustomers.map(c => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        address: c.address || '',
+        currentBalance: Number(c.currentBalance),
+        creditLimit: Number(c.creditLimit),
+        lastTransactionDate: c.updatedAt || c.createdAt,
+        createdAt: c.createdAt
+      }));
+
+      const mappedEntries: CreditLedgerEntry[] = fetchedTransactions.map(t => ({
+        id: t.id,
+        customerId: t.customerId,
+        customerName: t.customerName || '',
+        customerPhone: t.customerPhone || '',
+        date: t.transactionDate,
+        type: t.type === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED',
+        amount: Number(t.amount),
+        balanceAfter: Number(t.balanceAfter),
+        notes: t.particulars || '',
+        paymentMethod: t.paymentMethod === 1 ? 'CASH' : t.paymentMethod === 2 ? 'QR_PAYMENT' : t.paymentMethod === 3 ? 'BANK_TRANSFER' : 'CREDIT_NOTE',
+        billNumber: t.billNumber || ''
+      }));
+
+      setCustomers(mappedCustomers);
+      setLedgerEntries(mappedEntries);
+    } catch (err) {
+      console.error('Error loading data from database:', err);
+      showToast({
+        type: 'error',
+        title: 'Connection Error',
+        message: 'Could not fetch database records. Make sure the backend is running.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Initial fetch on load
+  useEffect(() => {
+    refreshData();
+  }, []);
+
   const getCustomerById = (id: string) => customers.find((c) => c.id === id);
 
   // Helper to fetch ledger for a customer
-  const getCustomerLedger = (customerId: string) => {
-    return ledgerEntries
-      .filter((entry) => entry.customerId === customerId)
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const getCustomerLedger = async (customerId: string) => {
+    try {
+      const statement = await customersApi.getStatement(customerId);
+      if (!statement) return [];
+
+      return statement.ledgerEntries.map((t): CreditLedgerEntry => ({
+        id: t.id,
+        customerId: t.customerId,
+        customerName: statement.customer.name,
+        customerPhone: statement.customer.phone,
+        date: t.transactionDate,
+        type: t.type === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED',
+        amount: Number(t.amount),
+        balanceAfter: Number(t.balanceAfter),
+        notes: t.particulars || '',
+        paymentMethod: t.paymentMethod === 1 ? 'CASH' : t.paymentMethod === 2 ? 'QR_PAYMENT' : t.paymentMethod === 3 ? 'BANK_TRANSFER' : 'CREDIT_NOTE',
+        billNumber: t.billNumber || ''
+      }));
+    } catch (err) {
+      console.error(err);
+      return [];
+    }
   };
 
   // Add Customer
-  const addCustomer = (data: {
+  const addCustomer = async (data: {
     name: string;
     phone: string;
     address?: string;
@@ -137,74 +181,118 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     initialBalance?: number;
     initialNote?: string;
   }) => {
-    const id = `cust-${Date.now().toString().slice(-4)}`;
-    const nowIso = new Date().toISOString();
-    const initBal = Number(data.initialBalance) || 0;
+    try {
+      setIsLoading(true);
+      const created = await customersApi.create({
+        name: data.name.trim(),
+        phone: data.phone.trim(),
+        address: data.address?.trim() || '',
+        creditLimit: data.creditLimit,
+        initialBalance: data.initialBalance || 0,
+        initialNote: data.initialNote?.trim() || undefined
+      });
 
-    const newCustomer: Customer = {
-      id,
-      name: data.name.trim(),
-      phone: data.phone.trim(),
-      address: data.address?.trim() || '',
-      currentBalance: initBal,
-      creditLimit: Number(data.creditLimit) || 10000,
-      lastTransactionDate: nowIso,
-      createdAt: nowIso,
-    };
-
-    setCustomers((prev) => [newCustomer, ...prev]);
-
-    // If there is an initial balance, log an initial ledger record
-    if (initBal > 0) {
-      const initialEntry: CreditLedgerEntry = {
-        id: `tx-${Date.now().toString().slice(-4)}`,
-        customerId: id,
-        customerName: newCustomer.name,
-        customerPhone: newCustomer.phone,
-        date: nowIso,
-        type: 'CREDIT_PURCHASE',
-        amount: initBal,
-        balanceAfter: initBal,
-        notes: data.initialNote || 'Opening balance / Previous Udhaar',
-        billNumber: `OPEN-${id.toUpperCase()}`,
+      const newCustomer: Customer = {
+        id: created.id,
+        name: created.name,
+        phone: created.phone,
+        address: created.address || '',
+        currentBalance: Number(created.currentBalance),
+        creditLimit: Number(created.creditLimit),
+        lastTransactionDate: created.updatedAt || created.createdAt,
+        createdAt: created.createdAt
       };
-      setLedgerEntries((prev) => [initialEntry, ...prev]);
+
+      setCustomers((prev) => [newCustomer, ...prev]);
+
+      // If opening balance was added, refresh transaction log
+      if (data.initialBalance && data.initialBalance > 0) {
+        await refreshData();
+      } else {
+        showToast({
+          type: 'success',
+          title: 'Customer Added',
+          message: `${newCustomer.name} has been saved to database.`,
+        });
+      }
+
+      return newCustomer;
+    } catch (err: any) {
+      console.error(err);
+      showToast({
+        type: 'error',
+        title: 'Error Adding Customer',
+        message: err.message || 'Could not save to database.',
+      });
+      throw err;
+    } finally {
+      setIsLoading(false);
     }
-
-    showToast({
-      type: 'success',
-      title: 'Customer Added',
-      message: `${newCustomer.name} was successfully registered with limit Rs. ${newCustomer.creditLimit.toLocaleString()}.`,
-    });
-
-    return newCustomer;
   };
 
-  const updateCustomer = (id: string, updates: Partial<Customer>) => {
-    setCustomers((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-    );
-    showToast({
-      type: 'info',
-      title: 'Customer Updated',
-      message: 'Customer details have been saved.',
-    });
+  // Update Customer
+  const updateCustomer = async (id: string, updates: Partial<Customer>) => {
+    try {
+      setIsLoading(true);
+      const original = customers.find(c => c.id === id);
+      if (!original) throw new Error('Customer not found local state.');
+
+      const payload = {
+        name: updates.name ?? original.name,
+        phone: updates.phone ?? original.phone,
+        address: updates.address !== undefined ? updates.address : original.address,
+        creditLimit: updates.creditLimit ?? original.creditLimit,
+      };
+
+      await customersApi.update(id, payload);
+
+      setCustomers((prev) =>
+        prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
+      );
+
+      showToast({
+        type: 'info',
+        title: 'Customer Updated',
+        message: 'Details successfully saved to database.',
+      });
+    } catch (err: any) {
+      console.error(err);
+      showToast({
+        type: 'error',
+        title: 'Update Failed',
+        message: err.message || 'Could not update database record.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const deleteCustomer = (id: string) => {
-    const customer = customers.find((c) => c.id === id);
-    if (!customer) return;
-    setCustomers((prev) => prev.filter((c) => c.id !== id));
-    setLedgerEntries((prev) => prev.filter((e) => e.customerId !== id));
-    showToast({
-      type: 'warning',
-      title: 'Customer Removed',
-      message: `${customer.name} and associated records have been removed.`,
-    });
+  // Delete Customer
+  const deleteCustomer = async (id: string) => {
+    try {
+      setIsLoading(true);
+      await customersApi.delete(id);
+      setCustomers((prev) => prev.filter((c) => c.id !== id));
+      setLedgerEntries((prev) => prev.filter((e) => e.customerId !== id));
+      showToast({
+        type: 'warning',
+        title: 'Customer Removed',
+        message: 'Customer and all ledger entries deleted from database.',
+      });
+    } catch (err: any) {
+      console.error(err);
+      showToast({
+        type: 'error',
+        title: 'Delete Failed',
+        message: err.message || 'Could not delete from database.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Record Ledger Transaction (Payment or Credit)
-  const recordTransaction = (params: {
+  // Record Ledger Transaction
+  const recordTransaction = async (params: {
     customerId: string;
     type: LedgerTransactionType;
     amount: number;
@@ -213,77 +301,66 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     billNumber?: string;
     date?: string;
   }) => {
-    const customer = customers.find((c) => c.id === params.customerId);
-    if (!customer) {
+    try {
+      setIsLoading(true);
+      const pmMap = {
+        CASH: 1,
+        QR_PAYMENT: 2,
+        BANK_TRANSFER: 3,
+        CREDIT_NOTE: 4
+      };
+
+      const payload: RecordTransactionPayload = {
+        customerId: params.customerId,
+        type: params.type === 'CREDIT_PURCHASE' ? 1 : 2,
+        amount: params.amount,
+        paymentMethod: params.paymentMethod ? pmMap[params.paymentMethod] : 1,
+        particulars: params.notes || null,
+        billNumber: params.billNumber || null,
+        transactionDate: params.date || null
+      };
+
+      const created = await customersApi.recordTransaction(payload);
+      
+      // Update global states
+      await refreshData();
+
+      const isPayment = params.type === 'PAYMENT_RECEIVED';
+      showToast({
+        type: isPayment ? 'success' : 'info',
+        title: isPayment ? 'Payment Recorded' : 'Credit Added (Udhaar)',
+        message: `${isPayment ? 'Collected' : 'Added'} Rs. ${params.amount.toLocaleString()}.`,
+      });
+
+      const newEntry: CreditLedgerEntry = {
+        id: created.id,
+        customerId: created.customerId,
+        customerName: created.customerName || '',
+        customerPhone: created.customerPhone || '',
+        date: created.transactionDate,
+        type: created.type === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED',
+        amount: Number(created.amount),
+        balanceAfter: Number(created.balanceAfter),
+        notes: created.particulars || '',
+        paymentMethod: created.paymentMethod === 1 ? 'CASH' : created.paymentMethod === 2 ? 'QR_PAYMENT' : created.paymentMethod === 3 ? 'BANK_TRANSFER' : 'CREDIT_NOTE',
+        billNumber: created.billNumber || ''
+      };
+
+      return newEntry;
+    } catch (err: any) {
+      console.error(err);
       showToast({
         type: 'error',
-        title: 'Error',
-        message: 'Customer not found.',
+        title: 'Transaction Failed',
+        message: err.message || 'Could not record ledger entry.',
       });
       return null;
+    } finally {
+      setIsLoading(false);
     }
-
-    const txAmount = Math.max(0, Number(params.amount));
-    if (txAmount <= 0) {
-      showToast({
-        type: 'error',
-        title: 'Invalid Amount',
-        message: 'Amount must be greater than zero.',
-      });
-      return null;
-    }
-
-    let newBalance = customer.currentBalance;
-    if (params.type === 'CREDIT_PURCHASE') {
-      newBalance += txAmount;
-    } else {
-      newBalance = Math.max(0, newBalance - txAmount);
-    }
-
-    const nowIso = params.date || new Date().toISOString();
-    const entryId = `tx-${Date.now().toString().slice(-5)}`;
-
-    const newEntry: CreditLedgerEntry = {
-      id: entryId,
-      customerId: customer.id,
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      date: nowIso,
-      type: params.type,
-      amount: txAmount,
-      balanceAfter: newBalance,
-      notes: params.notes || (params.type === 'CREDIT_PURCHASE' ? 'Goods bought on credit' : 'Repayment received'),
-      paymentMethod: params.paymentMethod || (params.type === 'PAYMENT_RECEIVED' ? 'CASH' : undefined),
-      billNumber: params.billNumber || (params.type === 'CREDIT_PURCHASE' ? `INV-${Math.floor(1000 + Math.random() * 9000)}` : `REC-${Math.floor(1000 + Math.random() * 9000)}`),
-    };
-
-    // Update customer balance & last transaction date
-    setCustomers((prev) =>
-      prev.map((c) =>
-        c.id === customer.id
-          ? {
-              ...c,
-              currentBalance: newBalance,
-              lastTransactionDate: nowIso,
-            }
-          : c
-      )
-    );
-
-    // Prepend new ledger entry
-    setLedgerEntries((prev) => [newEntry, ...prev]);
-
-    const isPayment = params.type === 'PAYMENT_RECEIVED';
-    showToast({
-      type: isPayment ? 'success' : 'info',
-      title: isPayment ? 'Payment Recorded' : 'Credit Added (Udhaar)',
-      message: `${isPayment ? 'Collected' : 'Added'} Rs. ${txAmount.toLocaleString()} for ${customer.name}. New balance: Rs. ${newBalance.toLocaleString()}`,
-    });
-
-    return newEntry;
   };
 
-  // Product Operations
+  // Product Operations (Local Storage for now)
   const addProduct = (data: Omit<Product, 'id' | 'updatedAt'>) => {
     const id = `prod-${Date.now().toString().slice(-4)}`;
     const nowIso = new Date().toISOString();
@@ -302,7 +379,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast({
       type: 'success',
       title: 'Product Added',
-      message: `${newProduct.name} added to inventory.`,
+      message: `${newProduct.name} added to local inventory.`,
     });
     return newProduct;
   };
@@ -315,7 +392,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast({
       type: 'info',
       title: 'Product Updated',
-      message: 'Product changes saved successfully.',
+      message: 'Product changes saved locally.',
     });
   };
 
@@ -326,7 +403,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     showToast({
       type: 'warning',
       title: 'Product Deleted',
-      message: `${prod.name} removed from inventory.`,
+      message: `${prod.name} removed from local inventory.`,
     });
   };
 
@@ -357,40 +434,17 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     });
   };
 
-  const resetToDefaults = () => {
-    setCustomers(INITIAL_CUSTOMERS);
-    setLedgerEntries(INITIAL_LEDGER_ENTRIES);
-    setProducts(INITIAL_PRODUCTS);
-    try {
-      localStorage.removeItem(STORAGE_KEYS.CUSTOMERS);
-      localStorage.removeItem(STORAGE_KEYS.LEDGER);
-      localStorage.removeItem(STORAGE_KEYS.PRODUCTS);
-    } catch (e) {
-      console.warn(e);
-    }
-    showToast({
-      type: 'info',
-      title: 'Data Reset',
-      message: 'Restored sample shop data and mock records.',
-    });
-  };
-
   // Compute Dashboard Stats
   const stats = useMemo<DashboardStats>(() => {
     const totalOutstandingKhata = customers.reduce((sum, c) => sum + (c.currentBalance > 0 ? c.currentBalance : 0), 0);
     const totalCreditLimit = customers.reduce((sum, c) => sum + c.creditLimit, 0);
     const activeDebtorsCount = customers.filter((c) => c.currentBalance > 0).length;
 
-    // Filter today's transactions (or recent within current date)
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
     let todayCreditGiven = 0;
     let todayPaymentReceived = 0;
 
     ledgerEntries.forEach((entry) => {
       const entryDate = new Date(entry.date);
-      // For mock consistency, check if today or recent 24h
       const isToday = entryDate.toDateString() === new Date().toDateString() || 
                       (new Date().getTime() - entryDate.getTime() < 24 * 60 * 60 * 1000);
 
@@ -427,6 +481,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   return (
     <KhataContext.Provider
       value={{
+        isLoading,
         customers,
         ledgerEntries,
         products,
@@ -444,7 +499,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         updateProduct,
         deleteProduct,
         adjustStock,
-        resetToDefaults,
+        refreshData,
       }}
     >
       {children}

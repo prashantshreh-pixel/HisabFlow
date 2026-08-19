@@ -20,6 +20,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { Product } from '@/types';
+import { PageLoader } from '@/components/Loader';
 
 interface DashboardViewProps {
   onOpenAddCustomer: () => void;
@@ -38,7 +39,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onQuickStockAdjust,
   onNavigateTab,
 }) => {
-  const { stats, ledgerEntries, customers, products } = useKhata();
+  const { stats, ledgerEntries, customers, products, isLoading } = useKhata();
 
   // Top 5 debtors
   const topDebtors = [...customers]
@@ -53,6 +54,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   // Recent 6 transactions
   const recentTransactions = ledgerEntries.slice(0, 6);
+
+  if (isLoading) {
+    return <PageLoader text="Loading dashboard..." />;
+  }
 
   return (
     <div className="space-y-6 pb-12">

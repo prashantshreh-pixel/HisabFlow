@@ -1,0 +1,16 @@
+﻿using HisabFlow.Application.Common.Interfaces;
+using HisabFlow.Infrastructure.Data;
+using HisabFlow.Infrastructure.Repositories;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HisabFlow.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+    {
+        services.AddSingleton<IDbConnectionFactory, SqlDbConnectionFactory>();
+        services.AddScoped<ICustomerRepository, CustomerRepository>();
+        return services;
+    }
+}

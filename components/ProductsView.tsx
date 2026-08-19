@@ -18,6 +18,7 @@ import {
   TrendingUp,
   Tag,
 } from 'lucide-react';
+import { PageLoader } from '@/components/Loader';
 
 interface ProductsViewProps {
   onOpenAddProduct: () => void;
@@ -30,7 +31,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onEditProduct,
   onQuickStockAdjust,
 }) => {
-  const { products, stats, deleteProduct } = useKhata();
+  const { products, stats, deleteProduct, isLoading } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -83,6 +84,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     }, 0);
     return Math.round((totalMargin / products.length) * 10) / 10;
   }, [products]);
+
+  if (isLoading) {
+    return <PageLoader text="Loading inventory..." />;
+  }
 
   return (
     <div className="space-y-6 pb-12">

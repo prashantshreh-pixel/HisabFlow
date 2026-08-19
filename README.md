@@ -1,4 +1,4 @@
-# HisabFlow 🛒📋
+﻿# HisabFlow 🛒📋
 
 > **A real-world, high-reliability grocery shop management system designed to completely replace the traditional paper notebook.**  
 > Track daily sales, customer Khata (Udhaar), inventory, purchases, expenses, and net profit with zero friction.
@@ -33,7 +33,7 @@ The project follows a clean, pragmatic architecture designed for speed, type saf
 ┌──────────────────────────────▼──────────────────────────────┐
 │                    Data Access & Storage                    │
 │                     Dapper (Micro-ORM)                      │
-│                    PostgreSQL Database                      │
+│                    SQL Server Database                      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -47,7 +47,7 @@ The project follows a clean, pragmatic architecture designed for speed, type saf
 | **Backend** | **ASP.NET Core** | High performance, robust type system, enterprise-grade reliability |
 | **Architecture** | **Clean Architecture + CQRS** | Clear separation of concerns (Commands for writes, Queries for reads) |
 | **Data Access** | **Dapper** | Raw SQL performance, maximum query control, zero ORM overhead |
-| **Database** | **PostgreSQL** | ACID compliance, transactional integrity for financial ledgers |
+| **Database** | **SQL Server** | ACID compliance, transactional integrity for financial ledgers |
 
 ---
 
@@ -58,7 +58,7 @@ To maintain rapid development and focus on business value, the system deliberate
 - ❌ **No Message Brokers** (No Kafka / RabbitMQ)
 - ❌ **No Kubernetes** (Simple Docker / direct hosting)
 - ❌ **No Event Sourcing** (Direct relational ledger tables with audit trails)
-- ❌ **No Redis Everywhere** (Rely on PostgreSQL and TanStack Query caching first)
+- ❌ **No Redis Everywhere** (Rely on SQL Server and TanStack Query caching first)
 - ❌ **No Overly Generic Repositories** (Explicit Dapper query handlers)
 
 ---
@@ -110,7 +110,7 @@ hisabflow/
 │   ├── HisabFlow.Application/# Commands, Queries, Validators, DTOs
 │   ├── HisabFlow.Domain/     # Core Entities, Enums, Business Rules
 │   └── HisabFlow.Infrastructure/ # Dapper Repositories, DB Connections, Migrations
-└── database/                 # PostgreSQL SQL schema migrations and seed scripts
+└── database/                 # SQL Server SQL schema migrations and seed scripts
 ```
 
 ---

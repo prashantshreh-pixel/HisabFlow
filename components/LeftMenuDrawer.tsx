@@ -41,7 +41,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
   onOpenAddProduct,
   onOpenRecordTx,
 }) => {
-  const { stats, customers, products, resetToDefaults } = useKhata();
+  const { stats, customers, products } = useKhata();
 
   if (!isOpen) return null;
 
@@ -271,21 +271,6 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
               <span className="font-bold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
             </div>
           </div>
-
-          <button
-            id="drawer-reset-data-btn"
-            type="button"
-            onClick={() => {
-              if (confirm('Reset demo data back to default sample state?')) {
-                resetToDefaults();
-                onClose();
-              }
-            }}
-            className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-colors flex items-center justify-center gap-2"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset Sample Data
-          </button>
         </div>
       </div>
 
