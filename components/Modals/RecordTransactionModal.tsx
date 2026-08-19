@@ -41,34 +41,34 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
       c.phone.includes(customerSearch)
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedCustomerId) {
-      setError('Please select a customer');
-      return;
-    }
+       setError('Please select a customer');
+       return;
+     }
 
-    const amtNum = parseFloat(amount);
-    if (isNaN(amtNum) || amtNum <= 0) {
-      setError('Please enter a valid amount greater than 0');
-      return;
-    }
+     const amtNum = parseFloat(amount);
+     if (isNaN(amtNum) || amtNum <= 0) {
+       setError('Please enter a valid amount greater than 0');
+       return;
+     }
 
-    recordTransaction({
-      customerId: selectedCustomerId,
-      type,
-      amount: amtNum,
-      notes: notes.trim(),
-      paymentMethod: type === 'PAYMENT_RECEIVED' ? paymentMethod : undefined,
-      billNumber: billNumber.trim() || undefined,
-    });
+     await recordTransaction({
+       customerId: selectedCustomerId,
+       type,
+       amount: amtNum,
+       notes: notes.trim(),
+       paymentMethod: type === 'PAYMENT_RECEIVED' ? paymentMethod : undefined,
+       billNumber: billNumber.trim() || undefined,
+     });
 
-    setAmount('');
-    setNotes('');
-    setBillNumber('');
-    setError('');
-    onClose();
-  };
+     setAmount('');
+     setNotes('');
+     setBillNumber('');
+     setError('');
+     onClose();
+   };
 
   const isPayment = type === 'PAYMENT_RECEIVED';
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import {
   X,
@@ -19,7 +19,7 @@ import {
   CheckCircle,
   Copy,
 } from 'lucide-react';
-import { LedgerTransactionType } from '@/types';
+import { LedgerTransactionType, CreditLedgerEntry } from '@/types';
 
 interface CustomerStatementModalProps {
   customerId: string | null;
@@ -54,17 +54,32 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const [editAddress, setEditAddress] = useState('');
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
+  const [localLedger, setLocalLedger] = useState<CreditLedgerEntry[]>([]);
+  const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && customerId) {
+      const loadLedger = async () => {
+        setIsLoadingLedger(true);
+        const data = await getCustomerLedger(customerId);
+        setLocalLedger(data);
+        setIsLoadingLedger(false);
+      };
+      loadLedger();
+    }
+  }, [customerId, isOpen]);
+
   if (!isOpen || !customerId) return null;
 
   const customer = getCustomerById(customerId);
   if (!customer) return null;
 
-  const ledger = getCustomerLedger(customerId);
+  const ledger = localLedger;
 
   const limitUsedPercent = Math.min(100, Math.round((customer.currentBalance / Math.max(1, customer.creditLimit)) * 100));
   const isOverLimit = customer.currentBalance > customer.creditLimit;
 
-  const handleInlineSubmit = (e: React.FormEvent) => {
+  const handleInlineSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const amt = parseFloat(inlineAmount);
     if (isNaN(amt) || amt <= 0) {
@@ -76,7 +91,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       return;
     }
 
-    recordTransaction({
+    const entry = await recordTransaction({
       customerId: customer.id,
       type: inlineType,
       amount: amt,
@@ -84,14 +99,19 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       paymentMethod: inlineType === 'PAYMENT_RECEIVED' ? inlinePaymentMethod : undefined,
     });
 
+    if (entry) {
+      const data = await getCustomerLedger(customer.id);
+      setLocalLedger(data);
+    }
+
     setInlineAmount('');
     setInlineNotes('');
     setActiveTab('LEDGER');
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateCustomer(customer.id, {
+    await updateCustomer(customer.id, {
       creditLimit: parseFloat(editLimit) || customer.creditLimit,
       phone: editPhone.trim() || customer.phone,
       address: editAddress.trim() || customer.address,
@@ -592,9 +612,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
                     if (confirm(`Are you sure you want to delete ${customer.name}? This cannot be undone.`)) {
-                      deleteCustomer(customer.id);
+                      await deleteCustomer(customer.id);
                       onClose();
                     }
                   }}

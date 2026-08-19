@@ -35,7 +35,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenAddProduct,
   onOpenRecordTx,
 }) => {
-  const { stats, resetToDefaults } = useKhata();
+  const { stats } = useKhata();
 
   return (
     <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-slate-900/95 border-r border-slate-800/90 h-screen sticky top-0 z-30 select-none">
@@ -196,20 +196,6 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <span className="font-semibold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
           </div>
         </div>
-
-        <button
-          id="sidebar-reset-btn"
-          type="button"
-          onClick={() => {
-            if (confirm('Reset sample retail data (customers, transactions, products) back to default demo state?')) {
-              resetToDefaults();
-            }
-          }}
-          className="w-full py-2 bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-semibold rounded-xl border border-slate-700/80 transition-colors flex items-center justify-center gap-2"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-          <span>Reset Sample Data</span>
-        </button>
       </div>
     </aside>
   );

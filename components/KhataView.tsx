@@ -18,6 +18,7 @@ import {
   AlertCircle,
   FileText,
 } from 'lucide-react';
+import { PageLoader } from '@/components/Loader';
 
 interface KhataViewProps {
   onOpenAddCustomer: () => void;
@@ -30,7 +31,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
   onOpenRecordTransaction,
   onSelectCustomer,
 }) => {
-  const { customers, stats } = useKhata();
+  const { customers, stats, isLoading } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'DUE_ONLY' | 'SETTLED' | 'OVER_LIMIT'>('ALL');
@@ -39,19 +40,13 @@ export const KhataView: React.FC<KhataViewProps> = ({
   // Filter and sort customers
   const filteredCustomers = useMemo(() => {
     return customers
-      .filter((cust) => {
-        const query = searchQuery.toLowerCase().trim();
-        const matchesQuery =
-          !query ||
-          cust.name.toLowerCase().includes(query) ||
-          cust.phone.includes(query) ||
-          (cust.address && cust.address.toLowerCase().includes(query));
+      .filter((c) => {
+        const q = searchQuery.toLowerCase().trim();
+        if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q)) return false;
 
-        if (!matchesQuery) return false;
-
-        if (filterMode === 'DUE_ONLY') return cust.currentBalance > 0;
-        if (filterMode === 'SETTLED') return cust.currentBalance === 0;
-        if (filterMode === 'OVER_LIMIT') return cust.currentBalance > cust.creditLimit;
+        if (filterMode === 'DUE_ONLY' && c.currentBalance <= 0) return false;
+        if (filterMode === 'SETTLED' && c.currentBalance > 0) return false;
+        if (filterMode === 'OVER_LIMIT' && c.currentBalance <= c.creditLimit) return false;
 
         return true;
       })
@@ -67,6 +62,10 @@ export const KhataView: React.FC<KhataViewProps> = ({
 
   const overLimitCount = customers.filter((c) => c.currentBalance > c.creditLimit).length;
   const settledCount = customers.filter((c) => c.currentBalance === 0).length;
+
+  if (isLoading) {
+    return <PageLoader text="Loading khata records..." />;
+  }
 
   return (
     <div className="space-y-6 pb-12">

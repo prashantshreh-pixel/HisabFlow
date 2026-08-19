@@ -27,7 +27,7 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: { [key: string]: string } = {};
 
@@ -53,25 +53,29 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
       return;
     }
 
-    const created = addCustomer({
-      name: name.trim(),
-      phone: phone.trim(),
-      address: address.trim(),
-      creditLimit: limitNum || 10000,
-      initialBalance: balNum,
-      initialNote: initialNote.trim() || undefined,
-    });
+    try {
+      const created = await addCustomer({
+        name: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        creditLimit: limitNum || 10000,
+        initialBalance: balNum,
+        initialNote: initialNote.trim() || undefined,
+      });
 
-    // Reset state
-    setName('');
-    setPhone('');
-    setAddress('');
-    setCreditLimit('10000');
-    setInitialBalance('');
-    setInitialNote('');
-    setErrors({});
-    onClose();
-    if (onSuccess) onSuccess(created.id);
+      // Reset state
+      setName('');
+      setPhone('');
+      setAddress('');
+      setCreditLimit('10000');
+      setInitialBalance('');
+      setInitialNote('');
+      setErrors({});
+      onClose();
+      if (onSuccess) onSuccess(created.id);
+    } catch (err) {
+      // Errors are handled inside addCustomer/Toast
+    }
   };
 
   return (
