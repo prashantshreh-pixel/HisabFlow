@@ -1,9 +1,10 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 // ---------- Generic helpers ----------
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const url = API_BASE ? `${API_BASE}${path}` : path;
+  const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
@@ -15,6 +16,10 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
       (Array.isArray(body) ? body.map((e: { error: string }) => e.error).join(', ') : null) ||
       `API error ${res.status}`;
     throw new Error(message);
+  }
+
+  if (res.status === 204) {
+    return {} as T;
   }
 
   return res.json();
@@ -99,18 +104,13 @@ export const customersApi = {
     apiFetch<ApiLedgerEntry[]>(`/api/v1/customers/transactions?limit=${limit}`),
 
   update: (id: string, data: CreateCustomerPayload) =>
-    fetch(`${API_BASE}/api/v1/customers/${id}`, {
+    apiFetch<void>(`/api/v1/customers/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
-    }).then(res => {
-      if (!res.ok) throw new Error(`Failed to update customer: ${res.status}`);
     }),
 
   delete: (id: string) =>
-    fetch(`${API_BASE}/api/v1/customers/${id}`, {
+    apiFetch<void>(`/api/v1/customers/${id}`, {
       method: 'DELETE',
-    }).then(res => {
-      if (!res.ok) throw new Error(`Failed to delete customer: ${res.status}`);
     }),
 };
