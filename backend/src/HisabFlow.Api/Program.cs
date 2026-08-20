@@ -12,7 +12,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 
-// Configure CORS for Next.js Frontend
+// Configure CORS for standalone frontend development
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -33,46 +33,19 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+
+// 1. Enable default files (index.html)
+app.UseDefaultFiles();
+
+// 2. Enable static files from wwwroot
+app.UseStaticFiles();
+
 app.UseAuthorization();
+
+// 3. Map API Controller routes first (/api/v1/...)
 app.MapControllers();
 
-// Serve the Single Page Application (SPA)
-app.UseSpa(spa =>
-{
-    // The path to Next.js root directory containing package.json
-    spa.Options.SourcePath = "../../../";
-
-    if (app.Environment.IsDevelopment())
-    {
-        // Check if Windows
-        if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-        {
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "cmd.exe",
-                Arguments = "/c npm run dev",
-                WorkingDirectory = "../../../",
-                UseShellExecute = true,
-                CreateNoWindow = false
-            };
-            System.Diagnostics.Process.Start(startInfo);
-        }
-        else
-        {
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "npm",
-                Arguments = "run dev",
-                WorkingDirectory = "../../../",
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            System.Diagnostics.Process.Start(startInfo);
-        }
-
-        // Proxy all SPA requests to Next.js dev server
-        spa.UseProxyToSpaDevelopmentServer("http://localhost:3000");
-    }
-});
+// 4. Fallback to index.html for SPA client-side routes
+app.MapFallbackToFile("index.html");
 
 app.Run();

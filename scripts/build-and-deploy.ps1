@@ -1,0 +1,36 @@
+# HisabFlow Build & Deploy Script
+# Builds Next.js static export and syncs out/ into ASP.NET Core wwwroot
+
+$ErrorActionPreference = "Stop"
+
+$RootDir = "$PSScriptRoot/.."
+$OutDir = "$RootDir/out"
+$WwwRootDir = "$RootDir/backend/src/HisabFlow.Api/wwwroot"
+
+Write-Host "==> 1. Building Next.js Static Export..." -ForegroundColor Cyan
+Push-Location $RootDir
+try {
+    npm run build
+} finally {
+    Pop-Location
+}
+
+if (-not (Test-Path $OutDir)) {
+    throw "Export failed: 'out' directory was not created."
+}
+
+Write-Host "==> 2. Syncing static bundle to ASP.NET Core wwwroot..." -ForegroundColor Cyan
+if (Test-Path $WwwRootDir) {
+    Remove-Item -Path "$WwwRootDir/*" -Recurse -Force -ErrorAction SilentlyContinue
+} else {
+    New-Item -ItemType Directory -Path $WwwRootDir -Force | Out-Null
+}
+
+Copy-Item -Path "$OutDir/*" -Destination $WwwRootDir -Recurse -Force
+
+Write-Host "==> 3. Building ASP.NET Core Solution..." -ForegroundColor Cyan
+dotnet build "$RootDir/backend/HisabFlow.sln" --configuration Release
+
+Write-Host "==> Success! HisabFlow static frontend is wrapped inside ASP.NET Core wwwroot." -ForegroundColor Green
+Write-Host "    Run backend with: dotnet run --project backend/src/HisabFlow.Api" -ForegroundColor Yellow
+Write-Host "    Open browser at:  http://localhost:5200" -ForegroundColor Yellow

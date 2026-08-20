@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
+    "bundle": "powershell -ExecutionPolicy Bypass -File ./scripts/build-and-deploy.ps1",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint .",
     "clean": "next clean"
