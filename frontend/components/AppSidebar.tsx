@@ -142,17 +142,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <BookOpen className="w-4 h-4" />
               <span>Digital Khata (Ledger)</span>
             </div>
-            {stats.activeDebtorsCount > 0 && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                  currentTab === 'KHATA'
-                    ? 'bg-slate-950 text-amber-400'
-                    : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                }`}
-              >
-                {stats.activeDebtorsCount} Due
-              </span>
-            )}
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
 
           <button

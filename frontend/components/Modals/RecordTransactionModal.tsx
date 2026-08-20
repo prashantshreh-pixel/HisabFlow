@@ -27,7 +27,7 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
   const [amount, setAmount] = useState('');
   const [notes, setNotes] = useState('');
   const [billNumber, setBillNumber] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE'>('CASH');
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QR_PAYMENT'>('CASH');
   const [customerSearch, setCustomerSearch] = useState('');
   const [error, setError] = useState('');
 
@@ -239,7 +239,7 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
                   <CreditCard className="w-3.5 h-3.5 text-amber-400" />
                   Payment Method
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('CASH')}
@@ -264,18 +264,6 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
                     <QrCode className="w-3.5 h-3.5" />
                     FonePay / QR
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMethod('BANK_TRANSFER')}
-                    className={`py-2 px-3 rounded-xl border text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                      paymentMethod === 'BANK_TRANSFER'
-                        ? 'bg-emerald-500/15 border-emerald-500 text-emerald-300'
-                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-800'
-                    }`}
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />
-                    Bank / App
-                  </button>
                 </div>
               </div>
             )}
@@ -296,11 +284,11 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
               />
             </div>
 
-            {/* Notes */}
+            {/* Remarks */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5 text-amber-400" />
-                Particulars / Item Details
+                Remarks
               </label>
               <textarea
                 id="tx-notes-input"
