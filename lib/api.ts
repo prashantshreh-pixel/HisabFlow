@@ -1,20 +1,53 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
+const getApiBase = () => {
+  // If running in browser and already on backend port 5200, use relative paths
+  if (typeof window !== 'undefined' && window.location.port === '5200') {
+    return '';
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // If user opens standalone Next dev server on port 3000, route API calls to ASP.NET Core on 5200
+  if (typeof window !== 'undefined' && window.location.port === '3000') {
+    return 'http://localhost:5200';
+  }
+  return '';
+};
 
 // ---------- Generic helpers ----------
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const url = API_BASE ? `${API_BASE}${path}` : path;
-  const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
+  const apiBase = getApiBase();
+  const url = apiBase ? `${apiBase}${path}` : path;
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+  } catch (err: any) {
+    throw new Error(
+      `Cannot connect to HisabFlow API server. Make sure ASP.NET Core backend is running at ${apiBase || 'http://localhost:5200'}.`
+    );
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    const message =
-      body?.message ||
-      (Array.isArray(body) ? body.map((e: { error: string }) => e.error).join(', ') : null) ||
-      `API error ${res.status}`;
+    let message = `API error ${res.status}: ${res.statusText}`;
+
+    if (body) {
+      if (typeof body.message === 'string' && body.message.trim()) {
+        message = body.message;
+      } else if (body.errors && typeof body.errors === 'object') {
+        const msgs = Object.values(body.errors).flat();
+        if (msgs.length > 0) message = msgs.join(', ');
+      } else if (Array.isArray(body)) {
+        const msgs = body.map((e: any) => e.error || e.errorMessage || e.message || JSON.stringify(e));
+        if (msgs.length > 0) message = msgs.join(', ');
+      } else if (typeof body.title === 'string' && body.title.trim()) {
+        message = body.title;
+      }
+    }
     throw new Error(message);
   }
 

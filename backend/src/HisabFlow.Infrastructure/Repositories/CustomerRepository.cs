@@ -69,17 +69,24 @@ public class CustomerRepository : ICustomerRepository
             INSERT INTO customers (id, name, phone, address, credit_limit, current_balance, is_active, created_at, updated_at)
             VALUES (@Id, @Name, @Phone, @Address, @CreditLimit, @CurrentBalance, 1, @CreatedAt, @UpdatedAt);";
 
-        await conn.ExecuteAsync(sql, new
+        try
         {
-            Id = id,
-            request.Name,
-            request.Phone,
-            request.Address,
-            request.CreditLimit,
-            CurrentBalance = request.InitialBalance,
-            CreatedAt = now,
-            UpdatedAt = now
-        });
+            await conn.ExecuteAsync(sql, new
+            {
+                Id = id,
+                request.Name,
+                request.Phone,
+                request.Address,
+                request.CreditLimit,
+                CurrentBalance = request.InitialBalance,
+                CreatedAt = now,
+                UpdatedAt = now
+            });
+        }
+        catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601)
+        {
+            throw new InvalidOperationException($"Phone number '{request.Phone}' is already registered to another customer.");
+        }
 
         if (request.InitialBalance > 0)
         {
@@ -101,7 +108,17 @@ public class CustomerRepository : ICustomerRepository
             });
         }
 
-        return await GetCustomerByIdAsync(id) ?? throw new InvalidOperationException("Failed to retrieve created customer.");
+        return new CustomerDto(
+            id,
+            request.Name,
+            request.Phone,
+            request.Address,
+            request.CreditLimit,
+            request.InitialBalance,
+            true,
+            now,
+            now
+        );
     }
 
     public async Task<CustomerStatementDto?> GetCustomerStatementAsync(Guid customerId)

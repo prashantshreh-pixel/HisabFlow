@@ -1,4 +1,4 @@
-﻿# HisabFlow 🛒📋
+# HisabFlow 🛒📋
 
 > **A real-world, high-reliability grocery shop management system designed to completely replace the traditional paper notebook.**  
 > Track daily sales, customer Khata (Udhaar), inventory, purchases, expenses, and net profit with zero friction.
@@ -15,83 +15,83 @@ Small retail and grocery shop owners rely heavily on paper registers to track cr
 
 ## 🏗️ Architecture & Technology Stack
 
-The project follows a clean, pragmatic architecture designed for speed, type safety, and maintainability without over-engineering.
+The project follows a clean, pragmatic architecture designed for speed, type safety, and maintainability without over-engineering:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Frontend (Next.js)                       │
-│      Next.js (App Router) + TypeScript + Tailwind CSS       │
-│               shadcn/ui + TanStack Query                    │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ REST / JSON
-┌──────────────────────────────▼──────────────────────────────┐
-│                  Backend (ASP.NET Core)                     │
-│    Clean Architecture (API → Application → Domain → Infra)  │
-│                Lightweight CQRS Pattern                     │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ SQL Queries & Commands
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Data Access & Storage                    │
-│                     Dapper (Micro-ORM)                      │
-│                    SQL Server Database                      │
-└─────────────────────────────────────────────────────────────┘
+│               Unified Application Server                    │
+│      ASP.NET Core 9 Web Host (http://localhost:5200)        │
+│                                                             │
+│  ┌───────────────────────┐       ┌───────────────────────┐  │
+│  │   Next.js Frontend    │       │   ASP.NET Core API    │  │
+│  │ (Served from wwwroot) │       │      (/api/v1/...)    │  │
+│  └───────────────────────┘       └───────────┬───────────┘  │
+└──────────────────────────────────────────────┼──────────────┘
+                                               │ Dapper / SQL Queries
+                                 ┌─────────────▼──────────────┐
+                                 │   SQL Server (SHINIGAMI)   │
+                                 │       Database:            │
+                                 │      HisabFlowDB           │
+                                 └────────────────────────────┘
 ```
 
 ### 💻 Stack Overview
 
 | Layer | Technology | Rationale |
 | :--- | :--- | :--- |
-| **Frontend** | **Next.js + TypeScript** | Modern SSR/SPA hybrid UI, strict type safety, fast page loads |
-| **UI Components** | **Tailwind CSS + shadcn/ui** | Clean, accessible, customizable component system |
-| **State & Fetching** | **TanStack Query** | Server state caching, optimistic UI updates, background revalidation |
-| **Backend** | **ASP.NET Core** | High performance, robust type system, enterprise-grade reliability |
-| **Architecture** | **Clean Architecture + CQRS** | Clear separation of concerns (Commands for writes, Queries for reads) |
-| **Data Access** | **Dapper** | Raw SQL performance, maximum query control, zero ORM overhead |
-| **Database** | **SQL Server** | ACID compliance, transactional integrity for financial ledgers |
+| **Frontend** | **Next.js 15 + TypeScript** | Modern SPA UI, strict type safety, statically exported to `out/` |
+| **UI Components** | **Tailwind CSS + Lucide Icons** | Fast, accessible, dark-themed retail interface |
+| **State & API Client** | **React Context + `lib/api.ts`** | Relative same-origin API calls with async loading states |
+| **Backend API** | **ASP.NET Core 9** | Clean Architecture (Api ➔ Application ➔ Domain ➔ Infrastructure) |
+| **Data Access** | **Dapper (Micro-ORM)** | High-performance SQL queries and atomic row-level transaction locks |
+| **Database** | **SQL Server 2022 (`SHINIGAMI`)** | ACID compliance, transactional integrity for financial ledgers |
 
 ---
 
 ## 🚫 Pragmatic Engineering Principles (What We Avoid Initially)
 
-To maintain rapid development and focus on business value, the system deliberately avoids unnecessary complexity:
-- ❌ **No Microservices** (Monolithic by design)
+- ❌ **No Microservices** (Monolithic unified server by design)
 - ❌ **No Message Brokers** (No Kafka / RabbitMQ)
-- ❌ **No Kubernetes** (Simple Docker / direct hosting)
+- ❌ **No Kubernetes** (Direct hosting via ASP.NET Core)
 - ❌ **No Event Sourcing** (Direct relational ledger tables with audit trails)
-- ❌ **No Redis Everywhere** (Rely on SQL Server and TanStack Query caching first)
 - ❌ **No Overly Generic Repositories** (Explicit Dapper query handlers)
 
 ---
 
-## 🗺️ Feature-by-Feature Development Roadmap
+## 🚀 Quick Start & How to Run
 
-Development is structured strictly feature-by-feature to ensure end-to-end reliability:
+### 1. Database Setup (SQL Server: `SHINIGAMI`)
+The SQL migration script automatically creates `HisabFlowDB` and sets up table schemas and indexes:
 
-```
-[1] Database Schema & Business Rules
- └── [2] UI Design System Foundation (Tailwind + shadcn/ui)
-      └── [3] 🎯 Feature 1: Customer / Khata End-to-End
-           └── [4] Feature 2: Sales & Payments (Cash + Credit Counter)
-                └── [5] Feature 3: Inventory & Low Stock Tracking
-                     └── [6] Feature 4: Purchases & Supplier Khata
-                          └── [7] Feature 5: Daily Expenses & Cash Drawer
-                               └── [8] Feature 6: Reports & Profit / Loss
-                                    └── [9] Feature 7: Auth, Backups, Barcode Scanner
+```powershell
+sqlcmd -S SHINIGAMI -E -C -i backend/src/HisabFlow.Infrastructure/Migrations/001_InitialSchema.sql
 ```
 
----
+The connection string in `backend/src/HisabFlow.Api/appsettings.json` is configured as:
+```json
+"ConnectionStrings": {
+  "DefaultConnection": "Server=SHINIGAMI;Database=HisabFlowDB;Trusted_Connection=True;TrustServerCertificate=True;"
+}
+```
 
-## 🎯 First Milestone: Customer & Khata (Udhaar) Flow
+### 2. Build & Bundle Everything
+Run the one-command bundle script to export the Next.js frontend into ASP.NET Core `wwwroot` and compile the .NET solution:
 
-The primary focus is delivering the full credit lifecycle end-to-end:
+```bash
+# Export frontend to wwwroot + compile solution
+npm run bundle
+```
 
-$$\text{Customer} \longrightarrow \text{Credit Sale} \longrightarrow \text{Ledger Entry} \longrightarrow \text{Partial Payment} \longrightarrow \text{Full Settlement}$$
+### 3. Run the Unified Backend Server
+```bash
+dotnet run --project backend/src/HisabFlow.Api
+```
 
-1. **Customer Management**: Profile, phone number, credit limit, and current balance.
-2. **Credit Sale (Udhaar)**: Record debit entries with item particulars and bill references.
-3. **Ledger Integrity**: Running balances calculated strictly inside database transactions.
-4. **Payments (Jama)**: Partial payments (Cash / QR / Transfer) and automated balance reduction.
-5. **Customer Statements**: Printable/shareable transaction statements for customers.
+Open your browser at **[http://localhost:5200](http://localhost:5200)**:
+- 🌐 **Frontend App:** `http://localhost:5200/`
+- 🩺 **Health Check:** `http://localhost:5200/api/v1/health`
+- 📑 **Swagger Docs:** `http://localhost:5200/swagger/index.html`
+- 👥 **Customer API:** `http://localhost:5200/api/v1/customers`
 
 ---
 
@@ -99,45 +99,14 @@ $$\text{Customer} \longrightarrow \text{Credit Sale} \longrightarrow \text{Ledge
 
 ```plaintext
 hisabflow/
-├── apps/ or web/             # Next.js Frontend Application
-│   ├── app/                  # App Router pages and layouts
-│   ├── components/           # UI components, modals, and views
-│   ├── hooks/                # Custom React hooks (TanStack queries/mutations)
-│   ├── lib/                  # Utilities and API client
-│   └── types/                # Shared TypeScript models
-├── src/ or backend/          # ASP.NET Core Backend Solution
-│   ├── HisabFlow.Api/        # Controllers / Minimal API Endpoints
+├── app/                      # Next.js App Router pages and layouts
+├── components/               # React UI components, modals, and views
+├── context/                  # KhataContext state manager (database connected)
+├── lib/                      # Typed API client wrapper (lib/api.ts)
+├── scripts/                  # Build and deployment scripts (build-and-deploy.ps1)
+├── backend/src/
+│   ├── HisabFlow.Api/        # Controllers, Program.cs, wwwroot static host
 │   ├── HisabFlow.Application/# Commands, Queries, Validators, DTOs
 │   ├── HisabFlow.Domain/     # Core Entities, Enums, Business Rules
-│   └── HisabFlow.Infrastructure/ # Dapper Repositories, DB Connections, Migrations
-└── database/                 # SQL Server SQL schema migrations and seed scripts
+│   └── HisabFlow.Infrastructure/ # Dapper Repositories, Migrations, DB Connection
 ```
-
----
-
-## 🚀 Getting Started (Frontend Prototype)
-
-### Prerequisites
-- Node.js (v18+)
-- npm / pnpm
-
-```bash
-# Clone the repository
-git clone https://github.com/your-username/hisabflow.git
-cd hisabflow
-
-# Install dependencies
-npm install
-
-# Start frontend development server
-npm run dev
-```
-
-Visit `http://localhost:3000` to interact with the UI prototype.
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
-
