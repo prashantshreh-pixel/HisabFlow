@@ -1,14 +1,15 @@
 # HisabFlow Build & Deploy Script
-# Builds Next.js static export and syncs out/ into ASP.NET Core wwwroot
+# Builds Next.js static export inside frontend/ and syncs out/ into ASP.NET Core wwwroot
 
 $ErrorActionPreference = "Stop"
 
-$RootDir = "$PSScriptRoot/.."
-$OutDir = "$RootDir/out"
+$RootDir = Resolve-Path "$PSScriptRoot/.."
+$FrontendDir = "$RootDir/frontend"
+$OutDir = "$FrontendDir/out"
 $WwwRootDir = "$RootDir/backend/src/HisabFlow.Api/wwwroot"
 
-Write-Host "==> 1. Building Next.js Static Export..." -ForegroundColor Cyan
-Push-Location $RootDir
+Write-Host "==> 1. Building Next.js Static Export in frontend/..." -ForegroundColor Cyan
+Push-Location $FrontendDir
 try {
     npm run build
 } finally {
@@ -16,7 +17,7 @@ try {
 }
 
 if (-not (Test-Path $OutDir)) {
-    throw "Export failed: 'out' directory was not created."
+    throw "Export failed: 'frontend/out' directory was not created."
 }
 
 Write-Host "==> 2. Syncing static bundle to ASP.NET Core wwwroot..." -ForegroundColor Cyan

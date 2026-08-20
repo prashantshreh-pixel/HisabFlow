@@ -92,11 +92,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <BookOpen className="w-4 h-4" />
-              {stats.activeDebtorsCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-black flex items-center justify-center">
-                  {stats.activeDebtorsCount}
-                </span>
-              )}
             </button>
 
             <button
