@@ -1,4 +1,6 @@
-const getApiBase = () => {
+import type { Expense, ExpenseSummary } from '@/types';
+
+export const getApiBase = () => {
   // If running in browser and already on backend port 5200, use relative paths
   if (typeof window !== 'undefined' && window.location.port === '5200') {
     return '';
@@ -11,6 +13,15 @@ const getApiBase = () => {
     return 'http://localhost:5200';
   }
   return '';
+};
+
+export const getImageUrl = (url?: string | null): string => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url;
+  }
+  const base = getApiBase();
+  return base ? `${base}${url}` : url;
 };
 
 // ---------- Generic helpers ----------
@@ -146,4 +157,147 @@ export const customersApi = {
     apiFetch<void>(`/api/v1/customers/${id}`, {
       method: 'DELETE',
     }),
+};
+
+// ---------- Product DTOs & API ----------
+
+export interface ApiProduct {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  costPrice: number;
+  sellingPrice: number;
+  stockQuantity: number;
+  minStockAlert: number;
+  barcode?: string | null;
+  imageUrl?: string | null;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export const productsApi = {
+  getAll: () => apiFetch<ApiProduct[]>('/api/v1/products'),
+
+  getById: (id: string) => apiFetch<ApiProduct>(`/api/v1/products/${id}`),
+
+  create: (data: Partial<ApiProduct>) =>
+    apiFetch<ApiProduct>('/api/v1/products', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  update: (id: string, data: Partial<ApiProduct>) =>
+    apiFetch<void>(`/api/v1/products/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+
+  adjustStock: (id: string, quantityChange: number) =>
+    apiFetch<void>(`/api/v1/products/${id}/adjust-stock`, {
+      method: 'POST',
+      body: JSON.stringify({ quantityChange }),
+    }),
+
+  delete: (id: string) =>
+    apiFetch<void>(`/api/v1/products/${id}`, {
+      method: 'DELETE',
+    }),
+
+  uploadImage: async (file: File) => {
+    const apiBase = getApiBase();
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${apiBase}/api/v1/products/upload-image`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || 'Failed to upload product image file.');
+    }
+    return (await response.json()) as { imageUrl: string };
+  },
+};
+
+export const expensesApi = {
+  getAll: (limit = 100) => apiFetch<Expense[]>(`/api/v1/expenses?limit=${limit}`),
+  getById: (id: string) => apiFetch<Expense>(`/api/v1/expenses/${id}`),
+  create: (data: Omit<Expense, 'id' | 'createdAt'>) =>
+    apiFetch<Expense>('/api/v1/expenses', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/api/v1/expenses/${id}`, {
+      method: 'DELETE',
+    }),
+  getSummary: () => apiFetch<ExpenseSummary>('/api/v1/expenses/summary'),
+};
+
+export interface ApiSupplier {
+  id: string;
+  name: string;
+  companyName?: string | null;
+  phone: string;
+  address?: string | null;
+  currentBalance: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiSupplierLedgerEntry {
+  id: string;
+  supplierId: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  transactionDate: string;
+  type: number; // 1: Stock Purchase, 2: Payment Given
+  amount: number;
+  balanceAfter: number;
+  paymentMethod: number;
+  particulars?: string | null;
+  invoiceNumber?: string | null;
+  createdAt: string;
+}
+
+export interface ApiSupplierStatement {
+  supplier: ApiSupplier;
+  ledgerEntries: ApiSupplierLedgerEntry[];
+}
+
+export interface ApiSupplierSummary {
+  totalOutstandingPayable: number;
+  todayPurchases: number;
+  todayPaymentsGiven: number;
+  activeSuppliersCount: number;
+  totalSuppliersCount: number;
+}
+
+export const suppliersApi = {
+  getAll: () => apiFetch<ApiSupplier[]>('/api/v1/suppliers'),
+  getById: (id: string) => apiFetch<ApiSupplier>(`/api/v1/suppliers/${id}`),
+  create: (data: { name: string; phone: string; companyName?: string; address?: string; initialBalance?: number; initialNote?: string }) =>
+    apiFetch<ApiSupplier>('/api/v1/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { name: string; phone: string; companyName?: string; address?: string }) =>
+    apiFetch<ApiSupplier>(`/api/v1/suppliers/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<void>(`/api/v1/suppliers/${id}`, {
+      method: 'DELETE',
+    }),
+  recordTransaction: (data: { supplierId: string; type: number; amount: number; paymentMethod: number; particulars?: string; invoiceNumber?: string; transactionDate?: string }) =>
+    apiFetch<ApiSupplierLedgerEntry>('/api/v1/suppliers/transactions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getStatement: (id: string) => apiFetch<ApiSupplierStatement>(`/api/v1/suppliers/${id}/statement`),
+  getSummary: () => apiFetch<ApiSupplierSummary>('/api/v1/suppliers/summary'),
 };

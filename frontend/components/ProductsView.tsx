@@ -4,6 +4,8 @@ import React, { useState, useMemo } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { Product } from '@/types';
 import { PRODUCT_CATEGORIES } from '@/lib/mockData';
+import { ImageViewerModal } from '@/components/Modals/ImageViewerModal';
+import { getImageUrl } from '@/lib/api';
 import {
   Search,
   PackagePlus,
@@ -17,6 +19,7 @@ import {
   CheckCircle2,
   TrendingUp,
   Tag,
+  Maximize2,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
 
@@ -37,6 +40,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
   const [stockFilter, setStockFilter] = useState<'ALL' | 'LOW_STOCK' | 'OUT_OF_STOCK' | 'IN_STOCK'>('ALL');
   const [sortBy, setSortBy] = useState<'NAME' | 'STOCK_ASC' | 'MARGIN_DESC' | 'VALUATION_DESC'>('NAME');
+  const [selectedImage, setSelectedImage] = useState<{ url: string; title: string } | null>(null);
 
   const filteredProducts = useMemo(() => {
     return products
@@ -273,16 +277,16 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
               <tr>
-                <th className="py-3.5 px-5">Product Item</th>
-                <th className="py-3.5 px-5">Category & Unit</th>
-                <th className="py-3.5 px-5 text-right">Cost Price (Rs.)</th>
-                <th className="py-3.5 px-5 text-right">Selling Price (Rs.)</th>
-                <th className="py-3.5 px-5 text-center">Margin %</th>
-                <th className="py-3.5 px-5 text-center">Stock Level</th>
-                <th className="py-3.5 px-5 text-center">Quick Stock Adjust</th>
-                <th className="py-3.5 px-5 text-center">Actions</th>
+                <th className="py-3.5 px-5 min-w-[220px]">Product Item</th>
+                <th className="py-3.5 px-5 min-w-[210px]">Category & Unit</th>
+                <th className="py-3.5 px-5 text-right min-w-[130px]">Cost Price (Rs.)</th>
+                <th className="py-3.5 px-5 text-right min-w-[140px]">Selling Price (Rs.)</th>
+                <th className="py-3.5 px-5 text-center min-w-[110px]">Margin %</th>
+                <th className="py-3.5 px-5 text-center min-w-[130px]">Stock Level</th>
+                <th className="py-3.5 px-5 text-center min-w-[150px]">Quick Stock Adjust</th>
+                <th className="py-3.5 px-5 text-center min-w-[100px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -306,25 +310,51 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                       key={product.id}
                       className="hover:bg-slate-800/40 transition-colors group"
                     >
-                      {/* Product Name */}
+                      {/* Product Name & Image */}
                       <td className="py-4 px-5">
-                        <div className="font-bold text-slate-100 text-sm">
-                          {product.name}
-                        </div>
-                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-0.5">
-                          <span>ID: {product.id}</span>
-                          {product.barcode && <span>• Barcode: {product.barcode}</span>}
+                        <div className="flex items-center gap-3">
+                          {product.imageUrl ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedImage({ url: product.imageUrl!, title: product.name })}
+                              className="relative group/img w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0 bg-slate-950 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500"
+                              title="Click to expand product image"
+                            >
+                              <img
+                                src={getImageUrl(product.imageUrl)}
+                                alt={product.name}
+                                className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
+                              />
+                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                                <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
+                              </div>
+                            </button>
+                          ) : (
+                            <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                              <Boxes className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-bold text-slate-100 text-sm">
+                              {product.name}
+                            </div>
+                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
+                              ID: {product.id}
+                            </div>
+                          </div>
                         </div>
                       </td>
 
                       {/* Category & Unit */}
                       <td className="py-4 px-5">
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 font-medium text-[11px] border border-slate-700">
-                          {product.category}
-                        </span>
-                        <span className="block text-[11px] text-slate-400 mt-1">
-                          Unit: <strong className="text-slate-300 uppercase">{product.unit}</strong>
-                        </span>
+                        <div className="flex flex-col gap-1.5 items-start">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-800/90 text-amber-300 font-semibold text-xs border border-slate-700/80 shadow-sm whitespace-nowrap">
+                            {product.category}
+                          </span>
+                          <span className="text-[11px] text-slate-400 font-mono">
+                            Unit: <strong className="text-slate-200 uppercase font-bold">{product.unit}</strong>
+                          </span>
+                        </div>
                       </td>
 
                       {/* Cost Price */}
@@ -438,6 +468,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <span>Click &apos;Stock Adjust&apos; to instantly add deliveries or write off damage</span>
         </div>
       </div>
+
+      {/* Expandable Image Lightbox Popup View */}
+      <ImageViewerModal
+        isOpen={!!selectedImage}
+        imageUrl={selectedImage?.url || null}
+        title={selectedImage?.title}
+        onClose={() => setSelectedImage(null)}
+      />
     </div>
   );
 };

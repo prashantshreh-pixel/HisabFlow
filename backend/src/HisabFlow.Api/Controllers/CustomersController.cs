@@ -1,6 +1,6 @@
 using FluentValidation;
 using HisabFlow.Application.Customers.DTOs;
-using HisabFlow.Infrastructure.Repositories;
+using HisabFlow.Application.Abstractions.Repositories;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;

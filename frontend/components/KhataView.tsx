@@ -352,22 +352,22 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             id={`record-tx-${customer.id}`}
                             type="button"
                             onClick={() => onOpenRecordTransaction(customer.id)}
-                            className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+                            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm shadow-emerald-600/20"
                             title="Record Udhaar or Payment"
                           >
-                            <Wallet className="w-3.5 h-3.5" />
-                            Record Transaction
+                            <Wallet className="w-3.5 h-3.5 shrink-0" />
+                            <span>Record Transaction</span>
                           </button>
 
                           <button
                             id={`view-statement-${customer.id}`}
                             type="button"
                             onClick={() => onSelectCustomer(customer.id)}
-                            className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
+                            className="h-8 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
                             title="View Statement"
                           >
-                            <FileText className="w-3.5 h-3.5 text-amber-400" />
-                            Statement
+                            <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            <span>Statement</span>
                           </button>
                         </div>
                       </td>

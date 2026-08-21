@@ -1,6 +1,18 @@
 export type LedgerTransactionType = 'CREDIT_PURCHASE' | 'PAYMENT_RECEIVED';
 
+export type SupplierTransactionType = 'STOCK_PURCHASE' | 'PAYMENT_GIVEN';
+
 export type ProductUnit = 'kg' | 'pcs' | 'pkt' | 'ltr' | 'box' | 'dz' | 'gm' | 'bag';
+
+export type ExpenseCategory =
+  | 'Rent & Lease'
+  | 'Electricity & Utilities'
+  | 'Staff Salaries & Wages'
+  | 'Tea, Snacks & Refreshment'
+  | 'Freight & Transport'
+  | 'Packaging & Supplies'
+  | 'Maintenance & Repairs'
+  | 'General Operational';
 
 export interface Customer {
   id: string;
@@ -37,7 +49,60 @@ export interface Product {
   stockQuantity: number;
   minStockAlert: number;
   barcode?: string;
+  imageUrl?: string;
   updatedAt: string;
+}
+
+export interface Expense {
+  id: string;
+  category: string;
+  title: string;
+  amount: number;
+  paymentMethod: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER';
+  particulars?: string;
+  expenseDate: string;
+  createdAt: string;
+}
+
+export interface ExpenseSummary {
+  totalExpenses: number;
+  todayExpenses: number;
+  monthExpenses: number;
+  totalCount: number;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  companyName?: string;
+  phone: string;
+  address?: string;
+  currentBalance: number; // positive = shop owes supplier (Payable)
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface SupplierLedgerEntry {
+  id: string;
+  supplierId: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  date: string;
+  type: SupplierTransactionType; // STOCK_PURCHASE = 1 (Debt/Payable Increase), PAYMENT_GIVEN = 2 (Debt/Payable Decrease)
+  amount: number;
+  balanceAfter: number;
+  notes: string;
+  invoiceNumber?: string;
+  paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER';
+  createdAt: string;
+}
+
+export interface SupplierSummary {
+  totalOutstandingPayable: number;
+  todayPurchases: number;
+  todayPaymentsGiven: number;
+  activeSuppliersCount: number;
+  totalSuppliersCount: number;
 }
 
 export interface DashboardStats {
@@ -52,4 +117,10 @@ export interface DashboardStats {
   totalCustomersCount: number;
   totalInventoryCostValue: number;
   totalInventorySalesValue: number;
+  totalExpenses: number;
+  todayExpenses: number;
+  monthExpenses: number;
+  totalOutstandingPayable: number;
+  todaySupplierPurchases: number;
+  todaySupplierPayments: number;
 }

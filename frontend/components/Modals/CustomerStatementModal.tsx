@@ -17,6 +17,7 @@ import {
   FileText
 } from 'lucide-react';
 import { CreditLedgerEntry } from '@/types';
+import { PageLoader } from '@/components/Loader';
 
 interface CustomerStatementModalProps {
   customerId: string | null;
@@ -88,6 +89,11 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     <>
       {/* CSS for fast print of essential details only */}
       <style dangerouslySetInnerHTML={{ __html: `
+        @media screen {
+          #printable-statement {
+            display: none !important;
+          }
+        }
         @media print {
           body * {
             visibility: hidden !important;
@@ -96,14 +102,18 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             visibility: visible !important;
           }
           #printable-statement {
-            position: absolute !important;
+            display: block !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 100% !important;
+            height: 100% !important;
             background: #ffffff !important;
             color: #000000 !important;
-            padding: 24px !important;
-            font-family: inherit !important;
+            padding: 32px !important;
+            margin: 0 !important;
+            font-family: Arial, sans-serif !important;
+            z-index: 999999 !important;
           }
         }
       ` }} />
@@ -242,9 +252,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Statement Table Area */}
           <div className="flex-1 overflow-y-auto p-6">
             {isLoadingLedger ? (
-              <div className="text-center py-12 text-slate-500">
-                <p className="text-sm font-medium text-slate-300">Loading statement transactions...</p>
-              </div>
+              <PageLoader text="Loading customer statement ledger..." />
             ) : ledger.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <Receipt className="w-10 h-10 mx-auto mb-2 opacity-40 text-slate-400" />

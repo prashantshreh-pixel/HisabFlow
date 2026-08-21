@@ -194,6 +194,60 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                     <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   )}
                 </button>
+
+                {/* 4. Expense Tracker */}
+                <button
+                  id="drawer-nav-expenses"
+                  type="button"
+                  onClick={() => handleTabClick('EXPENSES')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'EXPENSES'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Receipt className="w-4 h-4" />
+                    <span>Expense Tracker</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                {/* 5. Suppliers & Wholesale */}
+                <button
+                  id="drawer-nav-suppliers"
+                  type="button"
+                  onClick={() => handleTabClick('SUPPLIERS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'SUPPLIERS'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Truck className="w-4 h-4" />
+                    <span>Suppliers & Wholesale</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                {/* 6. Store Settings & Backup */}
+                <button
+                  id="drawer-nav-settings"
+                  type="button"
+                  onClick={() => handleTabClick('SETTINGS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'SETTINGS'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Settings className="w-4 h-4" />
+                    <span>Store Settings & Backup</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
               </nav>
             </div>
 
@@ -232,15 +286,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                     <Receipt className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
                     <span>Expense Tracker</span>
                   </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Ready</span>
-                </div>
-
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-800/50 cursor-pointer transition-colors group">
-                  <div className="flex items-center gap-2.5">
-                    <Settings className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
-                    <span>Store Settings & Backup</span>
-                  </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Ready</span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">New</span>
                 </div>
               </div>
             </div>
