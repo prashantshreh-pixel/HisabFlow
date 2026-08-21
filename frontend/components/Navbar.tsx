@@ -7,10 +7,12 @@ import {
   LayoutDashboard,
   BookOpen,
   Boxes,
+  Receipt,
+  Truck,
   Menu,
 } from 'lucide-react';
 
-export type NavTab = 'DASHBOARD' | 'KHATA' | 'PRODUCTS';
+export type NavTab = 'DASHBOARD' | 'KHATA' | 'PRODUCTS' | 'EXPENSES' | 'SUPPLIERS' | 'SETTINGS';
 
 interface NavbarProps {
   currentTab: NavTab;
@@ -102,8 +104,35 @@ export const Navbar: React.FC<NavbarProps> = ({
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:bg-slate-900'
               }`}
+              title="Products"
             >
               <Boxes className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('EXPENSES')}
+              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
+                currentTab === 'EXPENSES'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:bg-slate-900'
+              }`}
+              title="Expenses"
+            >
+              <Receipt className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('SUPPLIERS')}
+              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
+                currentTab === 'SUPPLIERS'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:bg-slate-900'
+              }`}
+              title="Suppliers & Wholesale"
+            >
+              <Truck className="w-4 h-4" />
             </button>
           </nav>
 

@@ -51,3 +51,27 @@ BEGIN
     CREATE INDEX idx_ledger_customer_date ON customer_ledger_entries(customer_id, transaction_date DESC);
 END
 GO
+
+-- 3. Products Table
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'products')
+BEGIN
+    CREATE TABLE products (
+        id UNIQUEIDENTIFIER PRIMARY KEY,
+        name NVARCHAR(200) NOT NULL,
+        category NVARCHAR(100) NOT NULL,
+        unit NVARCHAR(20) NOT NULL,
+        cost_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        selling_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        stock_quantity DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+        min_stock_alert DECIMAL(12, 2) NOT NULL DEFAULT 5.00,
+        barcode NVARCHAR(100),
+        image_url NVARCHAR(MAX),
+        is_active BIT NOT NULL DEFAULT 1,
+        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+
+    CREATE INDEX idx_products_category ON products(category);
+    CREATE INDEX idx_products_barcode ON products(barcode);
+END
+GO

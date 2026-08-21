@@ -5,6 +5,7 @@ import { useKhata } from '@/context/KhataContext';
 import {
   Wallet,
   TrendingUp,
+  TrendingDown,
   AlertTriangle,
   Users,
   UserPlus,
@@ -18,9 +19,13 @@ import {
   RefreshCw,
   Eye,
   CheckCircle2,
+  Receipt,
+  Truck,
 } from 'lucide-react';
 import { Product } from '@/types';
 import { PageLoader } from '@/components/Loader';
+
+import { NavTab } from '@/components/Navbar';
 
 interface DashboardViewProps {
   onOpenAddCustomer: () => void;
@@ -28,7 +33,7 @@ interface DashboardViewProps {
   onOpenAddProduct: () => void;
   onSelectCustomer: (customerId: string) => void;
   onQuickStockAdjust: (product: Product) => void;
-  onNavigateTab: (tab: 'KHATA' | 'PRODUCTS') => void;
+  onNavigateTab: (tab: NavTab) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -234,6 +239,61 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <span className="font-bold text-rose-400">{stats.outOfStockCount} items</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Financial Health & Expenses / Payables Summary Banner */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Expenses Summary */}
+        <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-xl">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Expense Tracker
+              </div>
+              <div className="text-sm font-extrabold text-slate-100 mt-0.5">
+                Expenses: <span className="text-rose-400 font-mono">Rs. {stats.totalExpenses.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateTab('EXPENSES')}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1 shrink-0"
+          >
+            <span>Expenses</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        {/* Suppliers Payables Summary */}
+        <div className="p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-xl">
+              <Truck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                Wholesalers & Payables
+              </div>
+              <div className="text-sm font-extrabold text-slate-100 mt-0.5">
+                Payables: <span className="text-rose-400 font-mono">Rs. {stats.totalOutstandingPayable.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onNavigateTab('SUPPLIERS')}
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center gap-1 shrink-0"
+          >
+            <span>Suppliers</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 

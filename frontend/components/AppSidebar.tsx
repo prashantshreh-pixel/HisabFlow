@@ -18,6 +18,9 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  Settings,
+  Receipt,
+  Truck,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -170,6 +173,57 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
                 {stats.lowStockCount + stats.outOfStockCount} Low
               </span>
             )}
+          </button>
+
+          <button
+            id="sidebar-nav-expenses"
+            type="button"
+            onClick={() => onTabChange('EXPENSES')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+              currentTab === 'EXPENSES'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Receipt className="w-4 h-4" />
+              <span>Expense Tracker</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+          </button>
+
+          <button
+            id="sidebar-nav-suppliers"
+            type="button"
+            onClick={() => onTabChange('SUPPLIERS')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+              currentTab === 'SUPPLIERS'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Truck className="w-4 h-4" />
+              <span>Suppliers & Wholesale</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+          </button>
+
+          <button
+            id="sidebar-nav-settings"
+            type="button"
+            onClick={() => onTabChange('SETTINGS')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+              currentTab === 'SETTINGS'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Settings className="w-4 h-4" />
+              <span>Store Settings & Backup</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
         </div>
       </div>

@@ -9,27 +9,43 @@ import { LeftMenuDrawer } from '@/components/LeftMenuDrawer';
 import { DashboardView } from '@/components/DashboardView';
 import { KhataView } from '@/components/KhataView';
 import { ProductsView } from '@/components/ProductsView';
+import { ExpensesView } from '@/components/ExpensesView';
+import { SuppliersView } from '@/components/SuppliersView';
+import { SettingsView } from '@/components/SettingsView';
 import { ToastContainer } from '@/components/ToastContainer';
 import { AddCustomerModal } from '@/components/Modals/AddCustomerModal';
 import { RecordTransactionModal } from '@/components/Modals/RecordTransactionModal';
 import { CustomerStatementModal } from '@/components/Modals/CustomerStatementModal';
 import { AddEditProductModal } from '@/components/Modals/AddEditProductModal';
 import { QuickStockAdjustModal } from '@/components/Modals/QuickStockAdjustModal';
-import { PageLoader } from '@/components/Loader';
-import { Product, LedgerTransactionType } from '@/types';
+import { AddExpenseModal } from '@/components/Modals/AddExpenseModal';
+import { AddSupplierModal } from '@/components/Modals/AddSupplierModal';
+import { RecordSupplierTxModal } from '@/components/Modals/RecordSupplierTxModal';
+import { SupplierStatementModal } from '@/components/Modals/SupplierStatementModal';
+import { PageLoader, GlobalTopProgressBar } from '@/components/Loader';
+import { useKhata } from '@/context/KhataContext';
+import { Product, LedgerTransactionType, SupplierTransactionType } from '@/types';
 
 function MainApp() {
+  const { isLoading } = useKhata();
   const [currentTab, setCurrentTab] = useState<NavTab>('DASHBOARD');
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
 
   // Modal / Drawer states
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
   
   const [isRecordTxOpen, setIsRecordTxOpen] = useState(false);
   const [recordTxCustomerId, setRecordTxCustomerId] = useState<string | undefined>(undefined);
   const [recordTxType, setRecordTxType] = useState<LedgerTransactionType>('PAYMENT_RECEIVED');
 
+  const [isRecordSupplierTxOpen, setIsRecordSupplierTxOpen] = useState(false);
+  const [recordSupplierTxId, setRecordSupplierTxId] = useState<string | undefined>(undefined);
+  const [recordSupplierTxType, setRecordSupplierTxType] = useState<SupplierTransactionType>('STOCK_PURCHASE');
+
   const [statementCustomerId, setStatementCustomerId] = useState<string | null>(null);
+  const [statementSupplierId, setStatementSupplierId] = useState<string | null>(null);
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
@@ -40,6 +56,12 @@ function MainApp() {
     setRecordTxCustomerId(customerId);
     setRecordTxType(type || 'PAYMENT_RECEIVED');
     setIsRecordTxOpen(true);
+  };
+
+  const handleOpenRecordSupplierTx = (supplierId?: string, type?: SupplierTransactionType) => {
+    setRecordSupplierTxId(supplierId);
+    setRecordSupplierTxType(type || 'STOCK_PURCHASE');
+    setIsRecordSupplierTxOpen(true);
   };
 
   const handleOpenEditProduct = (product: Product) => {
@@ -53,7 +75,10 @@ function MainApp() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-amber-500 selection:text-slate-950">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-amber-500 selection:text-slate-950 relative">
+      {/* Top Slim Animated Progress Bar */}
+      <GlobalTopProgressBar isLoading={isLoading} />
+
       {/* Persistent Left Sidebar on Desktop */}
       <AppSidebar
         currentTab={currentTab}
@@ -111,10 +136,26 @@ function MainApp() {
               onQuickStockAdjust={(p) => setQuickStockProduct(p)}
             />
           )}
+
+          {currentTab === 'EXPENSES' && (
+            <ExpensesView
+              onOpenAddExpense={() => setIsAddExpenseOpen(true)}
+            />
+          )}
+
+          {currentTab === 'SUPPLIERS' && (
+            <SuppliersView
+              onOpenAddSupplier={() => setIsAddSupplierOpen(true)}
+              onOpenRecordTransaction={handleOpenRecordSupplierTx}
+              onSelectSupplier={(id) => setStatementSupplierId(id)}
+            />
+          )}
+
+          {currentTab === 'SETTINGS' && <SettingsView />}
         </main>
       </div>
 
-      {/* Right Slide-Over Drawers (All slide from the right side) */}
+      {/* Right Slide-Over Drawers */}
       <AddCustomerModal
         key={`add-cust-${isAddCustomerOpen}`}
         isOpen={isAddCustomerOpen}
@@ -122,6 +163,36 @@ function MainApp() {
         onSuccess={(newId) => {
           setStatementCustomerId(newId);
         }}
+      />
+
+      <AddExpenseModal
+        key={`add-exp-${isAddExpenseOpen}`}
+        isOpen={isAddExpenseOpen}
+        onClose={() => setIsAddExpenseOpen(false)}
+      />
+
+      <AddSupplierModal
+        key={`add-sup-${isAddSupplierOpen}`}
+        isOpen={isAddSupplierOpen}
+        onClose={() => setIsAddSupplierOpen(false)}
+        onSuccess={(newId) => {
+          setStatementSupplierId(newId);
+        }}
+      />
+
+      <RecordSupplierTxModal
+        key={`rec-sup-tx-${recordSupplierTxId || 'all'}-${recordSupplierTxType}-${isRecordSupplierTxOpen}`}
+        isOpen={isRecordSupplierTxOpen}
+        onClose={() => setIsRecordSupplierTxOpen(false)}
+        defaultSupplierId={recordSupplierTxId}
+        defaultType={recordSupplierTxType}
+      />
+
+      <SupplierStatementModal
+        key={`supplier-stmt-${statementSupplierId || 'none'}`}
+        supplierId={statementSupplierId}
+        isOpen={!!statementSupplierId}
+        onClose={() => setStatementSupplierId(null)}
       />
 
       <RecordTransactionModal

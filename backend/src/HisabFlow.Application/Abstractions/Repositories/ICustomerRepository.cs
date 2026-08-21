@@ -1,7 +1,7 @@
 using HisabFlow.Application.Customers.DTOs;
 using HisabFlow.Domain.Entities;
 
-namespace HisabFlow.Infrastructure.Repositories;
+namespace HisabFlow.Application.Abstractions.Repositories;
 
 public interface ICustomerRepository
 {
