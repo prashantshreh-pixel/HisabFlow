@@ -6,6 +6,7 @@ import { NavTab } from '@/components/Navbar';
 import {
   Store,
   LayoutDashboard,
+  ScanBarcode,
   BookOpen,
   Boxes,
   Wallet,
@@ -21,6 +22,7 @@ import {
   Settings,
   Receipt,
   Truck,
+  BarChart3,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -132,6 +134,31 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </button>
 
           <button
+            id="sidebar-nav-pos"
+            type="button"
+            onClick={() => onTabChange('POS')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+              currentTab === 'POS'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <ScanBarcode className="w-4 h-4" />
+              <span>POS / Quick Billing</span>
+            </div>
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
+                currentTab === 'POS'
+                  ? 'bg-slate-950 text-amber-400'
+                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+              }`}
+            >
+              BILL
+            </span>
+          </button>
+
+          <button
             id="sidebar-nav-khata"
             type="button"
             onClick={() => onTabChange('KHATA')}
@@ -205,6 +232,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <div className="flex items-center gap-2.5">
               <Truck className="w-4 h-4" />
               <span>Suppliers & Wholesale</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+          </button>
+
+          <button
+            id="sidebar-nav-reports"
+            type="button"
+            onClick={() => onTabChange('REPORTS')}
+            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
+              currentTab === 'REPORTS'
+                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <BarChart3 className="w-4 h-4" />
+              <span>Profit & Loss Reports</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>

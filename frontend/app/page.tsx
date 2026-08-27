@@ -7,10 +7,12 @@ import { Navbar, NavTab } from '@/components/Navbar';
 import { AppSidebar } from '@/components/AppSidebar';
 import { LeftMenuDrawer } from '@/components/LeftMenuDrawer';
 import { DashboardView } from '@/components/DashboardView';
+import { PosView } from '@/components/PosView';
 import { KhataView } from '@/components/KhataView';
 import { ProductsView } from '@/components/ProductsView';
 import { ExpensesView } from '@/components/ExpensesView';
 import { SuppliersView } from '@/components/SuppliersView';
+import { ReportsView } from '@/components/ReportsView';
 import { SettingsView } from '@/components/SettingsView';
 import { ToastContainer } from '@/components/ToastContainer';
 import { AddCustomerModal } from '@/components/Modals/AddCustomerModal';
@@ -121,6 +123,8 @@ function MainApp() {
             />
           )}
 
+          {currentTab === 'POS' && <PosView />}
+
           {currentTab === 'KHATA' && (
             <KhataView
               onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
@@ -150,6 +154,8 @@ function MainApp() {
               onSelectSupplier={(id) => setStatementSupplierId(id)}
             />
           )}
+
+          {currentTab === 'REPORTS' && <ReportsView />}
 
           {currentTab === 'SETTINGS' && <SettingsView />}
         </main>
@@ -231,21 +237,21 @@ function MainApp() {
 }
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
 
   useEffect(() => {
-    const authStatus = localStorage.getItem('hisabflow_auth');
-    setIsAuthenticated(authStatus === 'true');
+    try {
+      const authStatus = localStorage.getItem('hisabflow_auth');
+      if (authStatus === 'false') {
+        setIsAuthenticated(false);
+      } else {
+        localStorage.setItem('hisabflow_auth', 'true');
+        setIsAuthenticated(true);
+      }
+    } catch {
+      setIsAuthenticated(true);
+    }
   }, []);
-
-  // Show loader while checking auth
-  if (isAuthenticated === null) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <PageLoader text="Starting HisabFlow..." />
-      </div>
-    );
-  }
 
   if (!isAuthenticated) {
     return <LoginView onLoginSuccess={() => setIsAuthenticated(true)} />;

@@ -22,12 +22,12 @@ if (-not (Test-Path $OutDir)) {
 
 Write-Host "==> 2. Syncing static bundle to ASP.NET Core wwwroot..." -ForegroundColor Cyan
 if (Test-Path $WwwRootDir) {
-    Remove-Item -Path "$WwwRootDir/*" -Recurse -Force -ErrorAction SilentlyContinue
+    Get-ChildItem -Path $WwwRootDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 } else {
     New-Item -ItemType Directory -Path $WwwRootDir -Force | Out-Null
 }
 
-Copy-Item -Path "$OutDir/*" -Destination $WwwRootDir -Recurse -Force
+Get-ChildItem -Path $OutDir -Force | Copy-Item -Destination $WwwRootDir -Recurse -Force
 
 Write-Host "==> 3. Building ASP.NET Core Solution..." -ForegroundColor Cyan
 dotnet build "$RootDir/backend/HisabFlow.sln" --configuration Release

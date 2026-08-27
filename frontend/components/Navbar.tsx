@@ -5,14 +5,16 @@ import { useKhata } from '@/context/KhataContext';
 import {
   LogOut, Store,
   LayoutDashboard,
+  ScanBarcode,
   BookOpen,
   Boxes,
   Receipt,
   Truck,
+  BarChart3,
   Menu,
 } from 'lucide-react';
 
-export type NavTab = 'DASHBOARD' | 'KHATA' | 'PRODUCTS' | 'EXPENSES' | 'SUPPLIERS' | 'SETTINGS';
+export type NavTab = 'DASHBOARD' | 'POS' | 'KHATA' | 'PRODUCTS' | 'EXPENSES' | 'SUPPLIERS' | 'REPORTS' | 'SETTINGS';
 
 interface NavbarProps {
   currentTab: NavTab;
@@ -75,13 +77,26 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               type="button"
               onClick={() => onTabChange('DASHBOARD')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all ${
+              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
                 currentTab === 'DASHBOARD'
                   ? 'bg-amber-500 text-slate-950'
                   : 'text-slate-400 hover:bg-slate-900'
               }`}
             >
               <LayoutDashboard className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('POS')}
+              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
+                currentTab === 'POS'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:bg-slate-900'
+              }`}
+              title="POS / Quick Billing"
+            >
+              <ScanBarcode className="w-4 h-4" />
             </button>
 
             <button
@@ -133,6 +148,19 @@ export const Navbar: React.FC<NavbarProps> = ({
               title="Suppliers & Wholesale"
             >
               <Truck className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onTabChange('REPORTS')}
+              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
+                currentTab === 'REPORTS'
+                  ? 'bg-amber-500 text-slate-950'
+                  : 'text-slate-400 hover:bg-slate-900'
+              }`}
+              title="Profit & Loss Reports"
+            >
+              <BarChart3 className="w-4 h-4" />
             </button>
           </nav>
 
