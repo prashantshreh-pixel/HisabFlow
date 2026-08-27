@@ -91,6 +91,51 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
                         );
                         CREATE INDEX idx_supplier_ledger_date ON supplier_ledger_entries(supplier_id, transaction_date DESC);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'sales')
+                    BEGIN
+                        CREATE TABLE sales (
+                            id UNIQUEIDENTIFIER PRIMARY KEY,
+                            invoice_number NVARCHAR(50) NOT NULL UNIQUE,
+                            customer_id UNIQUEIDENTIFIER NULL REFERENCES customers(id) ON DELETE SET NULL,
+                            customer_name NVARCHAR(100) NULL,
+                            customer_phone NVARCHAR(20) NULL,
+                            subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            discount_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            tax_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            paid_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            change_amount DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            payment_method INT NOT NULL DEFAULT 1,
+                            cash_paid DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            digital_paid DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            credit_paid DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            notes NVARCHAR(MAX) NULL,
+                            sale_date DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                        );
+                        CREATE INDEX idx_sales_invoice ON sales(invoice_number);
+                        CREATE INDEX idx_sales_date ON sales(sale_date DESC);
+                        CREATE INDEX idx_sales_customer ON sales(customer_id);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'sale_items')
+                    BEGIN
+                        CREATE TABLE sale_items (
+                            id UNIQUEIDENTIFIER PRIMARY KEY,
+                            sale_id UNIQUEIDENTIFIER NOT NULL REFERENCES sales(id) ON DELETE CASCADE,
+                            product_id UNIQUEIDENTIFIER NOT NULL REFERENCES products(id),
+                            product_name NVARCHAR(200) NOT NULL,
+                            unit NVARCHAR(20) NOT NULL,
+                            unit_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            cost_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            quantity DECIMAL(12, 2) NOT NULL DEFAULT 1.00,
+                            subtotal DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                        );
+                        CREATE INDEX idx_sale_items_sale ON sale_items(sale_id);
+                        CREATE INDEX idx_sale_items_product ON sale_items(product_id);
                     END";
 
                 connection.Execute(sql);

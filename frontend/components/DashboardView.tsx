@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Receipt,
   Truck,
+  ScanBarcode,
 } from 'lucide-react';
 import { Product } from '@/types';
 import { PageLoader } from '@/components/Loader';
@@ -86,7 +87,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         {/* Quick Action Bar (Primary CTA group) */}
-        <div className="flex items-center flex-wrap gap-2.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            id="quick-pos-sale-btn"
+            type="button"
+            onClick={() => onNavigateTab('POS')}
+            className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl transition-all flex items-center gap-2 shadow-md shadow-amber-500/25"
+          >
+            <ScanBarcode className="w-4 h-4" />
+            + New Sale (POS)
+          </button>
+
           <button
             id="quick-add-cust-btn"
             type="button"

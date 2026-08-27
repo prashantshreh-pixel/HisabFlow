@@ -1,4 +1,4 @@
-import type { Expense, ExpenseSummary } from '@/types';
+import type { Expense, ExpenseSummary, ProfitLossReport, Sale, CreateSaleRequest, SalesSummary } from '@/types';
 
 export const getApiBase = () => {
   // If running in browser and already on backend port 5200, use relative paths
@@ -8,11 +8,11 @@ export const getApiBase = () => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // If user opens standalone Next dev server on port 3000, route API calls to ASP.NET Core on 5200
-  if (typeof window !== 'undefined' && window.location.port === '3000') {
-    return 'http://localhost:5200';
+  // If user opens standalone Next dev server on any other port (e.g. 3000, 3001), route API calls to ASP.NET Core on 5200
+  if (typeof window !== 'undefined' && window.location.port !== '5200') {
+    return `http://${window.location.hostname || 'localhost'}:5200`;
   }
-  return '';
+  return 'http://localhost:5200';
 };
 
 export const getImageUrl = (url?: string | null): string => {
@@ -32,10 +32,14 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   let res: Response;
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     res = await fetch(url, {
       headers: { 'Content-Type': 'application/json' },
+      signal: options?.signal || controller.signal,
       ...options,
     });
+    clearTimeout(timeoutId);
   } catch (err: any) {
     throw new Error(
       `Cannot connect to HisabFlow API server. Make sure ASP.NET Core backend is running at ${apiBase || 'http://localhost:5200'}.`
@@ -300,4 +304,29 @@ export const suppliersApi = {
     }),
   getStatement: (id: string) => apiFetch<ApiSupplierStatement>(`/api/v1/suppliers/${id}/statement`),
   getSummary: () => apiFetch<ApiSupplierSummary>('/api/v1/suppliers/summary'),
+};
+
+export const reportsApi = {
+  getProfitLoss: (period = 'this_month', startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (period) params.append('period', period);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    return apiFetch<ProfitLossReport>(`/api/v1/reports/profit-loss?${params.toString()}`);
+  },
+};
+
+export const salesApi = {
+  createSale: (data: CreateSaleRequest) =>
+    apiFetch<Sale>('/api/v1/sales', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getRecentSales: (count = 50) => apiFetch<Sale[]>(`/api/v1/sales/recent?count=${count}`),
+  getSaleById: (id: string) => apiFetch<Sale>(`/api/v1/sales/${id}`),
+  getSaleByInvoiceNumber: (invoiceNumber: string) => apiFetch<Sale>(`/api/v1/sales/invoice/${encodeURIComponent(invoiceNumber)}`),
+  getSalesSummary: (date?: string) => {
+    const params = date ? `?date=${encodeURIComponent(date)}` : '';
+    return apiFetch<SalesSummary>(`/api/v1/sales/summary${params}`);
+  },
 };

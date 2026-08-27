@@ -7,19 +7,15 @@ import {
   X,
   Store,
   LayoutDashboard,
+  ScanBarcode,
   BookOpen,
   Boxes,
-  ShoppingCart,
   Truck,
   Receipt,
   BarChart3,
   Settings,
-  ShieldCheck,
-  RotateCcw,
   Wallet,
-  AlertTriangle,
   ChevronRight,
-  Sparkles,
 } from 'lucide-react';
 
 interface LeftMenuDrawerProps {
@@ -147,6 +143,32 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
 
+                {/* 1.1 POS Quick Billing */}
+                <button
+                  id="drawer-nav-pos"
+                  type="button"
+                  onClick={() => handleTabClick('POS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'POS'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ScanBarcode className="w-4 h-4" />
+                    <span>POS / Quick Billing</span>
+                  </div>
+                  <span
+                    className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
+                      currentTab === 'POS'
+                        ? 'bg-slate-950 text-amber-400'
+                        : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                    }`}
+                  >
+                    BILL
+                  </span>
+                </button>
+
                 {/* 2. Khata */}
                 <button
                   id="drawer-nav-khata"
@@ -231,7 +253,25 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
 
-                {/* 6. Store Settings & Backup */}
+                {/* 6. Profit & Loss Reports */}
+                <button
+                  id="drawer-nav-reports"
+                  type="button"
+                  onClick={() => handleTabClick('REPORTS')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'REPORTS'
+                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <BarChart3 className="w-4 h-4" />
+                    <span>Profit & Loss Reports</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+
+                {/* 7. Store Settings & Backup */}
                 <button
                   id="drawer-nav-settings"
                   type="button"
@@ -249,46 +289,6 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
               </nav>
-            </div>
-
-            {/* Additional Expansion Modules (Ready for the user to extend) */}
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1.5 block">
-                Additional Modules (Extensible)
-              </span>
-              <div className="space-y-1">
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-800/50 cursor-pointer transition-colors group">
-                  <div className="flex items-center gap-2.5">
-                    <ShoppingCart className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
-                    <span>POS / Quick Billing</span>
-                  </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Ready</span>
-                </div>
-
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-800/50 cursor-pointer transition-colors group">
-                  <div className="flex items-center gap-2.5">
-                    <Truck className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
-                    <span>Suppliers & Wholesale</span>
-                  </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Ready</span>
-                </div>
-
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-800/50 cursor-pointer transition-colors group">
-                  <div className="flex items-center gap-2.5">
-                    <BarChart3 className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
-                    <span>Profit & Loss Reports</span>
-                  </div>
-                  <span className="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">Ready</span>
-                </div>
-
-                <div className="flex items-center justify-between px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:bg-slate-800/50 cursor-pointer transition-colors group">
-                  <div className="flex items-center gap-2.5">
-                    <Receipt className="w-4 h-4 text-slate-500 group-hover:text-amber-400" />
-                    <span>Expense Tracker</span>
-                  </div>
-                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold border border-amber-500/30">New</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>

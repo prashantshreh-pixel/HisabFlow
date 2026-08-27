@@ -124,3 +124,126 @@ export interface DashboardStats {
   todaySupplierPurchases: number;
   todaySupplierPayments: number;
 }
+
+export interface ExpenseBreakdownItem {
+  category: string;
+  amount: number;
+  count: number;
+  percentageOfTotal: number;
+}
+
+export interface DailyTrendPoint {
+  date: string;
+  salesRevenue: number;
+  wholesaleCost: number;
+  operatingExpense: number;
+  netProfit: number;
+}
+
+export interface CashFlowSummary {
+  totalCashIn: number;
+  totalCashOut: number;
+  netCashFlow: number;
+}
+
+export interface ProfitLossReport {
+  period: string;
+  startDate: string;
+  endDate: string;
+  grossSalesRevenue: number;
+  totalPaymentsCollected: number;
+  totalSalesCount: number;
+  wholesaleStockPurchases: number;
+  wholesalePurchasesCount: number;
+  grossProfit: number;
+  grossProfitMarginPercentage: number;
+  totalOperatingExpenses: number;
+  totalExpensesCount: number;
+  expenseBreakdown: ExpenseBreakdownItem[];
+  netProfit: number;
+  netProfitMarginPercentage: number;
+  isProfitable: boolean;
+  cashFlow: CashFlowSummary;
+  dailyTrends: DailyTrendPoint[];
+}
+
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  productId: string;
+  productName: string;
+  unit: string;
+  unitPrice: number;
+  costPrice: number;
+  quantity: number;
+  subtotal: number;
+  createdAt: string;
+}
+
+export interface Sale {
+  id: string;
+  invoiceNumber: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  changeAmount: number;
+  paymentMethod: number; // 1: Cash, 2: QR, 3: Khata, 4: Split
+  cashPaid: number;
+  digitalPaid: number;
+  creditPaid: number;
+  notes?: string;
+  saleDate: string;
+  createdAt: string;
+  items: SaleItem[];
+}
+
+export interface CreateSaleItemRequest {
+  productId: string;
+  productName: string;
+  unit: string;
+  unitPrice: number;
+  costPrice: number;
+  quantity: number;
+  subtotal: number;
+}
+
+export interface CreateSaleRequest {
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+  subtotal: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  paidAmount: number;
+  changeAmount: number;
+  paymentMethod: number;
+  cashPaid: number;
+  digitalPaid: number;
+  creditPaid: number;
+  notes?: string;
+  saleDate?: string;
+  items: CreateSaleItemRequest[];
+}
+
+export interface SalesSummary {
+  date: string;
+  totalSalesAmount: number;
+  totalBillsCount: number;
+  cashSalesAmount: number;
+  digitalSalesAmount: number;
+  creditSalesAmount: number;
+  totalItemsSold: number;
+}
+
+export interface CartItem {
+  product: Product;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
