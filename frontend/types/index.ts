@@ -108,8 +108,11 @@ export interface SupplierSummary {
 export interface DashboardStats {
   totalOutstandingKhata: number;
   totalCreditLimit: number;
+  todayCashSales: number;
+  todayDigitalSales: number;
   todayCreditGiven: number;
   todayPaymentReceived: number;
+  todayTotalSales: number;
   todayNetFlow: number;
   lowStockCount: number;
   outOfStockCount: number;

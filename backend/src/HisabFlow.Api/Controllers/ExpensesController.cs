@@ -1,5 +1,4 @@
 using HisabFlow.Application.Abstractions.Repositories;
-using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
@@ -76,15 +75,6 @@ public class ExpensesController : ControllerBase
         [FromBody] CreateExpenseRequest request,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Title))
-        {
-            throw new ArgumentException("Expense title is required.");
-        }
-        if (request.Amount <= 0)
-        {
-            throw new ArgumentException("Valid positive expense amount is required.");
-        }
-
         var created = await _expenseRepo.CreateAsync(request, cancellationToken);
         return Ok(created);
     }

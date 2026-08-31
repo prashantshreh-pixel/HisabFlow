@@ -4,6 +4,6 @@ namespace HisabFlow.Application.Common.Interfaces;
 
 public interface IIdempotencyService
 {
-    Task<IdempotencyRecord?> GetRecordAsync(string key, CancellationToken cancellationToken);
-    Task SaveRecordAsync(string key, string requestPath, int statusCode, string responseBody, CancellationToken cancellationToken);
+    Task<(IdempotencyResultState State, IdempotencyRecord? Record)> TryReserveKeyAsync(string key, string requestHash, CancellationToken cancellationToken = default);
+    Task CompleteReservationAsync(string key, int statusCode, string responseBody, CancellationToken cancellationToken = default);
 }

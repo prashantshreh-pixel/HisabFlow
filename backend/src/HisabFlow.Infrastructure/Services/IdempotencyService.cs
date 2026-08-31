@@ -1,6 +1,7 @@
 using Dapper;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
+using Microsoft.Data.SqlClient;
 
 namespace HisabFlow.Infrastructure.Services;
 
@@ -13,40 +14,85 @@ public class IdempotencyService : IIdempotencyService
         _db = db;
     }
 
-    public async Task<IdempotencyRecord?> GetRecordAsync(string key, CancellationToken cancellationToken = default)
+    public async Task<(IdempotencyResultState State, IdempotencyRecord? Record)> TryReserveKeyAsync(string key, string requestHash, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(key)) return null;
+        if (string.IsNullOrWhiteSpace(key)) return (IdempotencyResultState.Reserved, null);
 
+        var trimmedKey = key.Trim();
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
-        const string sql = @"
+
+        const string selectSql = @"
             SELECT 
                 idempotency_key AS Key,
-                request_path AS RequestPath,
-                response_status_code AS StatusCode,
+                request_hash AS RequestHash,
+                status AS Status,
+                response_code AS StatusCode,
                 response_body AS ResponseBody,
                 created_at AS CreatedAt
-            FROM idempotency_records
+            FROM __IdempotencyKeys
             WHERE idempotency_key = @Key;";
 
-        return await conn.QuerySingleOrDefaultAsync<IdempotencyRecord>(new CommandDefinition(sql, new { Key = key.Trim() }, cancellationToken: cancellationToken));
+        var existing = await conn.QuerySingleOrDefaultAsync<IdempotencyRecord>(
+            new CommandDefinition(selectSql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
+
+        if (existing != null)
+        {
+            if (!string.Equals(existing.RequestHash, requestHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return (IdempotencyResultState.PayloadMismatch, existing);
+            }
+            if (string.Equals(existing.Status, "Processing", StringComparison.OrdinalIgnoreCase))
+            {
+                return (IdempotencyResultState.Processing, existing);
+            }
+            return (IdempotencyResultState.Completed, existing);
+        }
+
+        const string insertSql = @"
+            INSERT INTO __IdempotencyKeys (idempotency_key, request_hash, status, created_at)
+            VALUES (@Key, @RequestHash, 'Processing', SYSUTCDATETIME());";
+
+        try
+        {
+            await conn.ExecuteAsync(new CommandDefinition(insertSql, new { Key = trimmedKey, RequestHash = requestHash }, cancellationToken: cancellationToken));
+            return (IdempotencyResultState.Reserved, null);
+        }
+        catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601) // Primary key constraint violation
+        {
+            var recheck = await conn.QuerySingleOrDefaultAsync<IdempotencyRecord>(
+                new CommandDefinition(selectSql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
+
+            if (recheck != null)
+            {
+                if (!string.Equals(recheck.RequestHash, requestHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    return (IdempotencyResultState.PayloadMismatch, recheck);
+                }
+                if (string.Equals(recheck.Status, "Processing", StringComparison.OrdinalIgnoreCase))
+                {
+                    return (IdempotencyResultState.Processing, recheck);
+                }
+                return (IdempotencyResultState.Completed, recheck);
+            }
+            return (IdempotencyResultState.Processing, null);
+        }
     }
 
-    public async Task SaveRecordAsync(string key, string requestPath, int statusCode, string responseBody, CancellationToken cancellationToken = default)
+    public async Task CompleteReservationAsync(string key, int statusCode, string responseBody, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(key)) return;
 
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
-        const string sql = @"
-            IF NOT EXISTS (SELECT 1 FROM idempotency_records WHERE idempotency_key = @Key)
-            BEGIN
-                INSERT INTO idempotency_records (idempotency_key, request_path, response_status_code, response_body, created_at)
-                VALUES (@Key, @RequestPath, @StatusCode, @ResponseBody, SYSUTCDATETIME());
-            END;";
+        const string updateSql = @"
+            UPDATE __IdempotencyKeys
+            SET status = 'Completed',
+                response_code = @StatusCode,
+                response_body = @ResponseBody
+            WHERE idempotency_key = @Key;";
 
-        await conn.ExecuteAsync(new CommandDefinition(sql, new
+        await conn.ExecuteAsync(new CommandDefinition(updateSql, new
         {
             Key = key.Trim(),
-            RequestPath = requestPath,
             StatusCode = statusCode,
             ResponseBody = responseBody
         }, cancellationToken: cancellationToken));

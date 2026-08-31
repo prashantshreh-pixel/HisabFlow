@@ -164,14 +164,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Today's Cash Flow / Settlements */}
+        {/* Today's Cash Flow / Sales */}
         <div
           id="stat-card-cashflow"
           className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition-all shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Today&apos;s Repayments
+              Today&apos;s Total Sales
             </span>
             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <TrendingUp className="w-4 h-4" />
@@ -180,13 +180,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="mt-3">
             <div className="text-2xl font-black text-emerald-400 tracking-tight">
-              Rs. {stats.todayPaymentReceived.toLocaleString()}
+              Rs. {stats.todayTotalSales.toLocaleString()}
             </div>
             <div className="flex items-center justify-between text-[11px] text-slate-400 mt-2 pt-2 border-t border-slate-800/80">
-              <span>Udhaar Given Today</span>
-              <span className="font-semibold text-rose-400">
-                Rs. {stats.todayCreditGiven.toLocaleString()}
-              </span>
+              <span>Cash: <strong className="text-emerald-300">Rs. {stats.todayCashSales.toLocaleString()}</strong></span>
+              <span>Credit: <strong className="text-rose-400">Rs. {stats.todayCreditGiven.toLocaleString()}</strong></span>
             </div>
           </div>
         </div>

@@ -25,11 +25,16 @@ import { AddSupplierModal } from '@/components/Modals/AddSupplierModal';
 import { RecordSupplierTxModal } from '@/components/Modals/RecordSupplierTxModal';
 import { SupplierStatementModal } from '@/components/Modals/SupplierStatementModal';
 import { CashReconciliationModal } from '@/components/Modals/CashReconciliationModal';
-import { PageLoader, GlobalTopProgressBar } from '@/components/Loader';
+import { GlobalTopProgressBar } from '@/components/Loader';
 import { useKhata } from '@/context/KhataContext';
+import { loginUser, logoutUser, checkIsAuthenticated } from '@/lib/auth';
 import { Product, LedgerTransactionType, SupplierTransactionType } from '@/types';
 
-function MainApp() {
+interface MainAppProps {
+  onLogout: () => void;
+}
+
+function MainApp({ onLogout }: MainAppProps) {
   const { isLoading } = useKhata();
   const [currentTab, setCurrentTab] = useState<NavTab>('DASHBOARD');
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
@@ -91,6 +96,7 @@ function MainApp() {
         onOpenAddProduct={handleOpenAddProduct}
         onOpenRecordTx={() => handleOpenRecordTx()}
         onOpenCashReconciliation={() => setIsCashReconciliationOpen(true)}
+        onLogout={onLogout}
       />
 
       {/* Main Content Column */}
@@ -100,6 +106,7 @@ function MainApp() {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onToggleLeftMenu={() => setIsLeftMenuOpen(true)}
+          onLogout={onLogout}
         />
 
         {/* Mobile Left-Side Navigation Drawer */}
@@ -111,6 +118,7 @@ function MainApp() {
           onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
           onOpenAddProduct={handleOpenAddProduct}
           onOpenRecordTx={() => handleOpenRecordTx()}
+          onLogout={onLogout}
         />
 
         {/* Main Application Views */}
@@ -245,29 +253,48 @@ function MainApp() {
 }
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [isAuthChecked, setIsAuthChecked] = useState<boolean>(false);
 
   useEffect(() => {
     try {
       const authStatus = localStorage.getItem('hisabflow_auth');
-      if (authStatus === 'false') {
-        setIsAuthenticated(false);
-      } else {
-        localStorage.setItem('hisabflow_auth', 'true');
+      if (authStatus === 'true') {
         setIsAuthenticated(true);
+      } else {
+        setIsAuthenticated(false);
       }
     } catch {
-      setIsAuthenticated(true);
+      setIsAuthenticated(false);
+    } finally {
+      setIsAuthChecked(true);
     }
   }, []);
 
+  const handleLogout = () => {
+    logoutUser(() => setIsAuthenticated(false));
+  };
+
+  const handleLoginSuccess = () => {
+    loginUser();
+    setIsAuthenticated(true);
+  };
+
+  if (!isAuthChecked) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400 font-bold text-sm">
+        Initializing HisabFlow...
+      </div>
+    );
+  }
+
   if (!isAuthenticated) {
-    return <LoginView onLoginSuccess={() => setIsAuthenticated(true)} />;
+    return <LoginView onLoginSuccess={handleLoginSuccess} />;
   }
 
   return (
     <KhataProvider>
-      <MainApp />
+      <MainApp onLogout={handleLogout} />
     </KhataProvider>
   );
 }

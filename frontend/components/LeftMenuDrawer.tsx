@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
+import { logoutUser } from '@/lib/auth';
 import { NavTab } from '@/components/Navbar';
 import {
   X,
@@ -16,6 +17,7 @@ import {
   Settings,
   Wallet,
   ChevronRight,
+  LogOut,
 } from 'lucide-react';
 
 interface LeftMenuDrawerProps {
@@ -26,6 +28,7 @@ interface LeftMenuDrawerProps {
   onOpenAddCustomer: () => void;
   onOpenAddProduct: () => void;
   onOpenRecordTx: () => void;
+  onLogout?: () => void;
 }
 
 export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
@@ -36,6 +39,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
   onOpenAddCustomer,
   onOpenAddProduct,
   onOpenRecordTx,
+  onLogout,
 }) => {
   const { stats, customers, products } = useKhata();
 
@@ -132,12 +136,12 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('DASHBOARD')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'DASHBOARD'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <LayoutDashboard className="w-4 h-4" />
+                    <LayoutDashboard className="w-4 h-4 text-purple-400" />
                     <span>Overview Dashboard</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -150,18 +154,18 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('POS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'POS'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <ScanBarcode className="w-4 h-4" />
+                    <ScanBarcode className="w-4 h-4 text-amber-400" />
                     <span>POS / Quick Billing</span>
                   </div>
                   <span
                     className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
                       currentTab === 'POS'
-                        ? 'bg-slate-950 text-amber-400'
+                        ? 'bg-amber-400 text-slate-950'
                         : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                     }`}
                   >
@@ -176,12 +180,12 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('KHATA')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'KHATA'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <BookOpen className="w-4 h-4" />
+                    <BookOpen className="w-4 h-4 text-emerald-400" />
                     <span>Digital Khata (Ledger)</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -194,19 +198,19 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('PRODUCTS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'PRODUCTS'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Boxes className="w-4 h-4" />
+                    <Boxes className="w-4 h-4 text-indigo-400" />
                     <span>Products & Inventory</span>
                   </div>
                   {stats.lowStockCount + stats.outOfStockCount > 0 ? (
                     <span
                       className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
                         currentTab === 'PRODUCTS'
-                          ? 'bg-slate-950 text-amber-400'
+                          ? 'bg-amber-400 text-slate-950'
                           : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       }`}
                     >
@@ -224,12 +228,12 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('EXPENSES')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'EXPENSES'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Receipt className="w-4 h-4" />
+                    <Receipt className="w-4 h-4 text-rose-400" />
                     <span>Expense Tracker</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -242,12 +246,12 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('SUPPLIERS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'SUPPLIERS'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <Truck className="w-4 h-4" />
+                    <Truck className="w-4 h-4 text-sky-400" />
                     <span>Suppliers & Wholesale</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -260,12 +264,12 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   onClick={() => handleTabClick('REPORTS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     currentTab === 'REPORTS'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <BarChart3 className="w-4 h-4" />
+                    <BarChart3 className="w-4 h-4 text-purple-400" />
                     <span>Profit & Loss Reports</span>
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -305,6 +309,19 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
               <span className="font-bold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
             </div>
           </div>
+
+          <button
+            id="drawer-logout-btn"
+            type="button"
+            onClick={() => {
+              onClose();
+              logoutUser(onLogout);
+            }}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-xl text-xs font-bold transition-all shadow-sm"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Log out</span>
+          </button>
         </div>
       </div>
 

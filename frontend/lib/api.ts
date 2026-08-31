@@ -1,14 +1,15 @@
 import type { Expense, ExpenseSummary, ProfitLossReport, Sale, CreateSaleRequest, SalesSummary } from '@/types';
 
-export const getApiBase = () => {
-  // If running in browser and already on backend port 5200, use relative paths
-  if (typeof window !== 'undefined' && window.location.port === '5200') {
-    return '';
+export const getApiBase = (): string => {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
   }
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // If user opens standalone Next dev server on any other port (e.g. 3000, 3001), route API calls to ASP.NET Core on 5200
+  if (typeof window !== 'undefined' && window.location.port === '5200') {
+    return '';
+  }
   if (typeof window !== 'undefined' && window.location.port !== '5200') {
     return `http://${window.location.hostname || 'localhost'}:5200`;
   }
@@ -26,24 +27,38 @@ export const getImageUrl = (url?: string | null): string => {
 
 // ---------- Generic helpers ----------
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKey?: string }): Promise<T> {
   const apiBase = getApiBase();
   const url = apiBase ? `${apiBase}${path}` : path;
 
   let res: Response;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string>),
+  };
+
+  if (options?.idempotencyKey) {
+    headers['Idempotency-Key'] = options.idempotencyKey;
+  }
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    timeoutId = setTimeout(() => controller.abort(), 10000);
     res = await fetch(url, {
-      headers: { 'Content-Type': 'application/json' },
       signal: options?.signal || controller.signal,
       ...options,
+      headers,
     });
-    clearTimeout(timeoutId);
-  } catch (err: any) {
+  } catch (err: unknown) {
     throw new Error(
       `Cannot connect to HisabFlow API server. Make sure ASP.NET Core backend is running at ${apiBase || 'http://localhost:5200'}.`
     );
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
   }
 
   if (!res.ok) {
@@ -53,11 +68,13 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     if (body) {
       if (typeof body.message === 'string' && body.message.trim()) {
         message = body.message;
+      } else if (body.detail && typeof body.detail === 'string') {
+        message = body.detail;
       } else if (body.errors && typeof body.errors === 'object') {
         const msgs = Object.values(body.errors).flat();
         if (msgs.length > 0) message = msgs.join(', ');
       } else if (Array.isArray(body)) {
-        const msgs = body.map((e: any) => e.error || e.errorMessage || e.message || JSON.stringify(e));
+        const msgs = body.map((e: { error?: string; errorMessage?: string; message?: string }) => e.error || e.errorMessage || e.message || JSON.stringify(e));
         if (msgs.length > 0) message = msgs.join(', ');
       } else if (typeof body.title === 'string' && body.title.trim()) {
         message = body.title;
@@ -146,6 +163,7 @@ export const customersApi = {
     apiFetch<ApiLedgerEntry>('/api/v1/customers/transactions', {
       method: 'POST',
       body: JSON.stringify(data),
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     }),
 
   getRecentTransactions: (limit: number = 50) =>
@@ -186,13 +204,13 @@ export const productsApi = {
 
   getById: (id: string) => apiFetch<ApiProduct>(`/api/v1/products/${id}`),
 
-  create: (data: Partial<ApiProduct>) =>
+  create: (data: { name: string; category: string; unit: string; costPrice: number; sellingPrice: number; stockQuantity: number; minStockAlert: number; barcode?: string; imageUrl?: string }) =>
     apiFetch<ApiProduct>('/api/v1/products', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: Partial<ApiProduct>) =>
+  update: (id: string, data: { name: string; category: string; unit: string; costPrice: number; sellingPrice: number; stockQuantity: number; minStockAlert: number; barcode?: string; imageUrl?: string }) =>
     apiFetch<void>(`/api/v1/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -232,6 +250,7 @@ export const expensesApi = {
     apiFetch<Expense>('/api/v1/expenses', {
       method: 'POST',
       body: JSON.stringify(data),
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     }),
   delete: (id: string) =>
     apiFetch<void>(`/api/v1/expenses/${id}`, {
@@ -301,10 +320,25 @@ export const suppliersApi = {
     apiFetch<ApiSupplierLedgerEntry>('/api/v1/suppliers/transactions', {
       method: 'POST',
       body: JSON.stringify(data),
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     }),
   getStatement: (id: string) => apiFetch<ApiSupplierStatement>(`/api/v1/suppliers/${id}/statement`),
   getSummary: () => apiFetch<ApiSupplierSummary>('/api/v1/suppliers/summary'),
 };
+
+export interface ApiDashboardSummary {
+  totalOutstandingKhata: number;
+  totalInventoryCostValue: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  todayCashSales: number;
+  todayDigitalSales: number;
+  todayCreditGiven: number;
+  todayTotalSales: number;
+  todayExpensesAmount: number;
+  activeCustomersCount: number;
+  activeProductsCount: number;
+}
 
 export const reportsApi = {
   getProfitLoss: (period = 'this_month', startDate?: string, endDate?: string) => {
@@ -314,6 +348,7 @@ export const reportsApi = {
     if (endDate) params.append('endDate', endDate);
     return apiFetch<ProfitLossReport>(`/api/v1/reports/profit-loss?${params.toString()}`);
   },
+  getDashboardSummary: () => apiFetch<ApiDashboardSummary>('/api/v1/reports/dashboard-summary'),
 };
 
 export const salesApi = {
@@ -321,6 +356,7 @@ export const salesApi = {
     apiFetch<Sale>('/api/v1/sales', {
       method: 'POST',
       body: JSON.stringify(data),
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
     }),
   getRecentSales: (count = 50) => apiFetch<Sale[]>(`/api/v1/sales/recent?count=${count}`),
   getSaleById: (id: string) => apiFetch<Sale>(`/api/v1/sales/${id}`),

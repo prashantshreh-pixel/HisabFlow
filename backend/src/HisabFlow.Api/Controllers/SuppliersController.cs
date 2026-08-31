@@ -20,15 +20,27 @@ public class SuppliersController : ControllerBase
         _supplierRepo = supplierRepo;
     }
 
+    private static SupplierDto MapToDto(Supplier s) => new(
+        s.Id,
+        s.Name,
+        s.CompanyName,
+        s.Phone,
+        s.Address,
+        s.CurrentBalance,
+        s.IsActive,
+        s.CreatedAt,
+        s.UpdatedAt
+    );
+
     /// <summary>
     /// Gets all active suppliers / wholesalers.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<Supplier>>> GetAll(CancellationToken cancellationToken = default)
+    public async Task<ActionResult<IEnumerable<SupplierDto>>> GetAll(CancellationToken cancellationToken = default)
     {
         var suppliers = await _supplierRepo.GetAllAsync(cancellationToken);
-        return Ok(suppliers);
+        return Ok(suppliers.Select(MapToDto));
     }
 
     /// <summary>
@@ -37,11 +49,11 @@ public class SuppliersController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Supplier>> GetById(Guid id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<SupplierDto>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
         var supplier = await _supplierRepo.GetByIdAsync(id, cancellationToken);
         if (supplier == null) throw new KeyNotFoundException($"Supplier '{id}' was not found.");
-        return Ok(supplier);
+        return Ok(MapToDto(supplier));
     }
 
     /// <summary>
@@ -50,17 +62,8 @@ public class SuppliersController : ControllerBase
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Supplier>> Create([FromBody] CreateSupplierApiRequest request, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<SupplierDto>> Create([FromBody] CreateSupplierApiRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(request.Name))
-        {
-            throw new ArgumentException("Supplier name is required.");
-        }
-        if (string.IsNullOrWhiteSpace(request.Phone))
-        {
-            throw new ArgumentException("Supplier phone number is required.");
-        }
-
         var supplier = new Supplier
         {
             Name = request.Name.Trim(),
@@ -70,7 +73,7 @@ public class SuppliersController : ControllerBase
         };
 
         var created = await _supplierRepo.CreateAsync(supplier, request.InitialBalance, request.InitialNote, cancellationToken);
-        return Ok(created);
+        return Ok(MapToDto(created));
     }
 
     /// <summary>
@@ -79,7 +82,7 @@ public class SuppliersController : ControllerBase
     [HttpPut("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Supplier>> Update(
+    public async Task<ActionResult<SupplierDto>> Update(
         Guid id,
         [FromBody] UpdateSupplierApiRequest request,
         [FromQuery] DateTime? expectedUpdatedAt = null,
@@ -87,7 +90,7 @@ public class SuppliersController : ControllerBase
     {
         var updated = await _supplierRepo.UpdateAsync(id, request.Name, request.Phone, request.CompanyName, request.Address, expectedUpdatedAt, cancellationToken);
         if (updated == null) throw new KeyNotFoundException($"Supplier '{id}' was not found or was modified by another user.");
-        return Ok(updated);
+        return Ok(MapToDto(updated));
     }
 
     /// <summary>
@@ -110,13 +113,8 @@ public class SuppliersController : ControllerBase
     [Idempotent]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<SupplierLedgerEntry>> RecordTransaction([FromBody] RecordSupplierTransactionRequest request, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<SupplierLedgerEntryDto>> RecordTransaction([FromBody] RecordSupplierTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        if (request.Amount <= 0)
-        {
-            throw new ArgumentException("Transaction amount must be greater than zero.");
-        }
-
         var entry = await _supplierRepo.RecordTransactionAsync(request, cancellationToken);
         return Ok(entry);
     }

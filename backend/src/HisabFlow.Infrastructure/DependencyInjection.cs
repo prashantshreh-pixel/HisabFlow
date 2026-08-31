@@ -11,14 +11,23 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
+        services.AddMemoryCache();
         services.AddSingleton<IDbConnectionFactory, SqlDbConnectionFactory>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IProductRepository, ProductRepository>();
         services.AddScoped<IExpenseRepository, ExpenseRepository>();
         services.AddScoped<ISupplierRepository, SupplierRepository>();
-        services.AddScoped<IReportRepository, ReportRepository>();
+        services.AddScoped<ReportRepository>();
+        services.AddScoped<IReportRepository>(sp => new CachedReportRepository(
+            sp.GetRequiredService<ReportRepository>(),
+            sp.GetRequiredService<Microsoft.Extensions.Caching.Memory.IMemoryCache>()
+        ));
         services.AddScoped<ISaleRepository, SaleRepository>();
         services.AddScoped<IIdempotencyService, IdempotencyService>();
+        services.AddScoped<IAuditRepository, AuditRepository>();
+        services.AddScoped<IStockMovementRepository, StockMovementRepository>();
+        services.AddScoped<ICashDrawerRepository, CashDrawerRepository>();
+        services.AddScoped<IBackupService, BackupService>();
         return services;
     }
 }
