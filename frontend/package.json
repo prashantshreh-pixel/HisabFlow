@@ -5,9 +5,10 @@
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",
-    "bundle": "powershell -ExecutionPolicy Bypass -File ./scripts/build-and-deploy.ps1",
+    "export": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "eslint .",
+    "test": "vitest run",
     "clean": "next clean"
   },
   "dependencies": {

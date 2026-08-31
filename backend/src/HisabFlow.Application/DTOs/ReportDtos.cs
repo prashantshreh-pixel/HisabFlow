@@ -5,7 +5,7 @@ public class ProfitLossReportDto
     public string Period { get; set; } = string.Empty;
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
-    
+
     // Revenue
     public decimal GrossSalesRevenue { get; set; }
     public decimal TotalPaymentsCollected { get; set; }
@@ -58,4 +58,20 @@ public class CashFlowSummaryDto
     public decimal TotalCashIn { get; set; }
     public decimal TotalCashOut { get; set; }
     public decimal NetCashFlow { get; set; }
+}
+
+public class DashboardSummaryDto
+{
+    public decimal TotalOutstandingKhata { get; set; }
+    public decimal TotalInventoryCostValue { get; set; }
+    public int LowStockCount { get; set; }
+    public int OutOfStockCount { get; set; }
+    public decimal TodayCashSales { get; set; }
+    public decimal TodayDigitalSales { get; set; }
+    public decimal TodayCreditGiven { get; set; }
+    public decimal TodayTotalSales { get; set; }
+    public int TodaySalesCount { get; set; }
+    public decimal TodayExpensesAmount { get; set; }
+    public int ActiveCustomersCount { get; set; }
+    public int ActiveProductsCount { get; set; }
 }

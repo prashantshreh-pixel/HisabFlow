@@ -29,3 +29,5 @@ obj/
 Thumbs.db
 desktop.ini
 *.log
+*.tsbuildinfo
+

@@ -3,6 +3,24 @@ using HisabFlow.Domain.Enums;
 
 namespace HisabFlow.Application.DTOs;
 
+public record SupplierDto(
+    Guid Id,
+    string Name,
+    string? CompanyName,
+    string Phone,
+    string? Address,
+    decimal CurrentBalance,
+    bool IsActive,
+    DateTime CreatedAt,
+    DateTime UpdatedAt
+);
+
+public record SupplierInventoryItem(
+    Guid ProductId,
+    decimal Quantity,
+    decimal UnitCostPrice
+);
+
 public record RecordSupplierTransactionRequest(
     Guid SupplierId,
     int Type, // 1: Stock Purchase (Payable Increases), 2: Payment Given (Payable Decreases)
@@ -10,7 +28,8 @@ public record RecordSupplierTransactionRequest(
     PaymentMethod PaymentMethod,
     string? Particulars,
     string? InvoiceNumber,
-    DateTime? TransactionDate
+    DateTime? TransactionDate,
+    List<SupplierInventoryItem>? PurchasedItems = null
 );
 
 public record SupplierStatementDto(

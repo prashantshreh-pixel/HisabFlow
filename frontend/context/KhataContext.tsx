@@ -1,20 +1,20 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Customer, CreditLedgerEntry, Product, Expense, ExpenseSummary, Supplier, SupplierLedgerEntry, SupplierSummary, DashboardStats, LedgerTransactionType, SupplierTransactionType } from '@/types';
-import { customersApi, productsApi, expensesApi, suppliersApi, RecordTransactionPayload } from '@/lib/api';
+import { customersApi, productsApi, expensesApi, suppliersApi, reportsApi, RecordTransactionPayload, ApiDashboardSummary } from '@/lib/api';
+import { mapApiCustomerToUI, mapApiLedgerEntryToUI, mapApiProductToUI, mapApiSupplierToUI, mapApiSupplierLedgerEntryToUI } from '@/lib/mappers';
+import { ToastProvider, useToast, ToastNotification } from '@/context/ToastContext';
+import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { Language, CalendarMode, TRANSLATIONS } from '@/lib/translations';
-import { formatSmartDate } from '@/lib/bikramSambat';
-
-interface ToastNotification {
-  id: string;
-  type: 'success' | 'info' | 'warning' | 'error';
-  title: string;
-  message: string;
-}
 
 interface KhataContextType {
   isLoading: boolean;
+  isCustomersLoading: boolean;
+  isProductsLoading: boolean;
+  isExpensesLoading: boolean;
+  isSuppliersLoading: boolean;
+
   customers: Customer[];
   ledgerEntries: CreditLedgerEntry[];
   products: Product[];
@@ -23,11 +23,13 @@ interface KhataContextType {
   suppliers: Supplier[];
   suppliersSummary: SupplierSummary;
   stats: DashboardStats;
+
+  // Toast Facade
   toasts: ToastNotification[];
   dismissToast: (id: string) => void;
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
 
-  // Language & Calendar Preferences
+  // Language & Calendar Facade
   language: Language;
   calendarMode: CalendarMode;
   setLanguage: (lang: Language) => void;
@@ -87,11 +89,15 @@ interface KhataContextType {
 
 const KhataContext = createContext<KhataContextType | null>(null);
 
-const STORAGE_KEYS = {
-  PRODUCTS: 'pasalkhata_products_v1',
-};
+const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { toasts, showToast, dismissToast } = useToast();
+  const { language, calendarMode, setLanguage, setCalendarMode, toggleLanguage, toggleCalendarMode, formatDate, t } = useSettings();
 
-export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isCustomersLoading, setIsCustomersLoading] = useState(true);
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [isExpensesLoading, setIsExpensesLoading] = useState(true);
+  const [isSuppliersLoading, setIsSuppliersLoading] = useState(true);
+
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<CreditLedgerEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -110,923 +116,501 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     activeSuppliersCount: 0,
     totalSuppliersCount: 0,
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [toasts, setToasts] = useState<ToastNotification[]>([]);
-  const [language, setLanguage] = useState<Language>('en');
-  const [calendarMode, setCalendarMode] = useState<CalendarMode>('BS');
 
-  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [dashboardSummary, setDashboardSummary] = useState<ApiDashboardSummary>({
+    totalOutstandingKhata: 0,
+    totalInventoryCostValue: 0,
+    lowStockCount: 0,
+    outOfStockCount: 0,
+    todayCashSales: 0,
+    todayDigitalSales: 0,
+    todayCreditGiven: 0,
+    todayTotalSales: 0,
+    todayExpensesAmount: 0,
+    activeCustomersCount: 0,
+    activeProductsCount: 0,
+  });
 
-  const toggleLanguage = useCallback(() => {
-    setLanguage((prev) => (prev === 'en' ? 'np' : 'en'));
-  }, []);
-
-  const toggleCalendarMode = useCallback(() => {
-    setCalendarMode((prev) => (prev === 'AD' ? 'BS' : 'AD'));
-  }, []);
-
-  const formatDate = useCallback(
-    (dateInput: Date | string) => {
-      return formatSmartDate(dateInput, calendarMode === 'BS', language === 'np');
-    },
-    [calendarMode, language]
-  );
-
-  const t = useCallback(
-    (key: keyof typeof TRANSLATIONS['en']) => {
-      return TRANSLATIONS[language]?.[key] || TRANSLATIONS.en[key] || key;
-    },
-    [language]
-  );
-
-  useEffect(() => {
-    return () => {
-      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
-      toastTimersRef.current.clear();
-    };
-  }, []);
-
-  const dismissToast = useCallback((id: string) => {
-    const timer = toastTimersRef.current.get(id);
-    if (timer) {
-      clearTimeout(timer);
-      toastTimersRef.current.delete(id);
+  const fetchCustomers = useCallback(async () => {
+    setIsCustomersLoading(true);
+    try {
+      const data = await customersApi.getAll();
+      setCustomers(data.map(mapApiCustomerToUI));
+    } catch (err: unknown) {
+      console.warn('Failed to fetch customers from API:', err);
+    } finally {
+      setIsCustomersLoading(false);
     }
-    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const showToast = useCallback((toast: Omit<ToastNotification, 'id'>) => {
-    const id = 'toast-' + Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { ...toast, id }]);
-    const timer = setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-      toastTimersRef.current.delete(id);
-    }, 4000);
-    toastTimersRef.current.set(id, timer);
+  const fetchRecentTransactions = useCallback(async () => {
+    try {
+      const data = await customersApi.getRecentTransactions(50);
+      setLedgerEntries(data.map(mapApiLedgerEntryToUI));
+    } catch (err: unknown) {
+      console.warn('Failed to fetch transactions from API:', err);
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    setIsProductsLoading(true);
+    try {
+      const data = await productsApi.getAll();
+      setProducts(data.map(mapApiProductToUI));
+    } catch (err: unknown) {
+      console.warn('Failed to fetch products from API:', err);
+    } finally {
+      setIsProductsLoading(false);
+    }
+  }, []);
+
+  const fetchExpenses = useCallback(async () => {
+    setIsExpensesLoading(true);
+    try {
+      const data = await expensesApi.getAll(100);
+      setExpenses(data);
+      const summary = await expensesApi.getSummary();
+      setExpensesSummary(summary);
+    } catch (err: unknown) {
+      console.warn('Failed to fetch expenses from API:', err);
+    } finally {
+      setIsExpensesLoading(false);
+    }
+  }, []);
+
+  const fetchSuppliers = useCallback(async () => {
+    setIsSuppliersLoading(true);
+    try {
+      const data = await suppliersApi.getAll();
+      setSuppliers(data.map(mapApiSupplierToUI));
+      const summary = await suppliersApi.getSummary();
+      setSuppliersSummary(summary);
+    } catch (err: unknown) {
+      console.warn('Failed to fetch suppliers from API:', err);
+    } finally {
+      setIsSuppliersLoading(false);
+    }
+  }, []);
+
+  const fetchDashboardSummary = useCallback(async () => {
+    try {
+      const summary = await reportsApi.getDashboardSummary();
+      setDashboardSummary(summary);
+    } catch (err: unknown) {
+      console.warn('Failed to fetch dashboard summary from API:', err);
+    }
   }, []);
 
   const refreshData = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      const [fetchedCustomers, fetchedTransactions, fetchedProducts, fetchedExpenses, fetchedSummary, fetchedSuppliers, fetchedSupplierSummary] = await Promise.all([
-        customersApi.getAll(),
-        customersApi.getRecentTransactions(50),
-        productsApi.getAll(),
-        expensesApi.getAll(100).catch(() => []),
-        expensesApi.getSummary().catch(() => ({ totalExpenses: 0, todayExpenses: 0, monthExpenses: 0, totalCount: 0 })),
-        suppliersApi.getAll().catch(() => []),
-        suppliersApi.getSummary().catch(() => ({ totalOutstandingPayable: 0, todayPurchases: 0, todayPaymentsGiven: 0, activeSuppliersCount: 0, totalSuppliersCount: 0 }))
-      ]);
-
-      const mappedCustomers: Customer[] = fetchedCustomers.map(c => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        address: c.address || '',
-        currentBalance: Number(c.currentBalance),
-        creditLimit: Number(c.creditLimit),
-        lastTransactionDate: c.updatedAt || c.createdAt,
-        createdAt: c.createdAt
-      }));
-
-      const mappedEntries: CreditLedgerEntry[] = fetchedTransactions.map(t => ({
-        id: t.id,
-        customerId: t.customerId,
-        customerName: t.customerName || '',
-        customerPhone: t.customerPhone || '',
-        date: t.transactionDate,
-        type: t.type === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED',
-        amount: Number(t.amount),
-        balanceAfter: Number(t.balanceAfter),
-        notes: t.particulars || '',
-        paymentMethod: t.paymentMethod === 1 ? 'CASH' : t.paymentMethod === 2 ? 'QR_PAYMENT' : t.paymentMethod === 3 ? 'BANK_TRANSFER' : 'CREDIT_NOTE',
-        billNumber: t.billNumber || ''
-      }));
-
-      const mappedProducts: Product[] = fetchedProducts.map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        unit: p.unit as any,
-        costPrice: Number(p.costPrice),
-        sellingPrice: Number(p.sellingPrice),
-        stockQuantity: Number(p.stockQuantity),
-        minStockAlert: Number(p.minStockAlert),
-        barcode: p.barcode || '',
-        imageUrl: p.imageUrl || '',
-        updatedAt: p.updatedAt || new Date().toISOString()
-      }));
-
-      const mappedSuppliers: Supplier[] = fetchedSuppliers.map(s => ({
-        id: s.id,
-        name: s.name,
-        companyName: s.companyName || '',
-        phone: s.phone,
-        address: s.address || '',
-        currentBalance: Number(s.currentBalance),
-        updatedAt: s.updatedAt || s.createdAt,
-        createdAt: s.createdAt,
-      }));
-
-      setCustomers(mappedCustomers);
-      setLedgerEntries(mappedEntries);
-      setProducts(mappedProducts);
-      setExpenses(fetchedExpenses);
-      setExpensesSummary(fetchedSummary);
-      setSuppliers(mappedSuppliers);
-      setSuppliersSummary(fetchedSupplierSummary);
-    } catch (err) {
-      console.error('Error loading data from database:', err);
-      showToast({
-        type: 'error',
-        title: 'Connection Error',
-        message: 'Could not fetch database records. Make sure the backend is running.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [showToast]);
+    await Promise.all([
+      fetchCustomers(),
+      fetchRecentTransactions(),
+      fetchProducts(),
+      fetchExpenses(),
+      fetchSuppliers(),
+      fetchDashboardSummary(),
+    ]);
+  }, [fetchCustomers, fetchRecentTransactions, fetchProducts, fetchExpenses, fetchSuppliers, fetchDashboardSummary]);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
 
-  const getCustomerById = useCallback((id: string) => customers.find((c) => c.id === id), [customers]);
-
-  const getCustomerLedger = useCallback(async (customerId: string): Promise<CreditLedgerEntry[]> => {
-    try {
-      const stmt = await customersApi.getStatement(customerId);
-      return stmt.ledgerEntries.map((t) => ({
-        id: t.id,
-        customerId: t.customerId,
-        customerName: t.customerName || '',
-        customerPhone: t.customerPhone || '',
-        date: t.transactionDate,
-        type: t.type === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED',
-        amount: Number(t.amount),
-        balanceAfter: Number(t.balanceAfter),
-        notes: t.particulars || '',
-        paymentMethod: t.paymentMethod === 1 ? 'CASH' : t.paymentMethod === 2 ? 'QR_PAYMENT' : t.paymentMethod === 3 ? 'BANK_TRANSFER' : 'CREDIT_NOTE',
-        billNumber: t.billNumber || '',
-      }));
-    } catch (err) {
-      console.error('Error fetching statement:', err);
-      return ledgerEntries.filter((e) => e.customerId === customerId);
-    }
-  }, [ledgerEntries]);
-
-  const addCustomer = async (data: {
-    name: string;
-    phone: string;
-    address?: string;
-    creditLimit: number;
-    initialBalance?: number;
-    initialNote?: string;
-  }): Promise<Customer> => {
-    try {
-      setIsLoading(true);
+  // Customer Operations
+  const addCustomer = useCallback(
+    async (data: { name: string; phone: string; address?: string; creditLimit: number; initialBalance?: number; initialNote?: string }) => {
       const created = await customersApi.create({
         name: data.name,
         phone: data.phone,
-        address: data.address,
+        address: data.address || null,
         creditLimit: data.creditLimit,
         initialBalance: data.initialBalance || 0,
         initialNote: data.initialNote || null,
       });
 
-      const newCust: Customer = {
-        id: created.id,
-        name: created.name,
-        phone: created.phone,
-        address: created.address || '',
-        currentBalance: Number(created.currentBalance),
-        creditLimit: Number(created.creditLimit),
-        lastTransactionDate: created.updatedAt || created.createdAt,
-        createdAt: created.createdAt,
-      };
-
-      setCustomers((prev) => [newCust, ...prev]);
+      const newCustomer = mapApiCustomerToUI(created);
+      setCustomers((prev) => [newCustomer, ...prev]);
 
       showToast({
         type: 'success',
-        title: 'Customer Created',
-        message: `${newCust.name} successfully added to database.`,
+        title: 'Customer Added',
+        message: `${newCustomer.name} added to khata ledger.`,
       });
 
-      return newCust;
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Error Adding Customer',
-        message: err.message || 'Could not save customer to backend API.',
-      });
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      refreshData();
+      return newCustomer;
+    },
+    [showToast, refreshData]
+  );
 
-  const updateCustomer = async (id: string, updates: Partial<Customer>) => {
-    try {
-      setIsLoading(true);
+  const updateCustomer = useCallback(
+    async (id: string, updates: Partial<Customer>) => {
       const existing = customers.find((c) => c.id === id);
       if (!existing) return;
 
       await customersApi.update(id, {
-        name: updates.name || existing.name,
-        phone: updates.phone || existing.phone,
-        address: updates.address !== undefined ? updates.address : existing.address,
-        creditLimit: updates.creditLimit !== undefined ? updates.creditLimit : existing.creditLimit,
+        name: updates.name ?? existing.name,
+        phone: updates.phone ?? existing.phone,
+        address: updates.address ?? existing.address,
+        creditLimit: updates.creditLimit ?? existing.creditLimit,
       });
 
-      setCustomers((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, ...updates } : c))
-      );
+      setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
+      showToast({ type: 'info', title: 'Customer Updated', message: 'Customer record saved.' });
+    },
+    [customers, showToast]
+  );
 
-      showToast({
-        type: 'info',
-        title: 'Customer Updated',
-        message: 'Details successfully saved to database.',
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: err.message || 'Could not update database record.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const deleteCustomer = async (id: string) => {
-    try {
-      setIsLoading(true);
+  const deleteCustomer = useCallback(
+    async (id: string) => {
       await customersApi.delete(id);
       setCustomers((prev) => prev.filter((c) => c.id !== id));
-      setLedgerEntries((prev) => prev.filter((e) => e.customerId !== id));
-      showToast({
-        type: 'warning',
-        title: 'Customer Removed',
-        message: 'Customer and all ledger entries deleted from database.',
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: err.message || 'Could not delete from database.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      showToast({ type: 'warning', title: 'Customer Removed', message: 'Customer record deleted.' });
+    },
+    [showToast]
+  );
 
-  const recordTransaction = async (params: {
-    customerId: string;
-    type: LedgerTransactionType;
-    amount: number;
-    notes: string;
-    paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE';
-    billNumber?: string;
-    date?: string;
-  }) => {
+  const getCustomerById = useCallback((id: string) => customers.find((c) => c.id === id), [customers]);
+
+  const getCustomerLedger = useCallback(async (customerId: string) => {
     try {
-      setIsLoading(true);
-      const pmMap = {
-        CASH: 1,
-        QR_PAYMENT: 2,
-        BANK_TRANSFER: 3,
-        CREDIT_NOTE: 4
-      };
+      const stmt = await customersApi.getStatement(customerId);
+      return stmt.ledgerEntries.map(mapApiLedgerEntryToUI);
+    } catch {
+      return [];
+    }
+  }, []);
+
+  // Ledger Transaction Record
+  const recordTransaction = useCallback(
+    async (params: {
+      customerId: string;
+      type: LedgerTransactionType;
+      amount: number;
+      notes: string;
+      paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE';
+      billNumber?: string;
+      date?: string;
+    }): Promise<CreditLedgerEntry | null> => {
+      const typeNum = params.type === 'CREDIT_PURCHASE' ? 1 : 2;
+      let pmNum = 1;
+      if (params.paymentMethod === 'QR_PAYMENT') pmNum = 2;
+      else if (params.paymentMethod === 'BANK_TRANSFER') pmNum = 3;
+      else if (params.paymentMethod === 'CREDIT_NOTE') pmNum = 4;
 
       const payload: RecordTransactionPayload = {
         customerId: params.customerId,
-        type: params.type === 'CREDIT_PURCHASE' ? 1 : 2,
+        type: typeNum,
         amount: params.amount,
-        paymentMethod: params.paymentMethod ? pmMap[params.paymentMethod] : 1,
+        paymentMethod: pmNum,
         particulars: params.notes || null,
         billNumber: params.billNumber || null,
-        transactionDate: params.date || null
+        transactionDate: params.date || null,
       };
 
-      const res = await customersApi.recordTransaction(payload);
-      const dateIso = res.transactionDate;
-
-      const newEntry: CreditLedgerEntry = {
-        id: res.id,
-        customerId: res.customerId,
-        customerName: res.customerName || '',
-        customerPhone: res.customerPhone || '',
-        date: dateIso,
-        type: params.type,
-        amount: Number(res.amount),
-        balanceAfter: Number(res.balanceAfter),
-        notes: res.particulars || '',
-        paymentMethod: params.paymentMethod || 'CASH',
-        billNumber: res.billNumber || ''
-      };
-
-      setLedgerEntries((prev) => [newEntry, ...prev]);
-
-      setCustomers((prev) =>
-        prev.map((c) =>
-          c.id === params.customerId
-            ? {
-                ...c,
-                currentBalance: Number(res.balanceAfter),
-                lastTransactionDate: dateIso
-              }
-            : c
-        )
-      );
+      const created = await customersApi.recordTransaction(payload);
+      const newEntry = mapApiLedgerEntryToUI(created);
 
       showToast({
-        type: params.type === 'CREDIT_PURCHASE' ? 'warning' : 'success',
-        title: params.type === 'CREDIT_PURCHASE' ? 'Udhaar Recorded' : 'Repayment Saved',
-        message: `Rs. ${params.amount.toLocaleString()} saved to database.`,
+        type: 'success',
+        title: 'Transaction Saved',
+        message: `Rs. ${params.amount.toLocaleString()} recorded.`,
       });
 
+      refreshData();
       return newEntry;
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Transaction Error',
-        message: err.message || 'Could not record transaction to backend API.',
-      });
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [showToast, refreshData]
+  );
 
-  const addProduct = async (data: Omit<Product, 'id' | 'updatedAt'>) => {
-    try {
-      setIsLoading(true);
+  // Product Operations
+  const addProduct = useCallback(
+    async (data: Omit<Product, 'id' | 'updatedAt'>) => {
       const created = await productsApi.create({
         name: data.name,
         category: data.category,
         unit: data.unit,
-        costPrice: Number(data.costPrice) || 0,
-        sellingPrice: Number(data.sellingPrice) || 0,
-        stockQuantity: Number(data.stockQuantity) || 0,
-        minStockAlert: Number(data.minStockAlert) || 5,
-        barcode: data.barcode || null,
-        imageUrl: data.imageUrl || null
+        costPrice: data.costPrice,
+        sellingPrice: data.sellingPrice,
+        stockQuantity: data.stockQuantity,
+        minStockAlert: data.minStockAlert,
+        barcode: data.barcode || undefined,
+        imageUrl: data.imageUrl || undefined,
       });
 
-      const newProduct: Product = {
-        id: created.id,
-        name: created.name,
-        category: created.category,
-        unit: created.unit as any,
-        costPrice: Number(created.costPrice),
-        sellingPrice: Number(created.sellingPrice),
-        stockQuantity: Number(created.stockQuantity),
-        minStockAlert: Number(created.minStockAlert),
-        barcode: created.barcode || '',
-        imageUrl: created.imageUrl || '',
-        updatedAt: created.updatedAt || new Date().toISOString()
-      };
-
+      const newProduct = mapApiProductToUI(created);
       setProducts((prev) => [newProduct, ...prev]);
-      showToast({
-        type: 'success',
-        title: 'Product Saved',
-        message: `${newProduct.name} saved to SQL database.`,
-      });
+
+      showToast({ type: 'success', title: 'Product Added', message: `${newProduct.name} saved to inventory.` });
       return newProduct;
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Save Failed',
-        message: err.message || 'Could not save product to database.',
-      });
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [showToast]
+  );
 
-  const updateProduct = async (id: string, updates: Partial<Product>) => {
-    try {
-      setIsLoading(true);
+  const updateProduct = useCallback(
+    async (id: string, updates: Partial<Product>) => {
+      const existing = products.find((p) => p.id === id);
+      if (!existing) return;
+
       await productsApi.update(id, {
-        name: updates.name,
-        category: updates.category,
-        unit: updates.unit,
-        costPrice: updates.costPrice !== undefined ? Number(updates.costPrice) : undefined,
-        sellingPrice: updates.sellingPrice !== undefined ? Number(updates.sellingPrice) : undefined,
-        stockQuantity: updates.stockQuantity !== undefined ? Number(updates.stockQuantity) : undefined,
-        minStockAlert: updates.minStockAlert !== undefined ? Number(updates.minStockAlert) : undefined,
-        barcode: updates.barcode !== undefined ? updates.barcode : undefined,
-        imageUrl: updates.imageUrl !== undefined ? updates.imageUrl : undefined
+        name: updates.name ?? existing.name,
+        category: updates.category ?? existing.category,
+        unit: updates.unit ?? existing.unit,
+        costPrice: updates.costPrice ?? existing.costPrice,
+        sellingPrice: updates.sellingPrice ?? existing.sellingPrice,
+        stockQuantity: updates.stockQuantity ?? existing.stockQuantity,
+        minStockAlert: updates.minStockAlert ?? existing.minStockAlert,
+        barcode: updates.barcode ?? existing.barcode,
+        imageUrl: updates.imageUrl ?? existing.imageUrl,
       });
 
-      const nowIso = new Date().toISOString();
-      setProducts((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: nowIso } : p))
-      );
+      setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p)));
+      showToast({ type: 'info', title: 'Product Updated', message: 'Inventory item saved.' });
+    },
+    [products, showToast]
+  );
 
-      showToast({
-        type: 'info',
-        title: 'Product Updated',
-        message: 'Product changes saved to database.',
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: err.message || 'Could not update product in database.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const deleteProduct = async (id: string) => {
-    try {
-      setIsLoading(true);
-      const prod = products.find((p) => p.id === id);
-      if (!prod) return;
-
+  const deleteProduct = useCallback(
+    async (id: string) => {
       await productsApi.delete(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
+      showToast({ type: 'warning', title: 'Product Deleted', message: 'Product removed.' });
+    },
+    [showToast]
+  );
 
-      showToast({
-        type: 'warning',
-        title: 'Product Deleted',
-        message: `${prod.name} deleted from database.`,
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: err.message || 'Could not delete product from database.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const adjustStock = async (productId: string, delta: number, reason?: string) => {
-    try {
-      setIsLoading(true);
-      const prod = products.find((p) => p.id === productId);
-      if (!prod) return;
-
+  const adjustStock = useCallback(
+    async (productId: string, delta: number) => {
       await productsApi.adjustStock(productId, delta);
-      const newStock = Math.max(0, prod.stockQuantity + delta);
-      const nowIso = new Date().toISOString();
-
       setProducts((prev) =>
-        prev.map((p) =>
-          p.id === productId
-            ? {
-                ...p,
-                stockQuantity: newStock,
-                updatedAt: nowIso,
-              }
-            : p
-        )
+        prev.map((p) => (p.id === productId ? { ...p, stockQuantity: Math.max(0, p.stockQuantity + delta) } : p))
       );
+      showToast({ type: 'info', title: 'Stock Adjusted', message: `Stock updated by ${delta > 0 ? '+' : ''}${delta}.` });
+    },
+    [showToast]
+  );
 
-      const changeText = delta > 0 ? `+${delta}` : `${delta}`;
-      showToast({
-        type: newStock <= prod.minStockAlert ? 'warning' : 'success',
-        title: 'Stock Adjusted',
-        message: `${prod.name}: ${changeText} ${prod.unit} (Total: ${newStock} ${prod.unit}) saved to DB.${reason ? ` - ${reason}` : ''}`,
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Stock Adjustment Failed',
-        message: err.message || 'Could not adjust stock in database.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Expense Operations
+  const addExpense = useCallback(
+    async (data: { category: string; title: string; amount: number; paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER'; particulars?: string; expenseDate?: string }) => {
+      let pmNum = 1;
+      if (data.paymentMethod === 'QR_PAYMENT') pmNum = 2;
+      else if (data.paymentMethod === 'BANK_TRANSFER') pmNum = 3;
 
-  const addExpense = async (data: {
-    category: string;
-    title: string;
-    amount: number;
-    paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER';
-    particulars?: string;
-    expenseDate?: string;
-  }) => {
-    try {
-      setIsLoading(true);
       const created = await expensesApi.create({
         category: data.category,
         title: data.title,
         amount: data.amount,
-        paymentMethod: data.paymentMethod || 'CASH',
-        particulars: data.particulars || '',
+        paymentMethod: pmNum as unknown as Expense['paymentMethod'],
+        particulars: data.particulars,
         expenseDate: data.expenseDate || new Date().toISOString(),
       });
 
       setExpenses((prev) => [created, ...prev]);
-      const summary = await expensesApi.getSummary().catch(() => null);
-      if (summary) setExpensesSummary(summary);
-
-      showToast({
-        type: 'success',
-        title: 'Expense Saved',
-        message: `Rs. ${data.amount.toLocaleString()} recorded for ${data.title}.`,
-      });
-
+      showToast({ type: 'success', title: 'Expense Added', message: `Rs. ${data.amount} recorded.` });
+      refreshData();
       return created;
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Expense Error',
-        message: err.message || 'Could not save expense record.',
-      });
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    [showToast, refreshData]
+  );
 
-  const deleteExpense = async (id: string) => {
-    try {
-      setIsLoading(true);
+  const deleteExpense = useCallback(
+    async (id: string) => {
       await expensesApi.delete(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
-      const summary = await expensesApi.getSummary().catch(() => null);
-      if (summary) setExpensesSummary(summary);
+      showToast({ type: 'warning', title: 'Expense Removed', message: 'Expense entry deleted.' });
+      refreshData();
+    },
+    [showToast, refreshData]
+  );
 
-      showToast({
-        type: 'warning',
-        title: 'Expense Deleted',
-        message: 'Expense record deleted.',
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: err.message || 'Could not delete expense.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const getSupplierById = (id: string) => suppliers.find((s) => s.id === id);
-
-  const getSupplierLedger = async (supplierId: string): Promise<SupplierLedgerEntry[]> => {
-    try {
-      const stmt = await suppliersApi.getStatement(supplierId);
-      return stmt.ledgerEntries.map((t) => ({
-        id: t.id,
-        supplierId: t.supplierId,
-        supplierName: t.supplierName || '',
-        supplierPhone: t.supplierPhone || '',
-        date: t.transactionDate,
-        type: t.type === 1 ? 'STOCK_PURCHASE' : 'PAYMENT_GIVEN',
-        amount: Number(t.amount),
-        balanceAfter: Number(t.balanceAfter),
-        notes: t.particulars || '',
-        invoiceNumber: t.invoiceNumber || '',
-        paymentMethod: t.paymentMethod === 1 ? 'CASH' : t.paymentMethod === 2 ? 'QR_PAYMENT' : 'BANK_TRANSFER',
-        createdAt: t.createdAt,
-      }));
-    } catch (err) {
-      console.error(err);
-      return [];
-    }
-  };
-
-  const addSupplier = async (data: { name: string; phone: string; companyName?: string; address?: string; initialBalance?: number; initialNote?: string }) => {
-    try {
-      setIsLoading(true);
+  // Supplier Operations
+  const addSupplier = useCallback(
+    async (data: { name: string; phone: string; companyName?: string; address?: string; initialBalance?: number; initialNote?: string }) => {
       const created = await suppliersApi.create(data);
-      const newSup: Supplier = {
-        id: created.id,
-        name: created.name,
-        companyName: created.companyName || '',
-        phone: created.phone,
-        address: created.address || '',
-        currentBalance: Number(created.currentBalance),
-        updatedAt: created.updatedAt || created.createdAt,
-        createdAt: created.createdAt,
-      };
+      const newSupplier = mapApiSupplierToUI(created);
+      setSuppliers((prev) => [newSupplier, ...prev]);
+      showToast({ type: 'success', title: 'Supplier Added', message: `${newSupplier.name} saved.` });
+      refreshData();
+      return newSupplier;
+    },
+    [showToast, refreshData]
+  );
 
-      setSuppliers((prev) => [newSup, ...prev]);
-      const summary = await suppliersApi.getSummary().catch(() => null);
-      if (summary) setSuppliersSummary(summary);
-
-      showToast({
-        type: 'success',
-        title: 'Supplier Registered',
-        message: `${newSup.name} added to wholesalers list.`,
-      });
-
-      return newSup;
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Error Adding Supplier',
-        message: err.message || 'Could not save supplier.',
-      });
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const updateSupplier = async (id: string, updates: Partial<Supplier>) => {
-    try {
-      setIsLoading(true);
+  const updateSupplier = useCallback(
+    async (id: string, updates: Partial<Supplier>) => {
       const existing = suppliers.find((s) => s.id === id);
       if (!existing) return;
 
-      await suppliersApi.update(id, {
-        name: updates.name || existing.name,
-        phone: updates.phone || existing.phone,
-        companyName: updates.companyName !== undefined ? updates.companyName : existing.companyName,
-        address: updates.address !== undefined ? updates.address : existing.address,
+      const updated = await suppliersApi.update(id, {
+        name: updates.name ?? existing.name,
+        phone: updates.phone ?? existing.phone,
+        companyName: updates.companyName ?? existing.companyName,
+        address: updates.address ?? existing.address,
       });
 
-      setSuppliers((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, ...updates } : s))
-      );
+      const updatedUI = mapApiSupplierToUI(updated);
+      setSuppliers((prev) => prev.map((s) => (s.id === id ? updatedUI : s)));
+      showToast({ type: 'info', title: 'Supplier Saved', message: 'Supplier info updated.' });
+    },
+    [suppliers, showToast]
+  );
 
-      showToast({
-        type: 'info',
-        title: 'Supplier Updated',
-        message: `Updated details for ${updates.name || existing.name}.`,
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Update Failed',
-        message: err.message || 'Could not update supplier.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const deleteSupplier = async (id: string) => {
-    try {
-      setIsLoading(true);
-      const sup = suppliers.find((s) => s.id === id);
+  const deleteSupplier = useCallback(
+    async (id: string) => {
       await suppliersApi.delete(id);
       setSuppliers((prev) => prev.filter((s) => s.id !== id));
-      const summary = await suppliersApi.getSummary().catch(() => null);
-      if (summary) setSuppliersSummary(summary);
+      showToast({ type: 'warning', title: 'Supplier Deleted', message: 'Supplier record removed.' });
+    },
+    [showToast]
+  );
 
-      showToast({
-        type: 'warning',
-        title: 'Supplier Removed',
-        message: `${sup?.name || 'Supplier'} removed from database.`,
-      });
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Delete Failed',
-        message: err.message || 'Could not delete supplier.',
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const getSupplierById = useCallback((id: string) => suppliers.find((s) => s.id === id), [suppliers]);
 
-  const recordSupplierTransaction = async (params: {
-    supplierId: string;
-    type: SupplierTransactionType;
-    amount: number;
-    notes?: string;
-    invoiceNumber?: string;
-    paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER';
-    date?: string;
-  }) => {
+  const getSupplierLedger = useCallback(async (supplierId: string) => {
     try {
-      setIsLoading(true);
-      const typeInt = params.type === 'STOCK_PURCHASE' ? 1 : 2;
-      const pmInt = params.paymentMethod === 'QR_PAYMENT' ? 2 : params.paymentMethod === 'BANK_TRANSFER' ? 3 : 1;
+      const stmt = await suppliersApi.getStatement(supplierId);
+      return stmt.ledgerEntries.map(mapApiSupplierLedgerEntryToUI);
+    } catch {
+      return [];
+    }
+  }, []);
 
-      const res = await suppliersApi.recordTransaction({
+  const recordSupplierTransaction = useCallback(
+    async (params: {
+      supplierId: string;
+      type: SupplierTransactionType;
+      amount: number;
+      notes?: string;
+      invoiceNumber?: string;
+      paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER';
+      date?: string;
+    }): Promise<SupplierLedgerEntry | null> => {
+      const typeNum = params.type === 'STOCK_PURCHASE' ? 1 : 2;
+      let pmNum = 1;
+      if (params.paymentMethod === 'QR_PAYMENT') pmNum = 2;
+      else if (params.paymentMethod === 'BANK_TRANSFER') pmNum = 3;
+
+      const created = await suppliersApi.recordTransaction({
         supplierId: params.supplierId,
-        type: typeInt,
+        type: typeNum,
         amount: params.amount,
-        paymentMethod: pmInt,
+        paymentMethod: pmNum,
         particulars: params.notes,
         invoiceNumber: params.invoiceNumber,
-        transactionDate: params.date || new Date().toISOString(),
+        transactionDate: params.date,
       });
 
-      const nowIso = params.date || new Date().toISOString();
+      const newEntry = mapApiSupplierLedgerEntryToUI(created);
+      showToast({ type: 'success', title: 'Supplier Transaction', message: `Rs. ${params.amount} recorded.` });
+      refreshData();
+      return newEntry;
+    },
+    [showToast, refreshData]
+  );
 
-      setSuppliers((prev) =>
-        prev.map((s) =>
-          s.id === params.supplierId
-            ? {
-                ...s,
-                currentBalance: Number(res.balanceAfter),
-                updatedAt: nowIso,
-              }
-            : s
-        )
-      );
+  // Compute Dashboard Stats (Combines backend summary endpoint with fallbacks)
+  const stats: DashboardStats = useMemo(() => {
+    const totalOutstandingKhata = dashboardSummary.totalOutstandingKhata || customers.reduce((sum, c) => sum + (c.currentBalance > 0 ? c.currentBalance : 0), 0);
+    const totalInventoryCostValue = dashboardSummary.totalInventoryCostValue || products.reduce((sum, p) => sum + p.stockQuantity * p.costPrice, 0);
+    const lowStockCount = dashboardSummary.lowStockCount || products.filter((p) => p.stockQuantity <= p.minStockAlert && p.stockQuantity > 0).length;
+    const outOfStockCount = dashboardSummary.outOfStockCount || products.filter((p) => p.stockQuantity <= 0).length;
 
-      const summary = await suppliersApi.getSummary().catch(() => null);
-      if (summary) setSuppliersSummary(summary);
-
-      showToast({
-        type: params.type === 'STOCK_PURCHASE' ? 'warning' : 'success',
-        title: params.type === 'STOCK_PURCHASE' ? 'Purchase Recorded' : 'Payment Given',
-        message: `Rs. ${params.amount.toLocaleString()} saved to supplier ledger.`,
-      });
-
-      return {
-        id: res.id,
-        supplierId: res.supplierId,
-        supplierName: res.supplierName || '',
-        supplierPhone: res.supplierPhone || '',
-        date: res.transactionDate,
-        type: params.type,
-        amount: Number(res.amount),
-        balanceAfter: Number(res.balanceAfter),
-        notes: res.particulars || '',
-        invoiceNumber: res.invoiceNumber || '',
-        paymentMethod: params.paymentMethod || 'CASH',
-        createdAt: res.createdAt,
-      };
-    } catch (err: any) {
-      console.error(err);
-      showToast({
-        type: 'error',
-        title: 'Supplier Transaction Error',
-        message: err.message || 'Could not record supplier transaction.',
-      });
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const stats = useMemo<DashboardStats>(() => {
-    const totalOutstandingKhata = customers.reduce((sum, c) => sum + (c.currentBalance > 0 ? c.currentBalance : 0), 0);
-    const totalCreditLimit = customers.reduce((sum, c) => sum + c.creditLimit, 0);
-    const activeDebtorsCount = customers.filter((c) => c.currentBalance > 0).length;
-
-    let todayCreditGiven = 0;
-    let todayPaymentReceived = 0;
-
-    ledgerEntries.forEach((entry) => {
-      const entryDate = new Date(entry.date);
-      const isToday = entryDate.toDateString() === new Date().toDateString() || 
-                      (new Date().getTime() - entryDate.getTime() < 24 * 60 * 60 * 1000);
-
-      if (isToday) {
-        if (entry.type === 'CREDIT_PURCHASE') {
-          todayCreditGiven += entry.amount;
-        } else if (entry.type === 'PAYMENT_RECEIVED') {
-          todayPaymentReceived += entry.amount;
-        }
-      }
-    });
-
-    const lowStockCount = products.filter((p) => p.stockQuantity > 0 && p.stockQuantity <= p.minStockAlert).length;
-    const outOfStockCount = products.filter((p) => p.stockQuantity === 0).length;
-
-    const totalInventoryCostValue = products.reduce((sum, p) => sum + p.costPrice * p.stockQuantity, 0);
-    const totalInventorySalesValue = products.reduce((sum, p) => sum + p.sellingPrice * p.stockQuantity, 0);
-
-    const calculatedTotalExpenses = expensesSummary.totalExpenses || expenses.reduce((sum, e) => sum + e.amount, 0);
-
-    const calculatedTotalPayables = suppliersSummary.totalOutstandingPayable || suppliers.reduce((sum, s) => sum + (s.currentBalance > 0 ? s.currentBalance : 0), 0);
+    const todayCashSales = dashboardSummary.todayCashSales || 0;
+    const todayDigitalSales = dashboardSummary.todayDigitalSales || 0;
+    const todayCreditGiven = dashboardSummary.todayCreditGiven || 0;
+    const todayPaymentReceived = todayCashSales + todayDigitalSales;
+    const todayTotalSales = dashboardSummary.todayTotalSales || (todayPaymentReceived + todayCreditGiven);
+    const todayExpenses = expensesSummary.todayExpenses || dashboardSummary.todayExpensesAmount || 0;
 
     return {
       totalOutstandingKhata,
-      totalCreditLimit,
+      totalCreditLimit: customers.reduce((sum, c) => sum + c.creditLimit, 0),
+      todayCashSales,
+      todayDigitalSales,
       todayCreditGiven,
       todayPaymentReceived,
-      todayNetFlow: todayPaymentReceived - todayCreditGiven,
+      todayTotalSales,
+      todayNetFlow: todayPaymentReceived - todayExpenses,
       lowStockCount,
       outOfStockCount,
-      activeDebtorsCount,
+      activeDebtorsCount: customers.filter((c) => c.currentBalance > 0).length,
       totalCustomersCount: customers.length,
       totalInventoryCostValue,
-      totalInventorySalesValue,
-      totalExpenses: calculatedTotalExpenses,
-      todayExpenses: expensesSummary.todayExpenses,
+      totalInventorySalesValue: products.reduce((sum, p) => sum + p.stockQuantity * p.sellingPrice, 0),
+      totalExpenses: expensesSummary.totalExpenses,
+      todayExpenses,
       monthExpenses: expensesSummary.monthExpenses,
-      totalOutstandingPayable: calculatedTotalPayables,
+      totalOutstandingPayable: suppliersSummary.totalOutstandingPayable,
       todaySupplierPurchases: suppliersSummary.todayPurchases,
       todaySupplierPayments: suppliersSummary.todayPaymentsGiven,
     };
-  }, [customers, ledgerEntries, products, expenses, expensesSummary, suppliers, suppliersSummary]);
+  }, [dashboardSummary, customers, products, expensesSummary, suppliersSummary]);
 
-  const contextValue = useMemo(
-    () => ({
-      isLoading,
-      customers,
-      ledgerEntries,
-      products,
-      expenses,
-      expensesSummary,
-      suppliers,
-      suppliersSummary,
-      stats,
-      toasts,
-      dismissToast,
-      showToast,
-      language,
-      calendarMode,
-      setLanguage,
-      setCalendarMode,
-      toggleLanguage,
-      toggleCalendarMode,
-      formatDate,
-      t,
-      addCustomer,
-      updateCustomer,
-      deleteCustomer,
-      getCustomerById,
-      getCustomerLedger,
-      recordTransaction,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      adjustStock,
-      addExpense,
-      deleteExpense,
-      addSupplier,
-      updateSupplier,
-      deleteSupplier,
-      getSupplierById,
-      getSupplierLedger,
-      recordSupplierTransaction,
-      refreshData,
-    }),
-    [
-      isLoading,
-      customers,
-      ledgerEntries,
-      products,
-      expenses,
-      expensesSummary,
-      suppliers,
-      suppliersSummary,
-      stats,
-      toasts,
-      dismissToast,
-      showToast,
-      language,
-      calendarMode,
-      setLanguage,
-      setCalendarMode,
-      toggleLanguage,
-      toggleCalendarMode,
-      formatDate,
-      t,
-      addCustomer,
-      updateCustomer,
-      deleteCustomer,
-      getCustomerById,
-      getCustomerLedger,
-      recordTransaction,
-      addProduct,
-      updateProduct,
-      deleteProduct,
-      adjustStock,
-      addExpense,
-      deleteExpense,
-      addSupplier,
-      updateSupplier,
-      deleteSupplier,
-      getSupplierById,
-      getSupplierLedger,
-      recordSupplierTransaction,
-      refreshData,
-    ]
-  );
+  const isLoading = isCustomersLoading || isProductsLoading || isExpensesLoading || isSuppliersLoading;
 
   return (
-    <KhataContext.Provider value={contextValue}>
+    <KhataContext.Provider
+      value={{
+        isLoading,
+        isCustomersLoading,
+        isProductsLoading,
+        isExpensesLoading,
+        isSuppliersLoading,
+        customers,
+        ledgerEntries,
+        products,
+        expenses,
+        expensesSummary,
+        suppliers,
+        suppliersSummary,
+        stats,
+        toasts,
+        dismissToast,
+        showToast,
+        language,
+        calendarMode,
+        setLanguage,
+        setCalendarMode,
+        toggleLanguage,
+        toggleCalendarMode,
+        formatDate,
+        t,
+        addCustomer,
+        updateCustomer,
+        deleteCustomer,
+        getCustomerById,
+        getCustomerLedger,
+        recordTransaction,
+        addProduct,
+        updateProduct,
+        deleteProduct,
+        adjustStock,
+        addExpense,
+        deleteExpense,
+        addSupplier,
+        updateSupplier,
+        deleteSupplier,
+        getSupplierById,
+        getSupplierLedger,
+        recordSupplierTransaction,
+        refreshData,
+      }}
+    >
       {children}
     </KhataContext.Provider>
   );
 };
 
-export const useKhata = () => {
+export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ToastProvider>
+    <SettingsProvider>
+      <KhataInnerProvider>{children}</KhataInnerProvider>
+    </SettingsProvider>
+  </ToastProvider>
+);
+
+export const useKhata = (): KhataContextType => {
   const context = useContext(KhataContext);
   if (!context) {
     throw new Error('useKhata must be used within a KhataProvider');

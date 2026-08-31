@@ -22,12 +22,14 @@ interface NavbarProps {
   currentTab: NavTab;
   onTabChange: (tab: NavTab) => void;
   onToggleLeftMenu: () => void;
+  onLogout?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onTabChange,
   onToggleLeftMenu,
+  onLogout,
 }) => {
   const { stats, language, calendarMode, toggleLanguage, toggleCalendarMode } = useKhata();
 
@@ -47,12 +49,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Mobile Brand */}
-            <div
-              className="flex lg:hidden items-center gap-2 cursor-pointer"
-              onClick={() => onTabChange('DASHBOARD')}
-            >
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-slate-950 font-black shrink-0">
+            <div className="flex items-center gap-2 lg:hidden">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-md shadow-amber-500/20">
                 <Store className="w-4 h-4" />
               </div>
               <span className="font-extrabold text-base tracking-tight text-slate-100">
@@ -76,41 +74,32 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Actions: B.S. Calendar Toggle, Language Switcher, Sign Out */}
           <div className="flex items-center gap-2">
-            {/* Bikram Sambat Date Toggle */}
-            <button
-              id="toggle-calendar-mode-btn"
-              type="button"
-              onClick={toggleCalendarMode}
-              title={`Switch calendar to ${calendarMode === 'BS' ? 'A.D. (Gregorian)' : 'B.S. (Bikram Sambat)'}`}
-              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <Calendar className="w-3.5 h-3.5" />
-              <span>{calendarMode === 'BS' ? 'वि.सं. (B.S.)' : 'A.D.'}</span>
-            </button>
+            {/* Quick Header Controls */}
+            <div className="flex items-center gap-2">
+              {/* B.S. / A.D. Date Converter Toggle */}
+              <button
+                id="toggle-calendar-btn"
+                type="button"
+                onClick={toggleCalendarMode}
+                title={`Switch calendar to ${calendarMode === 'AD' ? 'Bikram Sambat (B.S.)' : 'Gregorian (A.D.)'}`}
+                className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                <span>{calendarMode === 'BS' ? 'नेपाली (B.S.)' : 'English (A.D.)'}</span>
+              </button>
 
-            {/* Language Switcher */}
-            <button
-              id="toggle-language-btn"
-              type="button"
-              onClick={toggleLanguage}
-              title={`Switch language to ${language === 'en' ? 'Nepali' : 'English'}`}
-              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
-            >
-              <Globe className="w-3.5 h-3.5" />
-              <span>{language === 'en' ? 'नेपाली' : 'English'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                localStorage.removeItem('hisabflow_auth');
-                window.location.reload();
-              }}
-              title="Sign Out"
-              className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-900 rounded-xl border border-slate-800 transition-colors ml-1"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+              {/* Language Switcher */}
+              <button
+                id="toggle-language-btn"
+                type="button"
+                onClick={toggleLanguage}
+                title={`Switch language to ${language === 'en' ? 'Nepali' : 'English'}`}
+                className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>{language === 'en' ? 'नेपाली' : 'English'}</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

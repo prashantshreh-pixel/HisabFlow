@@ -92,4 +92,15 @@ public class ReportsController : ControllerBase
         var report = await _reportRepository.GetProfitLossReportAsync(from, to, periodTitle, cancellationToken);
         return Ok(report);
     }
+
+    /// <summary>
+    /// Gets database-wide high-level dashboard metrics (receivables, inventory valuation, stock counts, today's sales & expenses).
+    /// </summary>
+    [HttpGet("dashboard-summary")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<DashboardSummaryDto>> GetDashboardSummary(CancellationToken cancellationToken = default)
+    {
+        var summary = await _reportRepository.GetDashboardSummaryAsync(cancellationToken);
+        return Ok(summary);
+    }
 }

@@ -1,16 +1,34 @@
-using System.Text.Json.Serialization;
 using HisabFlow.Api.Filters;
 using HisabFlow.Api.Middleware;
 using HisabFlow.Application;
 using HisabFlow.Infrastructure;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add ProblemDetails support
+// Add ProblemDetails & Exception Handler
 builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Add Health Checks
 builder.Services.AddHealthChecks();
+
+// Add Rate Limiting Protection (100 requests / minute per client IP)
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 100,
+                Window = TimeSpan.FromMinutes(1)
+            }));
+});
 
 // Add controllers with AutoValidationFilter and JSON Enum Converter
 builder.Services.AddControllers(options =>
@@ -29,21 +47,33 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 
-// Configure CORS for standalone frontend development
+// Configure CORS for allowed origins from appsettings
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? new[] { "http://localhost:3000", "http://localhost:5200", "https://localhost:5201" };
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.SetIsOriginAllowed(_ => true)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
     });
 });
 
 var app = builder.Build();
 
-// Enable Global Exception Handling Middleware
-app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+// Enable Global Exception Handling
+app.UseExceptionHandler();
 
 // Initialize Database Tables ONCE at startup asynchronously
 using (var scope = app.Services.CreateScope())
@@ -63,6 +93,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+app.UseRateLimiter();
 
 // Map Health Checks
 app.MapHealthChecks("/health");
@@ -71,11 +102,13 @@ app.MapHealthChecks("/health/ready");
 // 1. Enable default files (index.html)
 app.UseDefaultFiles();
 
-// 2. Enable static files from wwwroot with no-cache on HTML files
+// 2. Enable static files from wwwroot with security & no-cache headers on HTML files
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
+        ctx.Context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        ctx.Context.Response.Headers.Append("X-Frame-Options", "SAMEORIGIN");
         if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
         {
             ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -95,6 +128,8 @@ app.MapFallbackToFile("index.html", new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
     {
+        ctx.Context.Response.Headers.Append("X-Content-Type-Options", "nosniff");
+        ctx.Context.Response.Headers.Append("X-Frame-Options", "SAMEORIGIN");
         ctx.Context.Response.Headers.Append("Cache-Control", "no-cache, no-store, must-revalidate");
         ctx.Context.Response.Headers.Append("Pragma", "no-cache");
         ctx.Context.Response.Headers.Append("Expires", "0");

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
+import { logoutUser } from '@/lib/auth';
 import { NavTab } from '@/components/Navbar';
 import {
   Store,
@@ -24,6 +25,7 @@ import {
   Truck,
   BarChart3,
   Calculator,
+  LogOut,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -33,6 +35,7 @@ interface AppSidebarProps {
   onOpenAddProduct: () => void;
   onOpenRecordTx: () => void;
   onOpenCashReconciliation?: () => void;
+  onLogout?: () => void;
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
@@ -42,6 +45,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenAddProduct,
   onOpenRecordTx,
   onOpenCashReconciliation,
+  onLogout,
 }) => {
   const { stats, t } = useKhata();
 
@@ -142,12 +146,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('DASHBOARD')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
               currentTab === 'DASHBOARD'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <LayoutDashboard className="w-4 h-4" />
+              <LayoutDashboard className="w-4 h-4 text-purple-400" />
               <span>{t('dashboard')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -159,18 +163,18 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('POS')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
               currentTab === 'POS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <ScanBarcode className="w-4 h-4" />
+              <ScanBarcode className="w-4 h-4 text-amber-400" />
               <span>{t('pos')}</span>
             </div>
             <span
               className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
                 currentTab === 'POS'
-                  ? 'bg-slate-950 text-amber-400'
+                  ? 'bg-amber-400 text-slate-950'
                   : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
               }`}
             >
@@ -184,12 +188,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('KHATA')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
               currentTab === 'KHATA'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <BookOpen className="w-4 h-4" />
+              <BookOpen className="w-4 h-4 text-emerald-400" />
               <span>{t('khata')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -201,19 +205,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('PRODUCTS')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
               currentTab === 'PRODUCTS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Boxes className="w-4 h-4" />
+              <Boxes className="w-4 h-4 text-indigo-400" />
               <span>{t('products')}</span>
             </div>
             {stats.lowStockCount + stats.outOfStockCount > 0 && (
               <span
                 className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
                   currentTab === 'PRODUCTS'
-                    ? 'bg-slate-950 text-amber-400'
+                    ? 'bg-amber-400 text-slate-950'
                     : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 }`}
               >
@@ -228,12 +232,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('EXPENSES')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
               currentTab === 'EXPENSES'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Receipt className="w-4 h-4" />
+              <Receipt className="w-4 h-4 text-rose-400" />
               <span>{t('expenses')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -245,12 +249,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={() => onTabChange('SUPPLIERS')}
             className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
               currentTab === 'SUPPLIERS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
                 : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
             }`}
           >
             <div className="flex items-center gap-2.5">
-              <Truck className="w-4 h-4" />
+              <Truck className="w-4 h-4 text-sky-400" />
               <span>{t('suppliers')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
@@ -292,7 +296,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         </div>
       </div>
 
-      {/* Footer Mini Card */}
+      {/* Footer Mini Card & Logout */}
       <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 space-y-3">
         <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] space-y-1">
           <div className="flex justify-between items-center text-slate-400">
@@ -304,6 +308,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <span className="font-semibold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
           </div>
         </div>
+
+        <button
+          id="sidebar-logout-btn"
+          type="button"
+          onClick={() => logoutUser(onLogout)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-xl text-xs font-bold transition-all shadow-sm"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>Log out</span>
+        </button>
       </div>
     </aside>
   );

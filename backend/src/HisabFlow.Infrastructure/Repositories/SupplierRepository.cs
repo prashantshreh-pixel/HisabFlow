@@ -1,4 +1,3 @@
-using System.Data;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
@@ -258,6 +257,40 @@ public class SupplierRepository : ISupplierRepository
                 TransactionDate = txDate,
                 CreatedAt = now
             }, tx, cancellationToken: cancellationToken));
+
+            // Process inventory stock increases for supplier purchases
+            if (request.Type == 1 && request.PurchasedItems != null && request.PurchasedItems.Count > 0)
+            {
+                foreach (var item in request.PurchasedItems)
+                {
+                    const string updateProductStockSql = @"
+                        UPDATE products
+                        SET stock_quantity = stock_quantity + @Quantity,
+                            cost_price = CASE WHEN @UnitCostPrice > 0 THEN @UnitCostPrice ELSE cost_price END,
+                            updated_at = @Now
+                        WHERE id = @ProductId;
+
+                        SELECT stock_quantity FROM products WHERE id = @ProductId;";
+
+                    var newStock = await conn.ExecuteScalarAsync<decimal>(
+                        new CommandDefinition(updateProductStockSql, new { ProductId = item.ProductId, Quantity = item.Quantity, UnitCostPrice = item.UnitCostPrice, Now = now }, tx, cancellationToken: cancellationToken));
+
+                    const string insertMovementSql = @"
+                        INSERT INTO stock_movements (id, product_id, movement_type, quantity_change, stock_after, reference_id, notes, created_at)
+                        VALUES (@Id, @ProductId, 'SUPPLIER_PURCHASE', @QuantityChange, @StockAfter, @ReferenceId, @Notes, @CreatedAt);";
+
+                    await conn.ExecuteAsync(new CommandDefinition(insertMovementSql, new
+                    {
+                        Id = Guid.NewGuid(),
+                        item.ProductId,
+                        QuantityChange = item.Quantity,
+                        StockAfter = newStock,
+                        ReferenceId = request.InvoiceNumber ?? entryId.ToString("N"),
+                        Notes = $"Supplier Intake: {supplier.Name}",
+                        CreatedAt = now
+                    }, tx, cancellationToken: cancellationToken));
+                }
+            }
 
             await tx.CommitAsync(cancellationToken);
 

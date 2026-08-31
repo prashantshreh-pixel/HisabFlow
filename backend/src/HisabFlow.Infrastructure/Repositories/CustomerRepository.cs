@@ -1,10 +1,8 @@
-using System.Data;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
-using HisabFlow.Domain.Entities;
 using HisabFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
 

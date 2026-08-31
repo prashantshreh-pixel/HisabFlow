@@ -1,10 +1,9 @@
-using System.Data;
-using System.Text;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
+using System.Text;
 
 namespace HisabFlow.Infrastructure.Repositories;
 

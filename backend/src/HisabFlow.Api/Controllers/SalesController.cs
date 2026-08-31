@@ -105,4 +105,20 @@ public class SalesController : ControllerBase
         var summary = await _saleRepository.GetSalesSummaryAsync(date, cancellationToken);
         return Ok(summary);
     }
+
+    /// <summary>
+    /// Refund/cancels a sale invoice, automatically restoring product stock and reversing credit balances.
+    /// </summary>
+    [HttpPost("{id:guid}/refund")]
+    [Idempotent]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<SaleDto>> RefundSale(Guid id, [FromBody] RefundSaleApiRequest request, CancellationToken cancellationToken = default)
+    {
+        var refunded = await _saleRepository.RefundSaleAsync(id, request.Reason ?? "Customer Return", cancellationToken);
+        return Ok(refunded);
+    }
 }
+
+public record RefundSaleApiRequest(string? Reason);

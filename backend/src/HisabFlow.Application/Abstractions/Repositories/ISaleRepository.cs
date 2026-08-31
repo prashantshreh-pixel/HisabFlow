@@ -11,4 +11,5 @@ public interface ISaleRepository
     Task<SaleDto?> GetSaleByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<SaleDto?> GetSaleByInvoiceNumberAsync(string invoiceNumber, CancellationToken cancellationToken);
     Task<SalesSummaryDto> GetSalesSummaryAsync(DateTime? date, CancellationToken cancellationToken);
+    Task<SaleDto> RefundSaleAsync(Guid saleId, string reason, CancellationToken cancellationToken = default);
 }

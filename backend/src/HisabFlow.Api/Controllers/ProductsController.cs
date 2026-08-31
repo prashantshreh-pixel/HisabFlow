@@ -1,32 +1,53 @@
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Models;
+using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
 
 /// <summary>
-/// Manages store inventory products, stock levels, categories, pricing, and image uploads.
+/// Manages store inventory products, stock levels, categories, pricing, stock movement ledgers, and image uploads.
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepo;
+    private readonly IStockMovementRepository _stockMovementRepo;
     private readonly IWebHostEnvironment _env;
 
-    public ProductsController(IProductRepository productRepo, IWebHostEnvironment env)
+    private const long MaxImageFileSizeBytes = 5 * 1024 * 1024; // 5 MB ceiling
+
+    public ProductsController(IProductRepository productRepo, IStockMovementRepository stockMovementRepo, IWebHostEnvironment env)
     {
         _productRepo = productRepo;
+        _stockMovementRepo = stockMovementRepo;
         _env = env;
     }
+
+    private static ProductDto MapToDto(Product p) => new(
+        p.Id,
+        p.Name,
+        p.Category,
+        p.Unit,
+        p.CostPrice,
+        p.SellingPrice,
+        p.StockQuantity,
+        p.MinStockAlert,
+        p.Barcode,
+        p.ImageUrl,
+        p.IsActive,
+        p.CreatedAt,
+        p.UpdatedAt
+    );
 
     /// <summary>
     /// Retrieves active products with optional pagination and category/search filtering.
     /// </summary>
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<Product>>> GetAll(
+    public async Task<ActionResult<IEnumerable<ProductDto>>> GetAll(
         [FromQuery] bool paged = false,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
@@ -37,11 +58,18 @@ public class ProductsController : ControllerBase
         if (paged)
         {
             var pagedResult = await _productRepo.GetPagedAsync(page, pageSize, category, search, cancellationToken);
-            return Ok(pagedResult);
+            var pagedDtos = new PagedResult<ProductDto>(
+                pagedResult.Items.Select(MapToDto).ToList(),
+                pagedResult.Page,
+                pagedResult.PageSize,
+                pagedResult.TotalCount,
+                pagedResult.TotalPages
+            );
+            return Ok(pagedDtos);
         }
 
         var products = await _productRepo.GetAllAsync(cancellationToken);
-        return Ok(products);
+        return Ok(products.Select(MapToDto));
     }
 
     /// <summary>
@@ -49,7 +77,7 @@ public class ProductsController : ControllerBase
     /// </summary>
     [HttpGet("paged")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResult<Product>>> GetPaged(
+    public async Task<ActionResult<PagedResult<ProductDto>>> GetPaged(
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         [FromQuery] string? category = null,
@@ -57,7 +85,14 @@ public class ProductsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         var pagedResult = await _productRepo.GetPagedAsync(page, pageSize, category, search, cancellationToken);
-        return Ok(pagedResult);
+        var pagedDtos = new PagedResult<ProductDto>(
+            pagedResult.Items.Select(MapToDto).ToList(),
+            pagedResult.Page,
+            pagedResult.PageSize,
+            pagedResult.TotalCount,
+            pagedResult.TotalPages
+        );
+        return Ok(pagedDtos);
     }
 
     /// <summary>
@@ -66,7 +101,7 @@ public class ProductsController : ControllerBase
     [HttpGet("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Product>> GetById(string id, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ProductDto>> GetById(string id, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(id, out var guidId))
         {
@@ -78,7 +113,18 @@ public class ProductsController : ControllerBase
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
         }
-        return Ok(product);
+        return Ok(MapToDto(product));
+    }
+
+    /// <summary>
+    /// Retrieves stock movement audit trail ledger entries for a product.
+    /// </summary>
+    [HttpGet("{id:guid}/stock-movements")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<StockMovementDto>>> GetStockMovements(Guid id, [FromQuery] int limit = 50, CancellationToken cancellationToken = default)
+    {
+        var movements = await _stockMovementRepo.GetMovementsByProductAsync(id, limit, cancellationToken);
+        return Ok(movements);
     }
 
     /// <summary>
@@ -87,19 +133,27 @@ public class ProductsController : ControllerBase
     [HttpPost]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<ActionResult<Product>> Create([FromBody] Product product, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<ProductDto>> Create([FromBody] CreateProductRequest request, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(product.Name))
+        var productEntity = new Product
         {
-            return BadRequest(new { message = "Product name is required." });
-        }
+            Name = request.Name,
+            Category = request.Category,
+            Unit = request.Unit,
+            CostPrice = request.CostPrice,
+            SellingPrice = request.SellingPrice,
+            StockQuantity = request.StockQuantity,
+            MinStockAlert = request.MinStockAlert,
+            Barcode = request.Barcode,
+            ImageUrl = request.ImageUrl,
+        };
 
-        var created = await _productRepo.CreateAsync(product, cancellationToken);
-        return Ok(created);
+        var created = await _productRepo.CreateAsync(productEntity, cancellationToken);
+        return Ok(MapToDto(created));
     }
 
     /// <summary>
-    /// Uploads a product image file to the backend server wwwroot/uploads directory.
+    /// Uploads a product image file with strict size ceiling (5MB) and MIME type validation.
     /// </summary>
     [HttpPost("upload-image")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -111,11 +165,22 @@ public class ProductsController : ControllerBase
             return BadRequest(new { message = "No image file provided." });
         }
 
+        if (file.Length > MaxImageFileSizeBytes)
+        {
+            return BadRequest(new { message = $"File size exceeds maximum allowed limit of {MaxImageFileSizeBytes / (1024 * 1024)}MB." });
+        }
+
         var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".gif" };
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (!allowedExtensions.Contains(ext))
         {
             return BadRequest(new { message = "Invalid image file format. Supported: JPG, PNG, WEBP, GIF." });
+        }
+
+        var allowedContentTypes = new[] { "image/jpeg", "image/png", "image/webp", "image/gif" };
+        if (!allowedContentTypes.Contains(file.ContentType.ToLowerInvariant()))
+        {
+            return BadRequest(new { message = "Invalid file MIME content type." });
         }
 
         var webRoot = _env.WebRootPath;
@@ -151,7 +216,7 @@ public class ProductsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<object>> Update(
         string id,
-        [FromBody] Product product,
+        [FromBody] UpdateProductRequest request,
         [FromQuery] DateTime? expectedUpdatedAt = null,
         CancellationToken cancellationToken = default)
     {
@@ -160,8 +225,21 @@ public class ProductsController : ControllerBase
             return NotFound(new { message = $"Invalid product ID format '{id}'." });
         }
 
-        product.Id = guidId;
-        var success = await _productRepo.UpdateAsync(product, expectedUpdatedAt, cancellationToken);
+        var productEntity = new Product
+        {
+            Id = guidId,
+            Name = request.Name,
+            Category = request.Category,
+            Unit = request.Unit,
+            CostPrice = request.CostPrice,
+            SellingPrice = request.SellingPrice,
+            StockQuantity = request.StockQuantity,
+            MinStockAlert = request.MinStockAlert,
+            Barcode = request.Barcode,
+            ImageUrl = request.ImageUrl,
+        };
+
+        var success = await _productRepo.UpdateAsync(productEntity, expectedUpdatedAt, cancellationToken);
         if (!success)
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found or was modified by another user." });
@@ -187,6 +265,20 @@ public class ProductsController : ControllerBase
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
         }
+
+        // Record Stock Movement Log
+        var product = await _productRepo.GetByIdAsync(guidId, cancellationToken);
+        if (product != null)
+        {
+            await _stockMovementRepo.RecordMovementAsync(new CreateStockMovementRequest(
+                guidId,
+                payload.QuantityChange >= 0 ? "MANUAL_ADD" : "MANUAL_DEDUCT",
+                payload.QuantityChange,
+                product.StockQuantity,
+                Notes: "Manual stock adjustment"
+            ), cancellationToken);
+        }
+
         return Ok(new { message = "Stock quantity adjusted successfully." });
     }
 

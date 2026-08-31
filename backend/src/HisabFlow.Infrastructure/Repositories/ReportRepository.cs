@@ -1,8 +1,8 @@
-using System.Data;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.DTOs;
+using System.Data;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -35,8 +35,9 @@ public class ReportRepository : IReportRepository
                     (SELECT COALESCE(SUM(amount), 0) FROM customer_ledger_entries WHERE type = 2 AND transaction_date >= @StartDate AND transaction_date <= @EndDate)
                 ) AS PaymentsCollected;
 
-            -- 2. Wholesale Purchases & Supplier Payments
+            -- 2. Cost of Goods Sold (COGS) & Wholesale Purchases
             SELECT 
+                (SELECT COALESCE(SUM(si.quantity * si.cost_price), 0) FROM sale_items si INNER JOIN sales s ON si.sale_id = s.id WHERE s.sale_date >= @StartDate AND s.sale_date <= @EndDate) AS CostOfGoodsSold,
                 COALESCE(SUM(CASE WHEN type = 1 THEN amount ELSE 0 END), 0) AS WholesalePurchases,
                 COALESCE(COUNT(CASE WHEN type = 1 THEN 1 END), 0) AS PurchasesCount,
                 COALESCE(SUM(CASE WHEN type = 2 THEN amount ELSE 0 END), 0) AS SupplierPaymentsGiven
@@ -55,19 +56,20 @@ public class ReportRepository : IReportRepository
 
             -- 4. Daily Trends - Sales
             SELECT 
-                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
-                COALESCE(SUM(amount), 0) AS Amount
-            FROM customer_ledger_entries
-            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
-            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);
+                CONVERT(VARCHAR(10), sale_date, 120) AS [Date],
+                COALESCE(SUM(total_amount), 0) AS Amount
+            FROM sales
+            WHERE sale_date >= @StartDate AND sale_date <= @EndDate
+            GROUP BY CONVERT(VARCHAR(10), sale_date, 120);
 
-            -- 5. Daily Trends - Wholesale
+            -- 5. Daily Trends - Cost of Goods Sold (COGS)
             SELECT 
-                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
-                COALESCE(SUM(amount), 0) AS Amount
-            FROM supplier_ledger_entries
-            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
-            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);
+                CONVERT(VARCHAR(10), s.sale_date, 120) AS [Date],
+                COALESCE(SUM(si.quantity * si.cost_price), 0) AS Amount
+            FROM sale_items si
+            INNER JOIN sales s ON si.sale_id = s.id
+            WHERE s.sale_date >= @StartDate AND s.sale_date <= @EndDate
+            GROUP BY CONVERT(VARCHAR(10), s.sale_date, 120);
 
             -- 6. Daily Trends - Expense
             SELECT 
@@ -80,7 +82,7 @@ public class ReportRepository : IReportRepository
         using var multi = await connection.QueryMultipleAsync(new CommandDefinition(multiSql, new { StartDate = startDate, EndDate = endDate }, cancellationToken: cancellationToken));
 
         var salesData = await multi.ReadFirstOrDefaultAsync<(decimal GrossSales, int SalesCount, decimal PaymentsCollected)>();
-        var wholesaleData = await multi.ReadFirstOrDefaultAsync<(decimal WholesalePurchases, int PurchasesCount, decimal SupplierPaymentsGiven)>();
+        var cogsAndWholesaleData = await multi.ReadFirstOrDefaultAsync<(decimal CostOfGoodsSold, decimal WholesalePurchases, int PurchasesCount, decimal SupplierPaymentsGiven)>();
         var rawExpenses = (await multi.ReadAsync<(string Category, decimal Amount, int Count)>()).ToList();
 
         decimal totalOperatingExpenses = rawExpenses.Sum(e => e.Amount);
@@ -97,37 +99,37 @@ public class ReportRepository : IReportRepository
         var salesByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
-        var wholesaleByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
+        var cogsByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
         var expenseByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
-        var allDates = salesByDay.Keys.Union(wholesaleByDay.Keys).Union(expenseByDay.Keys).OrderBy(d => d).ToList();
+        var allDates = salesByDay.Keys.Union(cogsByDay.Keys).Union(expenseByDay.Keys).OrderBy(d => d).ToList();
         var dailyTrends = allDates.Select(date =>
         {
             decimal s = salesByDay.GetValueOrDefault(date, 0);
-            decimal w = wholesaleByDay.GetValueOrDefault(date, 0);
+            decimal cogs = cogsByDay.GetValueOrDefault(date, 0);
             decimal e = expenseByDay.GetValueOrDefault(date, 0);
             return new DailyTrendPointDto
             {
                 Date = date,
                 SalesRevenue = s,
-                WholesaleCost = w,
+                WholesaleCost = cogs,
                 OperatingExpense = e,
-                NetProfit = s - w - e
+                NetProfit = s - cogs - e
             };
         }).ToList();
 
         decimal grossSales = salesData.GrossSales;
-        decimal wholesaleCost = wholesaleData.WholesalePurchases;
-        decimal grossProfit = grossSales - wholesaleCost;
+        decimal cogsTotal = cogsAndWholesaleData.CostOfGoodsSold;
+        decimal grossProfit = grossSales - cogsTotal;
         decimal grossProfitMargin = grossSales > 0 ? Math.Round((grossProfit / grossSales) * 100, 2) : 0;
         decimal netProfit = grossProfit - totalOperatingExpenses;
         decimal netProfitMargin = grossSales > 0 ? Math.Round((netProfit / grossSales) * 100, 2) : 0;
 
         decimal totalCashIn = salesData.PaymentsCollected;
-        decimal totalCashOut = wholesaleData.SupplierPaymentsGiven + totalOperatingExpenses;
+        decimal totalCashOut = cogsAndWholesaleData.SupplierPaymentsGiven + totalOperatingExpenses;
 
         return new ProfitLossReportDto
         {
@@ -137,8 +139,8 @@ public class ReportRepository : IReportRepository
             GrossSalesRevenue = grossSales,
             TotalPaymentsCollected = salesData.PaymentsCollected,
             TotalSalesCount = salesData.SalesCount,
-            WholesaleStockPurchases = wholesaleCost,
-            WholesalePurchasesCount = wholesaleData.PurchasesCount,
+            WholesaleStockPurchases = cogsAndWholesaleData.WholesalePurchases,
+            WholesalePurchasesCount = cogsAndWholesaleData.PurchasesCount,
             GrossProfit = grossProfit,
             GrossProfitMarginPercentage = grossProfitMargin,
             TotalOperatingExpenses = totalOperatingExpenses,
@@ -154,5 +156,38 @@ public class ReportRepository : IReportRepository
             },
             DailyTrends = dailyTrends
         };
+    }
+
+    public async Task<DashboardSummaryDto> GetDashboardSummaryAsync(CancellationToken cancellationToken = default)
+    {
+        using var connection = await _dbConnectionFactory.CreateConnectionAsync(cancellationToken);
+        var now = DateTime.UtcNow;
+        var startOfDay = new DateTime(now.Year, now.Month, now.Day, 0, 0, 0, DateTimeKind.Utc);
+        var endOfDay = new DateTime(now.Year, now.Month, now.Day, 23, 59, 59, DateTimeKind.Utc);
+
+        const string sql = @"
+            SELECT 
+                (SELECT COALESCE(SUM(current_balance), 0) FROM customers WHERE is_active = 1 AND current_balance > 0) AS TotalOutstandingKhata,
+                (SELECT COALESCE(SUM(stock_quantity * cost_price), 0) FROM products WHERE is_active = 1) AS TotalInventoryCostValue,
+                (SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity <= min_stock_alert AND stock_quantity > 0) AS LowStockCount,
+                (SELECT COUNT(1) FROM products WHERE is_active = 1 AND stock_quantity <= 0) AS OutOfStockCount,
+                (SELECT COALESCE(SUM(cash_paid), 0) FROM sales WHERE sale_date >= @StartOfDay AND sale_date <= @EndOfDay) AS TodayCashSales,
+                (SELECT COALESCE(SUM(digital_paid), 0) FROM sales WHERE sale_date >= @StartOfDay AND sale_date <= @EndOfDay) AS TodayDigitalSales,
+                (SELECT COALESCE(SUM(credit_paid), 0) FROM sales WHERE sale_date >= @StartOfDay AND sale_date <= @EndOfDay) AS TodayCreditGiven,
+                (SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE sale_date >= @StartOfDay AND sale_date <= @EndOfDay) AS TodayTotalSales,
+                (SELECT COUNT(1) FROM sales WHERE sale_date >= @StartOfDay AND sale_date <= @EndOfDay) AS TodaySalesCount,
+                (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE expense_date >= @StartOfDay AND expense_date <= @EndOfDay) AS TodayExpensesAmount,
+                (SELECT COUNT(1) FROM customers WHERE is_active = 1) AS ActiveCustomersCount,
+                (SELECT COUNT(1) FROM products WHERE is_active = 1) AS ActiveProductsCount;";
+
+        var summary = await connection.QuerySingleAsync<DashboardSummaryDto>(
+            new CommandDefinition(sql, new { StartOfDay = startOfDay, EndOfDay = endOfDay }, cancellationToken: cancellationToken));
+
+        return summary;
+    }
+
+    public void InvalidateCache()
+    {
+        // Concrete repository does not hold in-memory cache directly
     }
 }
