@@ -320,6 +320,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               className="relative group/img w-10 h-10 rounded-xl overflow-hidden border border-slate-700 shrink-0 bg-slate-950 cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-500"
                               title="Click to expand product image"
                             >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={getImageUrl(product.imageUrl)}
                                 alt={product.name}

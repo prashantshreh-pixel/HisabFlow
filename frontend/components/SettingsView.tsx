@@ -43,6 +43,7 @@ export const SettingsView: React.FC = () => {
       const saved = localStorage.getItem('hisabflow_store_profile');
       if (saved) {
         const parsed = JSON.parse(saved);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (parsed.storeName) setStoreName(parsed.storeName);
         if (parsed.tagline) setTagline(parsed.tagline);
         if (parsed.ownerName) setOwnerName(parsed.ownerName);

@@ -260,23 +260,10 @@ public class ProductsController : ControllerBase
             return NotFound(new { message = $"Invalid product ID format '{id}'." });
         }
 
-        var success = await _productRepo.AdjustStockAsync(guidId, payload.QuantityChange, cancellationToken);
+        var success = await _productRepo.AdjustStockAsync(guidId, payload.QuantityChange, payload.Notes ?? "Manual stock adjustment", cancellationToken);
         if (!success)
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
-        }
-
-        // Record Stock Movement Log
-        var product = await _productRepo.GetByIdAsync(guidId, cancellationToken);
-        if (product != null)
-        {
-            await _stockMovementRepo.RecordMovementAsync(new CreateStockMovementRequest(
-                guidId,
-                payload.QuantityChange >= 0 ? "MANUAL_ADD" : "MANUAL_DEDUCT",
-                payload.QuantityChange,
-                product.StockQuantity,
-                Notes: "Manual stock adjustment"
-            ), cancellationToken);
         }
 
         return Ok(new { message = "Stock quantity adjusted successfully." });
@@ -307,4 +294,5 @@ public class ProductsController : ControllerBase
 public class StockAdjustmentPayload
 {
     public decimal QuantityChange { get; set; }
+    public string? Notes { get; set; }
 }

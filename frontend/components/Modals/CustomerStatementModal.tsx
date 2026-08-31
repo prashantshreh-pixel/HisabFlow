@@ -87,7 +87,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const handleOpenSMS = () => {
     const cleanPhone = getCleanPhone(customer.phone);
     const url = `sms:+${cleanPhone}?body=${encodeURIComponent(reminderMessage)}`;
-    window.location.href = url;
+    window.open(url, '_self');
   };
 
   const handleCopyReminder = () => {

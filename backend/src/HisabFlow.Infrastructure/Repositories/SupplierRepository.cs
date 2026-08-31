@@ -11,12 +11,16 @@ namespace HisabFlow.Infrastructure.Repositories;
 public class SupplierRepository : ISupplierRepository
 {
     private readonly IDbConnectionFactory _db;
+    private readonly IAuditRepository _auditRepo;
+    private readonly IReportRepository _reportRepo;
 
     private readonly record struct SupplierLockRecord(string Name, string Phone, decimal CurrentBalance);
 
-    public SupplierRepository(IDbConnectionFactory db)
+    public SupplierRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
     {
         _db = db;
+        _auditRepo = auditRepo;
+        _reportRepo = reportRepo;
     }
 
     public async Task<IEnumerable<Supplier>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -240,9 +244,12 @@ public class SupplierRepository : ISupplierRepository
 
             await conn.ExecuteAsync(new CommandDefinition(updateSupplierSql, new { NewBalance = newBalance, UpdatedAt = now, request.SupplierId }, tx, cancellationToken: cancellationToken));
 
+            const string shiftSql = "SELECT TOP (1) id FROM cash_drawers WHERE status = 'OPEN' ORDER BY opened_at DESC;";
+            var activeShiftId = await conn.QuerySingleOrDefaultAsync<Guid?>(new CommandDefinition(shiftSql, transaction: tx, cancellationToken: cancellationToken));
+
             const string insertLedgerSql = @"
-                INSERT INTO supplier_ledger_entries (id, supplier_id, type, amount, balance_after, payment_method, particulars, invoice_number, transaction_date, created_at)
-                VALUES (@Id, @SupplierId, @Type, @Amount, @BalanceAfter, @PaymentMethod, @Particulars, @InvoiceNumber, @TransactionDate, @CreatedAt);";
+                INSERT INTO supplier_ledger_entries (id, supplier_id, type, amount, balance_after, payment_method, particulars, invoice_number, transaction_date, cash_drawer_shift_id, created_at)
+                VALUES (@Id, @SupplierId, @Type, @Amount, @BalanceAfter, @PaymentMethod, @Particulars, @InvoiceNumber, @TransactionDate, @ShiftId, @CreatedAt);";
 
             await conn.ExecuteAsync(new CommandDefinition(insertLedgerSql, new
             {
@@ -255,6 +262,7 @@ public class SupplierRepository : ISupplierRepository
                 request.Particulars,
                 request.InvoiceNumber,
                 TransactionDate = txDate,
+                ShiftId = activeShiftId,
                 CreatedAt = now
             }, tx, cancellationToken: cancellationToken));
 
@@ -293,6 +301,16 @@ public class SupplierRepository : ISupplierRepository
             }
 
             await tx.CommitAsync(cancellationToken);
+
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Supplier",
+                request.SupplierId.ToString(),
+                "RECORD_TRANSACTION",
+                System.Text.Json.JsonSerializer.Serialize(new { Type = request.Type, Amount = request.Amount, BalanceAfter = newBalance }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
 
             return new SupplierLedgerEntry
             {

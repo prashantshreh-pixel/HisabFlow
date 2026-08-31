@@ -78,10 +78,11 @@ public class DatabaseIntegrationTests
         await factory.EnsureTablesCreatedAsync();
 
         var memoryCache = new MemoryCache(new MemoryCacheOptions());
+        var auditRepo = new AuditRepository(factory);
         var reportRepo = new CachedReportRepository(new ReportRepository(factory), memoryCache);
-        var productRepo = new ProductRepository(factory);
-        var customerRepo = new CustomerRepository(factory);
-        var saleRepo = new SaleRepository(factory, reportRepo);
+        var productRepo = new ProductRepository(factory, auditRepo, reportRepo);
+        var customerRepo = new CustomerRepository(factory, auditRepo, reportRepo);
+        var saleRepo = new SaleRepository(factory, reportRepo, auditRepo);
 
         // 1. Create test product
         var product = await productRepo.CreateAsync(new Product
@@ -143,7 +144,12 @@ public class DatabaseIntegrationTests
         // 4. Perform Refund
         var refundedSale = await saleRepo.RefundSaleAsync(sale.Id, "Defective product return");
 
+        Assert.True(refundedSale.IsRefunded);
+        Assert.NotNull(refundedSale.RefundedAt);
         Assert.Contains("[REFUNDED]", refundedSale.Notes);
+
+        // Verify duplicate refund attempt throws InvalidOperationException
+        await Assert.ThrowsAsync<InvalidOperationException>(() => saleRepo.RefundSaleAsync(sale.Id, "Duplicate refund attempt"));
 
         // Verify stock restored to 50
         var stockAfterRefund = (await productRepo.GetByIdAsync(product.Id))!.StockQuantity;

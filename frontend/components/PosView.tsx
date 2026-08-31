@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { salesApi } from '@/lib/api';
 import { Product, Customer, CartItem, Sale, SalesSummary } from '@/types';
@@ -133,58 +133,19 @@ export const PosView: React.FC = () => {
     return Math.max(0, tendered - grandTotal);
   }, [paymentMethod, cashTendered, grandTotal]);
 
-  // Auto-fill exact cash tendered when total changes if empty
-  useEffect(() => {
-    if (paymentMethod === 1 && (cashTendered === '' || cashTendered === 0)) {
-      setCashTendered(grandTotal);
-    }
-  }, [grandTotal, paymentMethod]);
-
-  // Auto-focus search input on mount
-  useEffect(() => {
+  // Clear Cart
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setSelectedCustomerId('');
+    setDiscountValue(0);
+    setApplyTax(false);
+    setNotes('');
+    setCashTendered('');
+    setSplitCash('');
+    setSplitDigital('');
+    setSplitCredit('');
     searchInputRef.current?.focus();
   }, []);
-
-  // Global POS Keyboard Shortcuts Engine
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // F2: POS Terminal tab
-      if (e.key === 'F2') {
-        e.preventDefault();
-        setActiveSubTab('TERMINAL');
-        searchInputRef.current?.focus();
-      }
-      // F3 or Ctrl+K: Focus Search/Barcode Input
-      else if (e.key === 'F3' || (e.ctrlKey && e.key.toLowerCase() === 'k')) {
-        e.preventDefault();
-        setActiveSubTab('TERMINAL');
-        searchInputRef.current?.focus();
-      }
-      // F4: Recent Invoices tab
-      else if (e.key === 'F4') {
-        e.preventDefault();
-        setActiveSubTab('INVOICES');
-      }
-      // F9 or Ctrl+Enter: Trigger Checkout
-      else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
-        e.preventDefault();
-        if (cart.length > 0 && !isProcessing) {
-          handleCheckout();
-        }
-      }
-      // Escape: Clear Search or Cart
-      else if (e.key === 'Escape' && activeSubTab === 'TERMINAL') {
-        if (searchQuery) {
-          setSearchQuery('');
-        } else if (cart.length > 0 && document.activeElement !== searchInputRef.current) {
-          clearCart();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, isProcessing, activeSubTab, searchQuery]);
 
   // Fetch Invoices when switching to INVOICES tab
   const fetchInvoices = async () => {
@@ -203,8 +164,22 @@ export const PosView: React.FC = () => {
     }
   };
 
+  // Auto-fill exact cash tendered when total changes if empty
+  useEffect(() => {
+    if (paymentMethod === 1 && (cashTendered === '' || cashTendered === 0)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCashTendered(grandTotal);
+    }
+  }, [grandTotal, paymentMethod, cashTendered]);
+
+  // Auto-focus search input on mount
+  useEffect(() => {
+    searchInputRef.current?.focus();
+  }, []);
+
   useEffect(() => {
     if (activeSubTab === 'INVOICES') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchInvoices();
     }
   }, [activeSubTab]);
@@ -273,19 +248,6 @@ export const PosView: React.FC = () => {
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
-  const clearCart = () => {
-    setCart([]);
-    setSelectedCustomerId('');
-    setDiscountValue(0);
-    setApplyTax(false);
-    setNotes('');
-    setCashTendered('');
-    setSplitCash('');
-    setSplitDigital('');
-    setSplitCredit('');
-    searchInputRef.current?.focus();
-  };
-
   // Barcode / Search form submit: if exact match or single product, add directly!
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,7 +300,7 @@ export const PosView: React.FC = () => {
   };
 
   // Process Checkout
-  const handleCheckout = async () => {
+  const handleCheckout = useCallback(async () => {
     if (cart.length === 0) {
       showToast({ type: 'warning', title: 'Empty Cart', message: 'Cart is empty. Please add items to checkout.' });
       return;
@@ -433,7 +395,48 @@ export const PosView: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData]);
+
+  // Global POS Keyboard Shortcuts Engine
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F2: POS Terminal tab
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setActiveSubTab('TERMINAL');
+        searchInputRef.current?.focus();
+      }
+      // F3 or Ctrl+K: Focus Search/Barcode Input
+      else if (e.key === 'F3' || (e.ctrlKey && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        setActiveSubTab('TERMINAL');
+        searchInputRef.current?.focus();
+      }
+      // F4: Recent Invoices tab
+      else if (e.key === 'F4') {
+        e.preventDefault();
+        setActiveSubTab('INVOICES');
+      }
+      // F9 or Ctrl+Enter: Trigger Checkout
+      else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
+        e.preventDefault();
+        if (cart.length > 0 && !isProcessing) {
+          handleCheckout();
+        }
+      }
+      // Escape: Clear Search or Cart
+      else if (e.key === 'Escape' && activeSubTab === 'TERMINAL') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else if (cart.length > 0 && document.activeElement !== searchInputRef.current) {
+          clearCart();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cart, isProcessing, activeSubTab, searchQuery, handleCheckout]);
 
   // Filtered recent invoices
   const filteredInvoices = useMemo(() => {
@@ -981,7 +984,7 @@ export const PosView: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Today's POS Sales
+                  Today&apos;s POS Sales
                 </span>
                 <div className="text-xl font-black font-mono text-emerald-400 mt-1">
                   Rs. {salesSummary.totalSalesAmount.toLocaleString()}

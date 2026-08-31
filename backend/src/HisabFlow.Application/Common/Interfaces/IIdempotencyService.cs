@@ -6,4 +6,5 @@ public interface IIdempotencyService
 {
     Task<(IdempotencyResultState State, IdempotencyRecord? Record)> TryReserveKeyAsync(string key, string requestHash, CancellationToken cancellationToken = default);
     Task CompleteReservationAsync(string key, int statusCode, string responseBody, CancellationToken cancellationToken = default);
+    Task ReleaseKeyAsync(string key, CancellationToken cancellationToken = default);
 }

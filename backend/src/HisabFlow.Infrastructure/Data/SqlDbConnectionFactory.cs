@@ -44,11 +44,9 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
         {
             if (_tablesInitialized) return;
 
-            using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync(cancellationToken);
+            using var connection = (SqlConnection)await CreateConnectionAsync(cancellationToken);
 
-            // 1. Ensure __DbMigrationsHistory table exists
-            const string createHistoryTableSql = @"
+            const string ensureHistoryTableSql = @"
                 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'__DbMigrationsHistory')
                 BEGIN
                     CREATE TABLE __DbMigrationsHistory (
@@ -56,13 +54,11 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                         applied_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
                     );
                 END";
+            await connection.ExecuteAsync(new CommandDefinition(ensureHistoryTableSql, cancellationToken: cancellationToken));
 
-            await connection.ExecuteAsync(new CommandDefinition(createHistoryTableSql, cancellationToken: cancellationToken));
-
-            // 2. Define migration steps
-            var migrations = new (string Id, string Sql)[]
+            var migrations = new (string Id, string SqlScript)[]
             {
-                ("001_CreateCoreTables", @"
+                ("001_InitialTables", @"
                     IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'customers')
                     BEGIN
                         CREATE TABLE customers (
@@ -70,7 +66,7 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             name NVARCHAR(100) NOT NULL,
                             phone NVARCHAR(20) NOT NULL UNIQUE,
                             address NVARCHAR(MAX),
-                            credit_limit DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
+                            credit_limit DECIMAL(12, 2) NOT NULL DEFAULT 5000.00 CHECK (credit_limit >= 0),
                             current_balance DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
                             is_active BIT NOT NULL DEFAULT 1,
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -103,10 +99,11 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             barcode NVARCHAR(50) NULL,
                             category NVARCHAR(100) NOT NULL DEFAULT N'General',
                             unit NVARCHAR(20) NOT NULL DEFAULT N'pcs',
-                            unit_price DECIMAL(12, 2) NOT NULL CHECK (unit_price >= 0),
+                            selling_price DECIMAL(12, 2) NOT NULL CHECK (selling_price >= 0),
                             cost_price DECIMAL(12, 2) NOT NULL CHECK (cost_price >= 0),
                             stock_quantity DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
                             min_stock_alert DECIMAL(12, 2) NOT NULL DEFAULT 5.00,
+                            image_url NVARCHAR(500) NULL,
                             is_active BIT NOT NULL DEFAULT 1,
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                             updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
@@ -177,8 +174,11 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             digital_paid DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
                             credit_paid DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
                             notes NVARCHAR(MAX) NULL,
+                            is_refunded BIT NOT NULL DEFAULT 0,
+                            refunded_at DATETIME2 NULL,
                             sale_date DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                            updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
                         );
                     END
 
@@ -198,13 +198,14 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                         );
                     END
 
-                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'idempotency_records')
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'__IdempotencyKeys')
                     BEGIN
-                        CREATE TABLE idempotency_records (
-                            idempotency_key NVARCHAR(128) NOT NULL PRIMARY KEY,
-                            request_path NVARCHAR(256) NOT NULL,
-                            response_status_code INT NOT NULL,
-                            response_body NVARCHAR(MAX) NOT NULL,
+                        CREATE TABLE __IdempotencyKeys (
+                            idempotency_key VARCHAR(64) NOT NULL PRIMARY KEY,
+                            request_hash VARCHAR(64) NOT NULL,
+                            status VARCHAR(20) NOT NULL,
+                            response_code INT NULL,
+                            response_body NVARCHAR(MAX) NULL,
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
                         );
                     END"),
@@ -231,7 +232,7 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_sale_items_product')
                         CREATE INDEX idx_sale_items_product ON sale_items(product_id);
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_idempotency_created')
-                        CREATE INDEX idx_idempotency_created ON idempotency_records(created_at DESC);
+                        CREATE INDEX idx_idempotency_created ON __IdempotencyKeys(created_at DESC);
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_customer_ledger_date')
                         CREATE INDEX idx_customer_ledger_date ON customer_ledger_entries(customer_id, transaction_date DESC, created_at DESC);
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_customers_active_updated')
@@ -241,20 +242,7 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_expenses_filter')
                         CREATE INDEX idx_expenses_filter ON expenses(category, expense_date DESC);"),
 
-                ("003_CreateIdempotencyKeysTable", @"
-                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'__IdempotencyKeys')
-                    BEGIN
-                        CREATE TABLE __IdempotencyKeys (
-                            idempotency_key VARCHAR(64) NOT NULL PRIMARY KEY,
-                            request_hash VARCHAR(64) NOT NULL,
-                            status VARCHAR(20) NOT NULL,
-                            response_code INT NULL,
-                            response_body NVARCHAR(MAX) NULL,
-                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-                        );
-                    END"),
-
-                ("004_CreateAuditAndInventoryTables", @"
+                ("003_CreateAuditAndInventoryTables", @"
                     IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'audit_logs')
                     BEGIN
                         CREATE TABLE audit_logs (
@@ -297,6 +285,56 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             opened_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                             closed_at DATETIME2 NULL
                         );
+                    END"),
+
+                ("004_SchemaSelfHealingPills", @"
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'products') AND name = N'selling_price')
+                    BEGIN
+                        IF EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'products') AND name = N'unit_price')
+                            EXEC sp_rename 'products.unit_price', 'selling_price', 'COLUMN';
+                        ELSE
+                            ALTER TABLE products ADD selling_price DECIMAL(12, 2) NOT NULL DEFAULT 0.00 CHECK (selling_price >= 0);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'products') AND name = N'image_url')
+                    BEGIN
+                        ALTER TABLE products ADD image_url NVARCHAR(500) NULL;
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'sales') AND name = N'is_refunded')
+                    BEGIN
+                        ALTER TABLE sales ADD is_refunded BIT NOT NULL DEFAULT 0;
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'sales') AND name = N'refunded_at')
+                    BEGIN
+                        ALTER TABLE sales ADD refunded_at DATETIME2 NULL;
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'sales') AND name = N'updated_at')
+                    BEGIN
+                        ALTER TABLE sales ADD updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME();
+                    END"),
+
+                ("005_CashDrawerUniquenessAndShiftLinkage", @"
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'uq_cash_drawers_open_shift')
+                    BEGIN
+                        CREATE UNIQUE INDEX uq_cash_drawers_open_shift ON cash_drawers(status) WHERE status = 'OPEN';
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'sales') AND name = N'cash_drawer_shift_id')
+                    BEGIN
+                        ALTER TABLE sales ADD cash_drawer_shift_id UNIQUEIDENTIFIER NULL REFERENCES cash_drawers(id);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'expenses') AND name = N'cash_drawer_shift_id')
+                    BEGIN
+                        ALTER TABLE expenses ADD cash_drawer_shift_id UNIQUEIDENTIFIER NULL REFERENCES cash_drawers(id);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'supplier_ledger_entries') AND name = N'cash_drawer_shift_id')
+                    BEGIN
+                        ALTER TABLE supplier_ledger_entries ADD cash_drawer_shift_id UNIQUEIDENTIFIER NULL REFERENCES cash_drawers(id);
                     END")
             };
 
@@ -326,6 +364,7 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
             }
 
             _tablesInitialized = true;
+            _logger.LogInformation("Database tables and versioned migrations verified successfully.");
         }
         finally
         {

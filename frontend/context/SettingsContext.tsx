@@ -25,10 +25,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       const savedLang = localStorage.getItem('hisabflow_lang') as Language;
       if (savedLang === 'en' || savedLang === 'np') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setLanguageState(savedLang);
       }
       const savedCal = localStorage.getItem('hisabflow_cal_mode') as CalendarMode;
       if (savedCal === 'AD' || savedCal === 'BS') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setCalendarModeState(savedCal);
       }
     } catch {}

@@ -2,17 +2,24 @@ using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
+using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
+using Microsoft.Data.SqlClient;
+using System.Text.Json;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
 public class ProductRepository : IProductRepository
 {
     private readonly IDbConnectionFactory _db;
+    private readonly IAuditRepository _auditRepo;
+    private readonly IReportRepository _reportRepo;
 
-    public ProductRepository(IDbConnectionFactory db)
+    public ProductRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
     {
         _db = db;
+        _auditRepo = auditRepo;
+        _reportRepo = reportRepo;
     }
 
     public async Task<PagedResult<Product>> GetPagedAsync(
@@ -145,6 +152,16 @@ public class ProductRepository : IProductRepository
             );";
 
         await conn.ExecuteAsync(new CommandDefinition(sql, product, cancellationToken: cancellationToken));
+
+        await _auditRepo.LogAsync(new CreateAuditLogRequest(
+            "Product",
+            product.Id.ToString(),
+            "CREATE",
+            JsonSerializer.Serialize(new { product.Name, product.SellingPrice, product.StockQuantity }),
+            "System"
+        ), cancellationToken);
+
+        _reportRepo.InvalidateCache();
         return product;
     }
 
@@ -184,20 +201,92 @@ public class ProductRepository : IProductRepository
             ExpectedUpdatedAt = expectedUpdatedAt
         }, cancellationToken: cancellationToken));
 
+        if (rows > 0)
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Product",
+                product.Id.ToString(),
+                "UPDATE",
+                JsonSerializer.Serialize(new { product.Name, product.SellingPrice, product.StockQuantity }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+        }
+
         return rows > 0;
     }
 
-    public async Task<bool> AdjustStockAsync(Guid id, decimal quantityChange, CancellationToken cancellationToken = default)
+    public async Task<bool> AdjustStockAsync(Guid id, decimal quantityChange, string? notes = null, CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync(cancellationToken);
-        const string sql = @"
-            UPDATE products SET
-                stock_quantity = stock_quantity + @Change,
-                updated_at = SYSUTCDATETIME()
-            WHERE id = @Id AND is_active = 1;";
+        using var conn = (SqlConnection)await _db.CreateConnectionAsync(cancellationToken);
+        using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
-        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id, Change = quantityChange }, cancellationToken: cancellationToken));
-        return rows > 0;
+        try
+        {
+            const string lockSql = @"
+                SELECT name AS Name, stock_quantity AS StockQuantity
+                FROM products WITH (UPDLOCK, ROWLOCK)
+                WHERE id = @Id AND is_active = 1;";
+
+            var product = await conn.QuerySingleOrDefaultAsync<dynamic>(new CommandDefinition(lockSql, new { Id = id }, tx, cancellationToken: cancellationToken));
+            if (product == null)
+            {
+                return false;
+            }
+
+            decimal currentStock = (decimal)product.StockQuantity;
+            string productName = (string)product.Name;
+            decimal newStock = currentStock + quantityChange;
+
+            if (newStock < 0)
+            {
+                throw new InvalidOperationException($"Stock adjustment of {quantityChange} would result in negative stock for product '{productName}'. Current stock: {currentStock}.");
+            }
+
+            const string updateSql = @"
+                UPDATE products SET
+                    stock_quantity = @NewStock,
+                    updated_at = SYSUTCDATETIME()
+                WHERE id = @Id AND is_active = 1;";
+
+            await conn.ExecuteAsync(new CommandDefinition(updateSql, new { Id = id, NewStock = newStock }, tx, cancellationToken: cancellationToken));
+
+            var now = DateTime.UtcNow;
+            const string insertMovementSql = @"
+                INSERT INTO stock_movements (id, product_id, movement_type, quantity_change, stock_after, reference_id, notes, created_at)
+                VALUES (@Id, @ProductId, @MovementType, @QuantityChange, @StockAfter, @ReferenceId, @Notes, @CreatedAt);";
+
+            await conn.ExecuteAsync(new CommandDefinition(insertMovementSql, new
+            {
+                Id = Guid.NewGuid(),
+                ProductId = id,
+                MovementType = quantityChange >= 0 ? "MANUAL_ADD" : "MANUAL_DEDUCT",
+                QuantityChange = quantityChange,
+                StockAfter = newStock,
+                ReferenceId = (string?)null,
+                Notes = notes ?? "Manual stock adjustment",
+                CreatedAt = now
+            }, tx, cancellationToken: cancellationToken));
+
+            await tx.CommitAsync(cancellationToken);
+
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Product",
+                id.ToString(),
+                "ADJUST_STOCK",
+                JsonSerializer.Serialize(new { ProductName = productName, QuantityChange = quantityChange, StockAfter = newStock, Notes = notes }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+            return true;
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
@@ -210,6 +299,19 @@ public class ProductRepository : IProductRepository
             WHERE id = @Id AND is_active = 1;";
 
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+        if (rows > 0)
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Product",
+                id.ToString(),
+                "DELETE",
+                "Product soft-deleted from inventory.",
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+        }
+
         return rows > 0;
     }
 }

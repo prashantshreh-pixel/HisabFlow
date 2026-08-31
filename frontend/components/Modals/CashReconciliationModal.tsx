@@ -179,7 +179,7 @@ export const CashReconciliationModal: React.FC<CashReconciliationModalProps> = (
           {/* Ledger Flow Breakdown Table */}
           <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-950/40 p-4 space-y-2 text-xs">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-              Today's System Cash Flows (आजको प्रणाली नगद विवरण)
+              Today&apos;s System Cash Flows (आजको प्रणाली नगद विवरण)
             </span>
 
             <div className="flex justify-between py-1.5 border-b border-slate-800 text-slate-300">

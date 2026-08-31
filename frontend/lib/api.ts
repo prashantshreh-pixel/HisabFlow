@@ -7,13 +7,13 @@ export const getApiBase = (): string => {
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  if (typeof window !== 'undefined' && window.location.port === '5200') {
+  if (typeof window !== 'undefined') {
+    if (window.location.port === '3000') {
+      return `http://${window.location.hostname || 'localhost'}:5200`;
+    }
     return '';
   }
-  if (typeof window !== 'undefined' && window.location.port !== '5200') {
-    return `http://${window.location.hostname || 'localhost'}:5200`;
-  }
-  return 'http://localhost:5200';
+  return '';
 };
 
 export const getImageUrl = (url?: string | null): string => {
@@ -35,7 +35,7 @@ async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKe
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options?.headers as Record<string, string>),
   };
 
@@ -228,18 +228,12 @@ export const productsApi = {
     }),
 
   uploadImage: async (file: File) => {
-    const apiBase = getApiBase();
     const formData = new FormData();
     formData.append('file', file);
-    const response = await fetch(`${apiBase}/api/v1/products/upload-image`, {
+    return apiFetch<{ imageUrl: string }>('/api/v1/products/upload-image', {
       method: 'POST',
       body: formData,
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(errorText || 'Failed to upload product image file.');
-    }
-    return (await response.json()) as { imageUrl: string };
   },
 };
 

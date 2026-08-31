@@ -49,6 +49,7 @@ export const ReportsView: React.FC = () => {
   }, [period, startDate, endDate]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchReport();
   }, [fetchReport]);
 

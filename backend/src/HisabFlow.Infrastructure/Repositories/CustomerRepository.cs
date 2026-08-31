@@ -5,18 +5,23 @@ using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
+using System.Text.Json;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
 public class CustomerRepository : ICustomerRepository
 {
     private readonly IDbConnectionFactory _db;
+    private readonly IAuditRepository _auditRepo;
+    private readonly IReportRepository _reportRepo;
 
     private readonly record struct CustomerLockRecord(string Name, string Phone, decimal CurrentBalance);
 
-    public CustomerRepository(IDbConnectionFactory db)
+    public CustomerRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
     {
         _db = db;
+        _auditRepo = auditRepo;
+        _reportRepo = reportRepo;
     }
 
     public async Task<PagedResult<CustomerDto>> GetPagedCustomersAsync(int page = 1, int pageSize = 20, CancellationToken cancellationToken = default)
@@ -68,7 +73,7 @@ public class CustomerRepository : ICustomerRepository
                 updated_at AS UpdatedAt
             FROM customers
             WHERE is_active = 1
-            ORDER BY updated_at DESC;";
+            ORDER BY name ASC;";
 
         var result = await conn.QueryAsync<CustomerDto>(new CommandDefinition(sql, cancellationToken: cancellationToken));
         return result.ToList();
@@ -96,17 +101,17 @@ public class CustomerRepository : ICustomerRepository
 
     public async Task<CustomerDto> CreateCustomerAsync(CreateCustomerRequest request, CancellationToken cancellationToken = default)
     {
+        var now = DateTime.UtcNow;
+        var id = Guid.NewGuid();
+
         using var conn = (SqlConnection)await _db.CreateConnectionAsync(cancellationToken);
         using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
-
-        var id = Guid.NewGuid();
-        var now = DateTime.UtcNow;
 
         try
         {
             const string sql = @"
                 INSERT INTO customers (id, name, phone, address, credit_limit, current_balance, is_active, created_at, updated_at)
-                VALUES (@Id, @Name, @Phone, @Address, @CreditLimit, @CurrentBalance, 1, @CreatedAt, @UpdatedAt);";
+                VALUES (@Id, @Name, @Phone, @Address, @CreditLimit, @InitialBalance, 1, @CreatedAt, @UpdatedAt);";
 
             await conn.ExecuteAsync(new CommandDefinition(sql, new
             {
@@ -115,7 +120,7 @@ public class CustomerRepository : ICustomerRepository
                 request.Phone,
                 request.Address,
                 request.CreditLimit,
-                CurrentBalance = request.InitialBalance,
+                request.InitialBalance,
                 CreatedAt = now,
                 UpdatedAt = now
             }, tx, cancellationToken: cancellationToken));
@@ -141,6 +146,16 @@ public class CustomerRepository : ICustomerRepository
             }
 
             await tx.CommitAsync(cancellationToken);
+
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Customer",
+                id.ToString(),
+                "CREATE",
+                JsonSerializer.Serialize(new { request.Name, request.Phone, request.CreditLimit, request.InitialBalance }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
 
             return new CustomerDto(
                 id,
@@ -275,6 +290,16 @@ public class CustomerRepository : ICustomerRepository
 
             await tx.CommitAsync(cancellationToken);
 
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Customer",
+                request.CustomerId.ToString(),
+                "RECORD_TRANSACTION",
+                JsonSerializer.Serialize(new { Type = request.Type.ToString(), Amount = request.Amount, BalanceAfter = newBalance }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+
             return new CustomerLedgerEntryDto(
                 entryId, request.CustomerId, customerName, customerPhone, request.Type, request.Amount, newBalance, request.PaymentMethod, request.Particulars, request.BillNumber, txDate, now
             );
@@ -342,6 +367,19 @@ public class CustomerRepository : ICustomerRepository
             UpdatedAt = DateTime.UtcNow
         }, cancellationToken: cancellationToken));
 
+        if (rows > 0)
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Customer",
+                id.ToString(),
+                "UPDATE",
+                JsonSerializer.Serialize(new { request.Name, request.Phone, request.CreditLimit }),
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+        }
+
         return rows > 0;
     }
 
@@ -359,6 +397,19 @@ public class CustomerRepository : ICustomerRepository
             WHERE id = @Id AND is_active = 1;";
 
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+        if (rows > 0)
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Customer",
+                id.ToString(),
+                "DELETE",
+                "Customer soft-deleted.",
+                "System"
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+        }
+
         return rows > 0;
     }
 }

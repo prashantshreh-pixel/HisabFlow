@@ -23,7 +23,7 @@ public class IdempotencyService : IIdempotencyService
 
         const string selectSql = @"
             SELECT 
-                idempotency_key AS Key,
+                idempotency_key AS [Key],
                 request_hash AS RequestHash,
                 status AS Status,
                 response_code AS StatusCode,
@@ -96,5 +96,17 @@ public class IdempotencyService : IIdempotencyService
             StatusCode = statusCode,
             ResponseBody = responseBody
         }, cancellationToken: cancellationToken));
+    }
+
+    public async Task ReleaseKeyAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(key)) return;
+
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
+        const string deleteSql = @"
+            DELETE FROM __IdempotencyKeys
+            WHERE idempotency_key = @Key AND status = 'Processing';";
+
+        await conn.ExecuteAsync(new CommandDefinition(deleteSql, new { Key = key.Trim() }, cancellationToken: cancellationToken));
     }
 }
