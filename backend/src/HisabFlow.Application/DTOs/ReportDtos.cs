@@ -1,4 +1,4 @@
-﻿namespace HisabFlow.Application.Reports.DTOs;
+namespace HisabFlow.Application.DTOs;
 
 public class ProfitLossReportDto
 {

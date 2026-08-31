@@ -2,6 +2,7 @@ using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Infrastructure.Data;
 using HisabFlow.Infrastructure.Repositories;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HisabFlow.Infrastructure;
@@ -17,6 +18,7 @@ public static class DependencyInjection
         services.AddScoped<ISupplierRepository, SupplierRepository>();
         services.AddScoped<IReportRepository, ReportRepository>();
         services.AddScoped<ISaleRepository, SaleRepository>();
+        services.AddScoped<IIdempotencyService, IdempotencyService>();
         return services;
     }
 }

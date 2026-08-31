@@ -14,10 +14,14 @@ import {
   CheckCircle,
   Copy,
   User,
-  FileText
+  FileText,
+  MessageSquare,
+  Send,
+  Download,
 } from 'lucide-react';
 import { CreditLedgerEntry } from '@/types';
 import { PageLoader } from '@/components/Loader';
+import { exportCustomerStatementCSV } from '@/lib/exportUtils';
 
 interface CustomerStatementModalProps {
   customerId: string | null;
@@ -61,9 +65,33 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const limitUsedPercent = Math.min(100, Math.round((customer.currentBalance / Math.max(1, customer.creditLimit)) * 100));
   const isOverLimit = customer.currentBalance > customer.creditLimit;
 
+  const getCleanPhone = (phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length === 10) return `977${digits}`;
+    return digits;
+  };
+
+  const reminderMessage = `Namaste ${customer.name}, your total outstanding balance at HisabFlow is Rs. ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
+
+  const handleOpenWhatsApp = () => {
+    const cleanPhone = getCleanPhone(customer.phone);
+    const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(reminderMessage)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+    showToast({
+      type: 'success',
+      title: 'WhatsApp Opened',
+      message: `Opened WhatsApp message to ${customer.name}.`,
+    });
+  };
+
+  const handleOpenSMS = () => {
+    const cleanPhone = getCleanPhone(customer.phone);
+    const url = `sms:+${cleanPhone}?body=${encodeURIComponent(reminderMessage)}`;
+    window.location.href = url;
+  };
+
   const handleCopyReminder = () => {
-    const message = `Namaste ${customer.name}, your total outstanding balance at HisabFlow is Rs. ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
-    navigator.clipboard?.writeText(message);
+    navigator.clipboard?.writeText(reminderMessage);
     setCopiedMsg(true);
     setTimeout(() => setCopiedMsg(false), 3000);
     showToast({
@@ -160,7 +188,31 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-end sm:self-center">
+            <div className="flex items-center gap-2 flex-wrap self-end sm:self-center">
+              {customer.currentBalance > 0 && (
+                <>
+                  <button
+                    id="whatsapp-reminder-btn"
+                    type="button"
+                    onClick={handleOpenWhatsApp}
+                    title="Send WhatsApp payment reminder"
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-emerald-600/20"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                    WhatsApp
+                  </button>
+                  <button
+                    id="sms-reminder-btn"
+                    type="button"
+                    onClick={handleOpenSMS}
+                    title="Send SMS payment reminder"
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
+                  >
+                    <Send className="w-3.5 h-3.5 text-amber-400" />
+                    SMS
+                  </button>
+                </>
+              )}
               <button
                 id="copy-reminder-btn"
                 type="button"
@@ -169,7 +221,24 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
               >
                 {copiedMsg ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-amber-400" />}
-                {copiedMsg ? 'Copied' : 'Reminder Msg'}
+                {copiedMsg ? 'Copied' : 'Copy Text'}
+              </button>
+              <button
+                id="export-csv-statement-btn"
+                type="button"
+                onClick={() => {
+                  exportCustomerStatementCSV(customer.name, ledger);
+                  showToast({
+                    type: 'success',
+                    title: 'Statement Exported',
+                    message: `Exported statement for ${customer.name} to CSV.`,
+                  });
+                }}
+                title="Export statement to CSV / Excel"
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-amber-400" />
+                Export CSV
               </button>
               <button
                 id="print-statement-btn"
@@ -179,7 +248,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 shadow-sm shadow-amber-500/20"
               >
                 <Printer className="w-4 h-4" />
-                Print Statement
+                Print
               </button>
               <button
                 id="close-statement-modal-btn"

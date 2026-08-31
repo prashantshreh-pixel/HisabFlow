@@ -12,6 +12,8 @@ import {
   Truck,
   BarChart3,
   Menu,
+  Globe,
+  Calendar,
 } from 'lucide-react';
 
 export type NavTab = 'DASHBOARD' | 'POS' | 'KHATA' | 'PRODUCTS' | 'EXPENSES' | 'SUPPLIERS' | 'REPORTS' | 'SETTINGS';
@@ -27,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTabChange,
   onToggleLeftMenu,
 }) => {
-  const { stats } = useKhata();
+  const { stats, language, calendarMode, toggleLanguage, toggleCalendarMode } = useKhata();
 
   return (
     <header className="sticky top-0 z-20 bg-slate-950/85 backdrop-blur-md border-b border-slate-800">
@@ -72,100 +74,32 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Center Tabs (Visible on mobile/tablet) */}
-          <nav className="flex lg:hidden items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onTabChange('DASHBOARD')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'DASHBOARD'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-            >
-              <LayoutDashboard className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('POS')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'POS'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-              title="POS / Quick Billing"
-            >
-              <ScanBarcode className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('KHATA')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'KHATA'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('PRODUCTS')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'PRODUCTS'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-              title="Products"
-            >
-              <Boxes className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('EXPENSES')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'EXPENSES'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-              title="Expenses"
-            >
-              <Receipt className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('SUPPLIERS')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'SUPPLIERS'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-              title="Suppliers & Wholesale"
-            >
-              <Truck className="w-4 h-4" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onTabChange('REPORTS')}
-              className={`p-2 rounded-xl text-xs font-bold transition-all relative ${
-                currentTab === 'REPORTS'
-                  ? 'bg-amber-500 text-slate-950'
-                  : 'text-slate-400 hover:bg-slate-900'
-              }`}
-              title="Profit & Loss Reports"
-            >
-              <BarChart3 className="w-4 h-4" />
-            </button>
-          </nav>
-
-          {/* Right: Sign Out only */}
+          {/* Right Actions: B.S. Calendar Toggle, Language Switcher, Sign Out */}
           <div className="flex items-center gap-2">
+            {/* Bikram Sambat Date Toggle */}
+            <button
+              id="toggle-calendar-mode-btn"
+              type="button"
+              onClick={toggleCalendarMode}
+              title={`Switch calendar to ${calendarMode === 'BS' ? 'A.D. (Gregorian)' : 'B.S. (Bikram Sambat)'}`}
+              className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 border border-slate-800 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>{calendarMode === 'BS' ? 'वि.सं. (B.S.)' : 'A.D.'}</span>
+            </button>
+
+            {/* Language Switcher */}
+            <button
+              id="toggle-language-btn"
+              type="button"
+              onClick={toggleLanguage}
+              title={`Switch language to ${language === 'en' ? 'Nepali' : 'English'}`}
+              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>{language === 'en' ? 'नेपाली' : 'English'}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => {
@@ -173,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 window.location.reload();
               }}
               title="Sign Out"
-              className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-900 rounded-xl border border-slate-800 transition-colors"
+              className="p-2 text-slate-400 hover:text-red-400 hover:bg-slate-900 rounded-xl border border-slate-800 transition-colors ml-1"
             >
               <LogOut className="w-4 h-4" />
             </button>

@@ -1,4 +1,5 @@
 using HisabFlow.Application.Abstractions.Repositories;
+using HisabFlow.Application.Common.Models;
 using HisabFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,11 +15,6 @@ public class ProductsController : ControllerBase
     private readonly IProductRepository _productRepo;
     private readonly IWebHostEnvironment _env;
 
-    /// <summary>
-    /// Initializes a new instance of the ProductsController.
-    /// </summary>
-    /// <param name="productRepo">The product data repository.</param>
-    /// <param name="env">The web host environment for static file paths.</param>
     public ProductsController(IProductRepository productRepo, IWebHostEnvironment env)
     {
         _productRepo = productRepo;
@@ -26,33 +22,58 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves all active products in the store inventory.
+    /// Retrieves active products with optional pagination and category/search filtering.
     /// </summary>
-    /// <returns>A list of active product items.</returns>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<Product>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<Product>>> GetAll(
+        [FromQuery] bool paged = false,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? category = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
     {
-        var products = await _productRepo.GetAllAsync();
+        if (paged)
+        {
+            var pagedResult = await _productRepo.GetPagedAsync(page, pageSize, category, search, cancellationToken);
+            return Ok(pagedResult);
+        }
+
+        var products = await _productRepo.GetAllAsync(cancellationToken);
         return Ok(products);
+    }
+
+    /// <summary>
+    /// Retrieves paginated product catalogue entries.
+    /// </summary>
+    [HttpGet("paged")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<Product>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? category = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var pagedResult = await _productRepo.GetPagedAsync(page, pageSize, category, search, cancellationToken);
+        return Ok(pagedResult);
     }
 
     /// <summary>
     /// Retrieves a single product by its unique Identifier.
     /// </summary>
-    /// <param name="id">The Guid or string identifier of the product.</param>
-    /// <returns>The product object if found; otherwise 404 Not Found.</returns>
     [HttpGet("{id}")]
-    [ProducesResponseType(typeof(Product), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(string id)
+    public async Task<ActionResult<Product>> GetById(string id, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(id, out var guidId))
         {
             return NotFound(new { message = $"Invalid product ID format '{id}'." });
         }
 
-        var product = await _productRepo.GetByIdAsync(guidId);
+        var product = await _productRepo.GetByIdAsync(guidId, cancellationToken);
         if (product == null)
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
@@ -63,31 +84,27 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Creates a new inventory product in the database.
     /// </summary>
-    /// <param name="product">The product details to create.</param>
-    /// <returns>The created product object with assigned Guid.</returns>
     [HttpPost]
-    [ProducesResponseType(typeof(Product), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Create([FromBody] Product product)
+    public async Task<ActionResult<Product>> Create([FromBody] Product product, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(product.Name))
         {
             return BadRequest(new { message = "Product name is required." });
         }
 
-        var created = await _productRepo.CreateAsync(product);
+        var created = await _productRepo.CreateAsync(product, cancellationToken);
         return Ok(created);
     }
 
     /// <summary>
     /// Uploads a product image file to the backend server wwwroot/uploads directory.
     /// </summary>
-    /// <param name="file">The uploaded image file.</param>
-    /// <returns>The relative public URL path to the saved image file.</returns>
     [HttpPost("upload-image")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UploadImage(IFormFile file)
+    public async Task<ActionResult<object>> UploadImage(IFormFile file, CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)
         {
@@ -118,7 +135,7 @@ public class ProductsController : ControllerBase
 
         using (var stream = new FileStream(filePath, FileMode.Create))
         {
-            await file.CopyToAsync(stream);
+            await file.CopyToAsync(stream, cancellationToken);
         }
 
         var relativeUrl = $"/uploads/products/{uniqueFileName}";
@@ -126,16 +143,17 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Updates an existing product's pricing, category, stock alerts, or image URL.
+    /// Updates an existing product's pricing, category, stock alerts, or image URL with optimistic concurrency control.
     /// </summary>
-    /// <param name="id">The product identifier to update.</param>
-    /// <param name="product">The updated product details.</param>
-    /// <returns>200 OK if successful; otherwise 400 Bad Request or 404 Not Found.</returns>
     [HttpPut("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(string id, [FromBody] Product product)
+    public async Task<ActionResult<object>> Update(
+        string id,
+        [FromBody] Product product,
+        [FromQuery] DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(id, out var guidId))
         {
@@ -143,10 +161,10 @@ public class ProductsController : ControllerBase
         }
 
         product.Id = guidId;
-        var success = await _productRepo.UpdateAsync(product);
+        var success = await _productRepo.UpdateAsync(product, expectedUpdatedAt, cancellationToken);
         if (!success)
         {
-            return NotFound(new { message = $"Product with ID '{id}' was not found." });
+            return NotFound(new { message = $"Product with ID '{id}' was not found or was modified by another user." });
         }
         return Ok(new { message = "Product updated successfully." });
     }
@@ -154,20 +172,17 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Adjusts the stock quantity of a product (+ to add stock, - for sales/adjustments).
     /// </summary>
-    /// <param name="id">The product identifier.</param>
-    /// <param name="payload">The quantity change payload.</param>
-    /// <returns>200 OK with success status.</returns>
     [HttpPost("{id}/adjust-stock")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AdjustStock(string id, [FromBody] StockAdjustmentPayload payload)
+    public async Task<ActionResult<object>> AdjustStock(string id, [FromBody] StockAdjustmentPayload payload, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(id, out var guidId))
         {
             return NotFound(new { message = $"Invalid product ID format '{id}'." });
         }
 
-        var success = await _productRepo.AdjustStockAsync(guidId, payload.QuantityChange);
+        var success = await _productRepo.AdjustStockAsync(guidId, payload.QuantityChange, cancellationToken);
         if (!success)
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
@@ -178,19 +193,17 @@ public class ProductsController : ControllerBase
     /// <summary>
     /// Soft deletes a product from the inventory catalogue.
     /// </summary>
-    /// <param name="id">The product identifier to delete.</param>
-    /// <returns>200 OK if successful.</returns>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(string id)
+    public async Task<ActionResult<object>> Delete(string id, CancellationToken cancellationToken = default)
     {
         if (!Guid.TryParse(id, out var guidId))
         {
             return NotFound(new { message = $"Invalid product ID format '{id}'." });
         }
 
-        var success = await _productRepo.DeleteAsync(guidId);
+        var success = await _productRepo.DeleteAsync(guidId, cancellationToken);
         if (!success)
         {
             return NotFound(new { message = $"Product with ID '{id}' was not found." });
@@ -199,13 +212,7 @@ public class ProductsController : ControllerBase
     }
 }
 
-/// <summary>
-/// Stock adjustment request payload.
-/// </summary>
 public class StockAdjustmentPayload
 {
-    /// <summary>
-    /// Positive quantity to add stock, negative to reduce stock.
-    /// </summary>
     public decimal QuantityChange { get; set; }
 }

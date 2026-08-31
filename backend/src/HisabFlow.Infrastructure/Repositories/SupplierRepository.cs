@@ -2,8 +2,10 @@ using System.Data;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
+using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
 using HisabFlow.Domain.Enums;
+using Microsoft.Data.SqlClient;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -11,14 +13,16 @@ public class SupplierRepository : ISupplierRepository
 {
     private readonly IDbConnectionFactory _db;
 
+    private readonly record struct SupplierLockRecord(string Name, string Phone, decimal CurrentBalance);
+
     public SupplierRepository(IDbConnectionFactory db)
     {
         _db = db;
     }
 
-    public async Task<IEnumerable<Supplier>> GetAllAsync()
+    public async Task<IEnumerable<Supplier>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             SELECT 
                 id AS Id,
@@ -34,12 +38,12 @@ public class SupplierRepository : ISupplierRepository
             WHERE is_active = 1
             ORDER BY updated_at DESC;";
 
-        return await conn.QueryAsync<Supplier>(sql);
+        return await conn.QueryAsync<Supplier>(new CommandDefinition(sql, cancellationToken: cancellationToken));
     }
 
-    public async Task<Supplier?> GetByIdAsync(Guid id)
+    public async Task<Supplier?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             SELECT 
                 id AS Id,
@@ -54,10 +58,10 @@ public class SupplierRepository : ISupplierRepository
             FROM suppliers
             WHERE id = @Id AND is_active = 1;";
 
-        return await conn.QuerySingleOrDefaultAsync<Supplier>(sql, new { Id = id });
+        return await conn.QuerySingleOrDefaultAsync<Supplier>(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
     }
 
-    public async Task<Supplier> CreateAsync(Supplier supplier, decimal initialBalance = 0, string? initialNote = null)
+    public async Task<Supplier> CreateAsync(Supplier supplier, decimal initialBalance = 0, string? initialNote = null, CancellationToken cancellationToken = default)
     {
         if (supplier.Id == Guid.Empty)
         {
@@ -69,14 +73,13 @@ public class SupplierRepository : ISupplierRepository
         supplier.UpdatedAt = now;
         supplier.CurrentBalance = initialBalance;
 
-        using var conn = await _db.CreateConnectionAsync();
-        using var tx = conn.BeginTransaction();
+        using var conn = (SqlConnection)await _db.CreateConnectionAsync(cancellationToken);
+        using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            // Check if phone already exists
             const string checkPhoneSql = "SELECT id, is_active FROM suppliers WHERE phone = @Phone;";
-            var existing = await conn.QueryFirstOrDefaultAsync<(Guid Id, bool IsActive)?>(checkPhoneSql, new { Phone = supplier.Phone }, tx);
+            var existing = await conn.QueryFirstOrDefaultAsync<(Guid Id, bool IsActive)?>(new CommandDefinition(checkPhoneSql, new { Phone = supplier.Phone }, tx, cancellationToken: cancellationToken));
 
             if (existing.HasValue)
             {
@@ -86,7 +89,6 @@ public class SupplierRepository : ISupplierRepository
                 }
                 else
                 {
-                    // Re-activate soft-deleted supplier
                     supplier.Id = existing.Value.Id;
                     const string reactivateSql = @"
                         UPDATE suppliers
@@ -98,7 +100,7 @@ public class SupplierRepository : ISupplierRepository
                             updated_at = @UpdatedAt
                         WHERE id = @Id;";
 
-                    await conn.ExecuteAsync(reactivateSql, new
+                    await conn.ExecuteAsync(new CommandDefinition(reactivateSql, new
                     {
                         supplier.Id,
                         supplier.Name,
@@ -106,7 +108,7 @@ public class SupplierRepository : ISupplierRepository
                         supplier.Address,
                         supplier.CurrentBalance,
                         supplier.UpdatedAt
-                    }, tx);
+                    }, tx, cancellationToken: cancellationToken));
                 }
             }
             else
@@ -115,7 +117,7 @@ public class SupplierRepository : ISupplierRepository
                     INSERT INTO suppliers (id, name, company_name, phone, address, current_balance, is_active, created_at, updated_at)
                     VALUES (@Id, @Name, @CompanyName, @Phone, @Address, @CurrentBalance, 1, @CreatedAt, @UpdatedAt);";
 
-                await conn.ExecuteAsync(insertSupplierSql, new
+                await conn.ExecuteAsync(new CommandDefinition(insertSupplierSql, new
                 {
                     supplier.Id,
                     supplier.Name,
@@ -125,20 +127,20 @@ public class SupplierRepository : ISupplierRepository
                     supplier.CurrentBalance,
                     supplier.CreatedAt,
                     supplier.UpdatedAt
-                }, tx);
+                }, tx, cancellationToken: cancellationToken));
             }
 
             if (initialBalance != 0)
             {
                 var entryId = Guid.NewGuid();
-                int type = initialBalance > 0 ? 1 : 2; // 1 = Purchase/Debt, 2 = Payment Given
+                int type = initialBalance > 0 ? 1 : 2;
                 decimal absAmount = Math.Abs(initialBalance);
 
                 const string insertLedgerSql = @"
                     INSERT INTO supplier_ledger_entries (id, supplier_id, type, amount, balance_after, payment_method, particulars, transaction_date, created_at)
                     VALUES (@Id, @SupplierId, @Type, @Amount, @BalanceAfter, @PaymentMethod, @Particulars, @TransactionDate, @CreatedAt);";
 
-                await conn.ExecuteAsync(insertLedgerSql, new
+                await conn.ExecuteAsync(new CommandDefinition(insertLedgerSql, new
                 {
                     Id = entryId,
                     SupplierId = supplier.Id,
@@ -149,23 +151,30 @@ public class SupplierRepository : ISupplierRepository
                     Particulars = initialNote ?? "Opening Supplier Balance",
                     TransactionDate = now,
                     CreatedAt = now
-                }, tx);
+                }, tx, cancellationToken: cancellationToken));
             }
 
-            tx.Commit();
+            await tx.CommitAsync(cancellationToken);
             return supplier;
         }
         catch
         {
-            tx.Rollback();
+            await tx.RollbackAsync(cancellationToken);
             throw;
         }
     }
 
-    public async Task<Supplier?> UpdateAsync(Guid id, string name, string phone, string? companyName, string? address)
+    public async Task<Supplier?> UpdateAsync(
+        Guid id,
+        string name,
+        string phone,
+        string? companyName,
+        string? address,
+        DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default)
     {
         var now = DateTime.UtcNow;
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             UPDATE suppliers
             SET name = @Name,
@@ -173,17 +182,19 @@ public class SupplierRepository : ISupplierRepository
                 company_name = @CompanyName,
                 address = @Address,
                 updated_at = @UpdatedAt
-            WHERE id = @Id AND is_active = 1;";
+            WHERE id = @Id 
+              AND is_active = 1
+              AND (@ExpectedUpdatedAt IS NULL OR updated_at = @ExpectedUpdatedAt);";
 
-        var rows = await conn.ExecuteAsync(sql, new { Id = id, Name = name, Phone = phone, CompanyName = companyName, Address = address, UpdatedAt = now });
+        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id, Name = name, Phone = phone, CompanyName = companyName, Address = address, ExpectedUpdatedAt = expectedUpdatedAt, UpdatedAt = now }, cancellationToken: cancellationToken));
         if (rows == 0) return null;
 
-        return await GetByIdAsync(id);
+        return await GetByIdAsync(id, cancellationToken);
     }
 
-    public async Task<bool> DeleteAsync(Guid id)
+    public async Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             UPDATE suppliers 
             SET is_active = 0, 
@@ -192,30 +203,31 @@ public class SupplierRepository : ISupplierRepository
                     ELSE phone
                 END,
                 updated_at = SYSUTCDATETIME() 
-            WHERE id = @Id;";
-        var rows = await conn.ExecuteAsync(sql, new { Id = id });
+            WHERE id = @Id AND is_active = 1;";
+
+        var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
         return rows > 0;
     }
 
-    public async Task<SupplierLedgerEntry> RecordTransactionAsync(RecordSupplierTransactionRequest request)
+    public async Task<SupplierLedgerEntry> RecordTransactionAsync(RecordSupplierTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync();
-        using var tx = conn.BeginTransaction();
+        using var conn = (SqlConnection)await _db.CreateConnectionAsync(cancellationToken);
+        using var tx = (SqlTransaction)await conn.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            const string getSupplierSql = "SELECT current_balance FROM suppliers WHERE id = @SupplierId AND is_active = 1;";
-            var currentBalanceObj = await conn.ExecuteScalarAsync<decimal?>(getSupplierSql, new { request.SupplierId }, tx);
+            const string getSupplierSql = "SELECT name AS Name, phone AS Phone, current_balance AS CurrentBalance FROM suppliers WITH (UPDLOCK, ROWLOCK) WHERE id = @SupplierId AND is_active = 1;";
+            var supplier = await conn.QuerySingleOrDefaultAsync<SupplierLockRecord>(new CommandDefinition(getSupplierSql, new { request.SupplierId }, tx, cancellationToken: cancellationToken));
 
-            if (!currentBalanceObj.HasValue)
+            if (supplier == default)
             {
-                throw new InvalidOperationException($"Supplier with ID '{request.SupplierId}' not found.");
+                throw new InvalidOperationException($"Supplier with ID '{request.SupplierId}' not found or inactive.");
             }
 
-            decimal currentBalance = currentBalanceObj.Value;
+            decimal currentBalance = supplier.CurrentBalance;
             decimal newBalance = request.Type == 1
-                ? currentBalance + request.Amount // 1: Purchase (Shop owes more)
-                : currentBalance - request.Amount; // 2: Payment Given (Shop owes less)
+                ? currentBalance + request.Amount
+                : currentBalance - request.Amount;
 
             var entryId = Guid.NewGuid();
             var txDate = request.TransactionDate ?? DateTime.UtcNow;
@@ -225,15 +237,15 @@ public class SupplierRepository : ISupplierRepository
                 UPDATE suppliers
                 SET current_balance = @NewBalance,
                     updated_at = @UpdatedAt
-                WHERE id = @SupplierId;";
+                WHERE id = @SupplierId AND is_active = 1;";
 
-            await conn.ExecuteAsync(updateSupplierSql, new { NewBalance = newBalance, UpdatedAt = now, request.SupplierId }, tx);
+            await conn.ExecuteAsync(new CommandDefinition(updateSupplierSql, new { NewBalance = newBalance, UpdatedAt = now, request.SupplierId }, tx, cancellationToken: cancellationToken));
 
             const string insertLedgerSql = @"
                 INSERT INTO supplier_ledger_entries (id, supplier_id, type, amount, balance_after, payment_method, particulars, invoice_number, transaction_date, created_at)
                 VALUES (@Id, @SupplierId, @Type, @Amount, @BalanceAfter, @PaymentMethod, @Particulars, @InvoiceNumber, @TransactionDate, @CreatedAt);";
 
-            await conn.ExecuteAsync(insertLedgerSql, new
+            await conn.ExecuteAsync(new CommandDefinition(insertLedgerSql, new
             {
                 Id = entryId,
                 request.SupplierId,
@@ -245,9 +257,9 @@ public class SupplierRepository : ISupplierRepository
                 request.InvoiceNumber,
                 TransactionDate = txDate,
                 CreatedAt = now
-            }, tx);
+            }, tx, cancellationToken: cancellationToken));
 
-            tx.Commit();
+            await tx.CommitAsync(cancellationToken);
 
             return new SupplierLedgerEntry
             {
@@ -265,18 +277,36 @@ public class SupplierRepository : ISupplierRepository
         }
         catch
         {
-            tx.Rollback();
+            await tx.RollbackAsync(cancellationToken);
             throw;
         }
     }
 
-    public async Task<SupplierStatementDto?> GetStatementAsync(Guid supplierId)
+    public async Task<SupplierStatementDto?> GetStatementAsync(
+        Guid supplierId,
+        int page = 1,
+        int pageSize = 50,
+        CancellationToken cancellationToken = default)
     {
-        var supplier = await GetByIdAsync(supplierId);
-        if (supplier == null) return null;
+        page = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+        var offset = (page - 1) * pageSize;
 
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
+            SELECT 
+                id AS Id,
+                name AS Name,
+                company_name AS CompanyName,
+                phone AS Phone,
+                address AS Address,
+                current_balance AS CurrentBalance,
+                is_active AS IsActive,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
+            FROM suppliers
+            WHERE id = @SupplierId AND is_active = 1;
+
             SELECT 
                 sle.id AS Id,
                 sle.supplier_id AS SupplierId,
@@ -293,15 +323,22 @@ public class SupplierRepository : ISupplierRepository
             FROM supplier_ledger_entries sle
             INNER JOIN suppliers s ON sle.supplier_id = s.id
             WHERE sle.supplier_id = @SupplierId
-            ORDER BY sle.transaction_date DESC, sle.created_at DESC;";
+            ORDER BY sle.transaction_date DESC, sle.created_at DESC
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;";
 
-        var entries = await conn.QueryAsync<SupplierLedgerEntryDto>(sql, new { SupplierId = supplierId });
+        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, new { SupplierId = supplierId, Offset = offset, PageSize = pageSize }, cancellationToken: cancellationToken));
+        var supplier = await multi.ReadSingleOrDefaultAsync<Supplier>();
+        if (supplier == null) return null;
+
+        var entries = await multi.ReadAsync<SupplierLedgerEntryDto>();
         return new SupplierStatementDto(supplier, entries);
     }
 
-    public async Task<SupplierSummaryDto> GetSummaryAsync()
+    public async Task<SupplierSummaryDto> GetSummaryAsync(CancellationToken cancellationToken = default)
     {
-        using var conn = await _db.CreateConnectionAsync();
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
+        var todayUtc = DateTime.UtcNow.Date;
+
         const string sql = @"
             SELECT 
                 ISNULL(SUM(CASE WHEN current_balance > 0 THEN current_balance ELSE 0 END), 0) AS TotalOutstandingPayable,
@@ -311,11 +348,11 @@ public class SupplierRepository : ISupplierRepository
             WHERE is_active = 1;
 
             SELECT 
-                ISNULL(SUM(CASE WHEN type = 1 AND CAST(transaction_date AS DATE) = CAST(SYSUTCDATETIME() AS DATE) THEN amount ELSE 0 END), 0) AS TodayPurchases,
-                ISNULL(SUM(CASE WHEN type = 2 AND CAST(transaction_date AS DATE) = CAST(SYSUTCDATETIME() AS DATE) THEN amount ELSE 0 END), 0) AS TodayPaymentsGiven
+                ISNULL(SUM(CASE WHEN type = 1 AND CAST(transaction_date AS DATE) = CAST(@TodayUtc AS DATE) THEN amount ELSE 0 END), 0) AS TodayPurchases,
+                ISNULL(SUM(CASE WHEN type = 2 AND CAST(transaction_date AS DATE) = CAST(@TodayUtc AS DATE) THEN amount ELSE 0 END), 0) AS TodayPaymentsGiven
             FROM supplier_ledger_entries;";
 
-        using var multi = await conn.QueryMultipleAsync(sql);
+        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, new { TodayUtc = todayUtc }, cancellationToken: cancellationToken));
         var stats1 = await multi.ReadSingleAsync();
         var stats2 = await multi.ReadSingleAsync();
 

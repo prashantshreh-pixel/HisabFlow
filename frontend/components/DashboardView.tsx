@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import {
   Wallet,
@@ -48,18 +48,23 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const { stats, ledgerEntries, customers, products, isLoading } = useKhata();
 
   // Top 5 debtors
-  const topDebtors = [...customers]
-    .filter((c) => c.currentBalance > 0)
-    .sort((a, b) => b.currentBalance - a.currentBalance)
-    .slice(0, 5);
+  const topDebtors = useMemo(
+    () =>
+      [...customers]
+        .filter((c) => c.currentBalance > 0)
+        .sort((a, b) => b.currentBalance - a.currentBalance)
+        .slice(0, 5),
+    [customers]
+  );
 
   // Critical low stock items
-  const lowStockItems = products
-    .filter((p) => p.stockQuantity <= p.minStockAlert)
-    .slice(0, 5);
+  const lowStockItems = useMemo(
+    () => products.filter((p) => p.stockQuantity <= p.minStockAlert).slice(0, 5),
+    [products]
+  );
 
   // Recent 6 transactions
-  const recentTransactions = ledgerEntries.slice(0, 6);
+  const recentTransactions = useMemo(() => ledgerEntries.slice(0, 6), [ledgerEntries]);
 
   if (isLoading) {
     return <PageLoader text="Loading dashboard..." />;

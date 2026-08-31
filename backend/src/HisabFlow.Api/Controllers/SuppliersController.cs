@@ -1,4 +1,6 @@
+using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
+using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,10 +24,10 @@ public class SuppliersController : ControllerBase
     /// Gets all active suppliers / wholesalers.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<Supplier>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IEnumerable<Supplier>>> GetAll(CancellationToken cancellationToken = default)
     {
-        var suppliers = await _supplierRepo.GetAllAsync();
+        var suppliers = await _supplierRepo.GetAllAsync(cancellationToken);
         return Ok(suppliers);
     }
 
@@ -33,12 +35,12 @@ public class SuppliersController : ControllerBase
     /// Gets a supplier by ID.
     /// </summary>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(Supplier), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<ActionResult<Supplier>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
-        var supplier = await _supplierRepo.GetByIdAsync(id);
-        if (supplier == null) return NotFound(new { message = $"Supplier '{id}' not found." });
+        var supplier = await _supplierRepo.GetByIdAsync(id, cancellationToken);
+        if (supplier == null) throw new KeyNotFoundException($"Supplier '{id}' was not found.");
         return Ok(supplier);
     }
 
@@ -46,17 +48,17 @@ public class SuppliersController : ControllerBase
     /// Creates a new supplier record.
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(typeof(Supplier), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Create([FromBody] CreateSupplierApiRequest request)
+    public async Task<ActionResult<Supplier>> Create([FromBody] CreateSupplierApiRequest request, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Name))
         {
-            return BadRequest(new { message = "Supplier name is required." });
+            throw new ArgumentException("Supplier name is required.");
         }
         if (string.IsNullOrWhiteSpace(request.Phone))
         {
-            return BadRequest(new { message = "Supplier phone number is required." });
+            throw new ArgumentException("Supplier phone number is required.");
         }
 
         var supplier = new Supplier
@@ -67,27 +69,24 @@ public class SuppliersController : ControllerBase
             Address = request.Address?.Trim()
         };
 
-        try
-        {
-            var created = await _supplierRepo.CreateAsync(supplier, request.InitialBalance, request.InitialNote);
-            return Ok(created);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var created = await _supplierRepo.CreateAsync(supplier, request.InitialBalance, request.InitialNote, cancellationToken);
+        return Ok(created);
     }
 
     /// <summary>
-    /// Updates an existing supplier.
+    /// Updates an existing supplier with optimistic concurrency check.
     /// </summary>
     [HttpPut("{id:guid}")]
-    [ProducesResponseType(typeof(Supplier), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateSupplierApiRequest request)
+    public async Task<ActionResult<Supplier>> Update(
+        Guid id,
+        [FromBody] UpdateSupplierApiRequest request,
+        [FromQuery] DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default)
     {
-        var updated = await _supplierRepo.UpdateAsync(id, request.Name, request.Phone, request.CompanyName, request.Address);
-        if (updated == null) return NotFound(new { message = $"Supplier '{id}' not found." });
+        var updated = await _supplierRepo.UpdateAsync(id, request.Name, request.Phone, request.CompanyName, request.Address, expectedUpdatedAt, cancellationToken);
+        if (updated == null) throw new KeyNotFoundException($"Supplier '{id}' was not found or was modified by another user.");
         return Ok(updated);
     }
 
@@ -97,47 +96,45 @@ public class SuppliersController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<ActionResult<object>> Delete(Guid id, CancellationToken cancellationToken = default)
     {
-        var success = await _supplierRepo.DeleteAsync(id);
-        if (!success) return NotFound(new { message = $"Supplier '{id}' not found." });
+        var success = await _supplierRepo.DeleteAsync(id, cancellationToken);
+        if (!success) throw new KeyNotFoundException($"Supplier '{id}' was not found.");
         return Ok(new { message = "Supplier deleted successfully." });
     }
 
     /// <summary>
-    /// Records a transaction (1 = Stock Purchase/Payable Increase, 2 = Payment Given/Payable Decrease).
+    /// Records a supplier transaction with idempotency protection.
     /// </summary>
     [HttpPost("transactions")]
-    [ProducesResponseType(typeof(SupplierLedgerEntry), StatusCodes.Status200OK)]
+    [Idempotent]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> RecordTransaction([FromBody] RecordSupplierTransactionRequest request)
+    public async Task<ActionResult<SupplierLedgerEntry>> RecordTransaction([FromBody] RecordSupplierTransactionRequest request, CancellationToken cancellationToken = default)
     {
         if (request.Amount <= 0)
         {
-            return BadRequest(new { message = "Transaction amount must be greater than zero." });
+            throw new ArgumentException("Transaction amount must be greater than zero.");
         }
 
-        try
-        {
-            var entry = await _supplierRepo.RecordTransactionAsync(request);
-            return Ok(entry);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var entry = await _supplierRepo.RecordTransactionAsync(request, cancellationToken);
+        return Ok(entry);
     }
 
     /// <summary>
-    /// Gets statement ledger entries for a supplier.
+    /// Gets statement ledger entries for a supplier with optional pagination.
     /// </summary>
     [HttpGet("{id:guid}/statement")]
-    [ProducesResponseType(typeof(SupplierStatementDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetStatement(Guid id)
+    public async Task<ActionResult<SupplierStatementDto>> GetStatement(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
     {
-        var statement = await _supplierRepo.GetStatementAsync(id);
-        if (statement == null) return NotFound(new { message = $"Supplier '{id}' not found." });
+        var statement = await _supplierRepo.GetStatementAsync(id, page, pageSize, cancellationToken);
+        if (statement == null) throw new KeyNotFoundException($"Supplier '{id}' was not found.");
         return Ok(statement);
     }
 
@@ -145,10 +142,10 @@ public class SuppliersController : ControllerBase
     /// Gets summary statistics for suppliers (Total Payables, Today Purchases, Today Payments).
     /// </summary>
     [HttpGet("summary")]
-    [ProducesResponseType(typeof(SupplierSummaryDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetSummary()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<SupplierSummaryDto>> GetSummary(CancellationToken cancellationToken = default)
     {
-        var summary = await _supplierRepo.GetSummaryAsync();
+        var summary = await _supplierRepo.GetSummaryAsync(cancellationToken);
         return Ok(summary);
     }
 }

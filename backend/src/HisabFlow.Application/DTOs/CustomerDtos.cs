@@ -1,6 +1,6 @@
 using HisabFlow.Domain.Enums;
 
-namespace HisabFlow.Application.Customers.DTOs;
+namespace HisabFlow.Application.DTOs;
 
 public record CustomerDto(
     Guid Id,

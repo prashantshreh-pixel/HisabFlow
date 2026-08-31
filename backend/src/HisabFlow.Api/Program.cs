@@ -1,15 +1,27 @@
 using System.Text.Json.Serialization;
+using HisabFlow.Api.Filters;
+using HisabFlow.Api.Middleware;
 using HisabFlow.Application;
 using HisabFlow.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container with JSON Enum Converter
-builder.Services.AddControllers()
+// Add ProblemDetails support
+builder.Services.AddProblemDetails();
+
+// Add Health Checks
+builder.Services.AddHealthChecks();
+
+// Add controllers with AutoValidationFilter and JSON Enum Converter
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.Add<AutoValidationFilter>();
+    })
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -30,6 +42,19 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Enable Global Exception Handling Middleware
+app.UseMiddleware<GlobalExceptionHandlingMiddleware>();
+
+// Initialize Database Tables ONCE at startup asynchronously
+using (var scope = app.Services.CreateScope())
+{
+    var dbFactory = scope.ServiceProvider.GetRequiredService<HisabFlow.Application.Common.Interfaces.IDbConnectionFactory>();
+    if (dbFactory is HisabFlow.Infrastructure.Data.SqlDbConnectionFactory sqlFactory)
+    {
+        await sqlFactory.EnsureTablesCreatedAsync();
+    }
+}
+
 // Configure HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
@@ -38,6 +63,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors("AllowFrontend");
+
+// Map Health Checks
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/ready");
 
 // 1. Enable default files (index.html)
 app.UseDefaultFiles();
