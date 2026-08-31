@@ -23,6 +23,7 @@ import {
   Receipt,
   Truck,
   BarChart3,
+  Calculator,
 } from 'lucide-react';
 
 interface AppSidebarProps {
@@ -31,6 +32,7 @@ interface AppSidebarProps {
   onOpenAddCustomer: () => void;
   onOpenAddProduct: () => void;
   onOpenRecordTx: () => void;
+  onOpenCashReconciliation?: () => void;
 }
 
 export const AppSidebar: React.FC<AppSidebarProps> = ({
@@ -39,8 +41,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onOpenAddCustomer,
   onOpenAddProduct,
   onOpenRecordTx,
+  onOpenCashReconciliation,
 }) => {
-  const { stats } = useKhata();
+  const { stats, t } = useKhata();
 
   return (
     <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-slate-900/95 border-r border-slate-800/90 h-screen sticky top-0 z-30 select-none">
@@ -86,6 +89,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <span className="text-[10px] text-emerald-400 font-extrabold">+ Jamā</span>
             </button>
 
+            {onOpenCashReconciliation && (
+              <button
+                id="sidebar-day-end-reconciliation-btn"
+                type="button"
+                onClick={onOpenCashReconciliation}
+                className="w-full flex items-center justify-between px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
+                    <Calculator className="w-3.5 h-3.5" />
+                  </div>
+                  <span>Day-End Closure</span>
+                </div>
+                <span className="text-[10px] text-amber-400 font-extrabold">Tally</span>
+              </button>
+            )}
+
             <div className="grid grid-cols-2 gap-2">
               <button
                 id="sidebar-quick-customer-btn"
@@ -128,7 +148,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <LayoutDashboard className="w-4 h-4" />
-              <span>Overview Dashboard</span>
+              <span>{t('dashboard')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -145,7 +165,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <ScanBarcode className="w-4 h-4" />
-              <span>POS / Quick Billing</span>
+              <span>{t('pos')}</span>
             </div>
             <span
               className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
@@ -170,7 +190,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <BookOpen className="w-4 h-4" />
-              <span>Digital Khata (Ledger)</span>
+              <span>{t('khata')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -187,7 +207,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Boxes className="w-4 h-4" />
-              <span>Products & Inventory</span>
+              <span>{t('products')}</span>
             </div>
             {stats.lowStockCount + stats.outOfStockCount > 0 && (
               <span
@@ -214,7 +234,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Receipt className="w-4 h-4" />
-              <span>Expense Tracker</span>
+              <span>{t('expenses')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -231,7 +251,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Truck className="w-4 h-4" />
-              <span>Suppliers & Wholesale</span>
+              <span>{t('suppliers')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -248,7 +268,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <BarChart3 className="w-4 h-4" />
-              <span>Profit & Loss Reports</span>
+              <span>{t('reports')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>
@@ -265,7 +285,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           >
             <div className="flex items-center gap-2.5">
               <Settings className="w-4 h-4" />
-              <span>Store Settings & Backup</span>
+              <span>{t('settings')}</span>
             </div>
             <ChevronRight className="w-3.5 h-3.5 opacity-60" />
           </button>

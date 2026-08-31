@@ -2,7 +2,7 @@ using System.Data;
 using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
-using HisabFlow.Application.Reports.DTOs;
+using HisabFlow.Application.DTOs;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -15,12 +15,12 @@ public class ReportRepository : IReportRepository
         _dbConnectionFactory = dbConnectionFactory;
     }
 
-    public async Task<ProfitLossReportDto> GetProfitLossReportAsync(DateTime startDate, DateTime endDate, string periodName = "Custom")
+    public async Task<ProfitLossReportDto> GetProfitLossReportAsync(DateTime startDate, DateTime endDate, string periodName = "Custom", CancellationToken cancellationToken = default)
     {
-        using var connection = await _dbConnectionFactory.CreateConnectionAsync();
+        using var connection = await _dbConnectionFactory.CreateConnectionAsync(cancellationToken);
 
-        // 1. Sales & Collections from POS Sales + Standalone Khata Ledger Entries
-        const string salesSql = @"
+        const string multiSql = @"
+            -- 1. Sales & Collections
             SELECT 
                 (
                     (SELECT COALESCE(SUM(total_amount), 0) FROM sales WHERE sale_date >= @StartDate AND sale_date <= @EndDate) +
@@ -33,25 +33,17 @@ public class ReportRepository : IReportRepository
                 (
                     (SELECT COALESCE(SUM(cash_paid + digital_paid), 0) FROM sales WHERE sale_date >= @StartDate AND sale_date <= @EndDate) +
                     (SELECT COALESCE(SUM(amount), 0) FROM customer_ledger_entries WHERE type = 2 AND transaction_date >= @StartDate AND transaction_date <= @EndDate)
-                ) AS PaymentsCollected;";
+                ) AS PaymentsCollected;
 
-        var salesData = await connection.QueryFirstOrDefaultAsync<(decimal GrossSales, int SalesCount, decimal PaymentsCollected)>(
-            salesSql, new { StartDate = startDate, EndDate = endDate });
-
-        // 2. Wholesale Purchases & Supplier Payments from Supplier Ledger
-        const string wholesaleSql = @"
+            -- 2. Wholesale Purchases & Supplier Payments
             SELECT 
                 COALESCE(SUM(CASE WHEN type = 1 THEN amount ELSE 0 END), 0) AS WholesalePurchases,
                 COALESCE(COUNT(CASE WHEN type = 1 THEN 1 END), 0) AS PurchasesCount,
                 COALESCE(SUM(CASE WHEN type = 2 THEN amount ELSE 0 END), 0) AS SupplierPaymentsGiven
             FROM supplier_ledger_entries
-            WHERE transaction_date >= @StartDate AND transaction_date <= @EndDate;";
+            WHERE transaction_date >= @StartDate AND transaction_date <= @EndDate;
 
-        var wholesaleData = await connection.QueryFirstOrDefaultAsync<(decimal WholesalePurchases, int PurchasesCount, decimal SupplierPaymentsGiven)>(
-            wholesaleSql, new { StartDate = startDate, EndDate = endDate });
-
-        // 3. Operating Expenses & Category Breakdown
-        const string expenseSql = @"
+            -- 3. Operating Expenses & Category Breakdown
             SELECT 
                 category AS Category,
                 COALESCE(SUM(amount), 0) AS Amount,
@@ -59,10 +51,37 @@ public class ReportRepository : IReportRepository
             FROM expenses
             WHERE expense_date >= @StartDate AND expense_date <= @EndDate
             GROUP BY category
-            ORDER BY Amount DESC;";
+            ORDER BY Amount DESC;
 
-        var rawExpenses = (await connection.QueryAsync<(string Category, decimal Amount, int Count)>(
-            expenseSql, new { StartDate = startDate, EndDate = endDate })).ToList();
+            -- 4. Daily Trends - Sales
+            SELECT 
+                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
+                COALESCE(SUM(amount), 0) AS Amount
+            FROM customer_ledger_entries
+            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
+            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);
+
+            -- 5. Daily Trends - Wholesale
+            SELECT 
+                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
+                COALESCE(SUM(amount), 0) AS Amount
+            FROM supplier_ledger_entries
+            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
+            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);
+
+            -- 6. Daily Trends - Expense
+            SELECT 
+                CONVERT(VARCHAR(10), expense_date, 120) AS [Date],
+                COALESCE(SUM(amount), 0) AS Amount
+            FROM expenses
+            WHERE expense_date >= @StartDate AND expense_date <= @EndDate
+            GROUP BY CONVERT(VARCHAR(10), expense_date, 120);";
+
+        using var multi = await connection.QueryMultipleAsync(new CommandDefinition(multiSql, new { StartDate = startDate, EndDate = endDate }, cancellationToken: cancellationToken));
+
+        var salesData = await multi.ReadFirstOrDefaultAsync<(decimal GrossSales, int SalesCount, decimal PaymentsCollected)>();
+        var wholesaleData = await multi.ReadFirstOrDefaultAsync<(decimal WholesalePurchases, int PurchasesCount, decimal SupplierPaymentsGiven)>();
+        var rawExpenses = (await multi.ReadAsync<(string Category, decimal Amount, int Count)>()).ToList();
 
         decimal totalOperatingExpenses = rawExpenses.Sum(e => e.Amount);
         int totalExpensesCount = rawExpenses.Sum(e => e.Count);
@@ -75,38 +94,13 @@ public class ReportRepository : IReportRepository
             PercentageOfTotal = totalOperatingExpenses > 0 ? Math.Round((e.Amount / totalOperatingExpenses) * 100, 1) : 0
         }).ToList();
 
-        // 4. Daily / Timeline Trends
-        const string dailySalesSql = @"
-            SELECT 
-                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
-                COALESCE(SUM(amount), 0) AS Amount
-            FROM customer_ledger_entries
-            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
-            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);";
-
-        const string dailyWholesaleSql = @"
-            SELECT 
-                CONVERT(VARCHAR(10), transaction_date, 120) AS [Date],
-                COALESCE(SUM(amount), 0) AS Amount
-            FROM supplier_ledger_entries
-            WHERE type = 1 AND transaction_date >= @StartDate AND transaction_date <= @EndDate
-            GROUP BY CONVERT(VARCHAR(10), transaction_date, 120);";
-
-        const string dailyExpenseSql = @"
-            SELECT 
-                CONVERT(VARCHAR(10), expense_date, 120) AS [Date],
-                COALESCE(SUM(amount), 0) AS Amount
-            FROM expenses
-            WHERE expense_date >= @StartDate AND expense_date <= @EndDate
-            GROUP BY CONVERT(VARCHAR(10), expense_date, 120);";
-
-        var salesByDay = (await connection.QueryAsync<(string Date, decimal Amount)>(dailySalesSql, new { StartDate = startDate, EndDate = endDate }))
+        var salesByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
-        var wholesaleByDay = (await connection.QueryAsync<(string Date, decimal Amount)>(dailyWholesaleSql, new { StartDate = startDate, EndDate = endDate }))
+        var wholesaleByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
-        var expenseByDay = (await connection.QueryAsync<(string Date, decimal Amount)>(dailyExpenseSql, new { StartDate = startDate, EndDate = endDate }))
+        var expenseByDay = (await multi.ReadAsync<(string Date, decimal Amount)>())
             .ToDictionary(x => x.Date, x => x.Amount);
 
         var allDates = salesByDay.Keys.Union(wholesaleByDay.Keys).Union(expenseByDay.Keys).OrderBy(d => d).ToList();
@@ -125,7 +119,6 @@ public class ReportRepository : IReportRepository
             };
         }).ToList();
 
-        // Calculations
         decimal grossSales = salesData.GrossSales;
         decimal wholesaleCost = wholesaleData.WholesalePurchases;
         decimal grossProfit = grossSales - wholesaleCost;

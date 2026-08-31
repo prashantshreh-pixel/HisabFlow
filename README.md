@@ -1,25 +1,29 @@
 # HisabFlow 🛒📋
 
-> **A real-world, high-reliability grocery shop management system designed to completely replace the traditional paper notebook.**  
-> Track daily sales, customer Khata (Udhaar), inventory, purchases, expenses, and net profit with zero friction.
+> **A real-world, high-reliability retail and grocery management system designed to completely replace paper registers.**  
+> Track daily POS sales, Customer Khata (*Udhaar*), Wholesaler statements, inventory stock, operating expenses, and net profit with zero friction.
 
 ---
 
-## 🎯 Project Goal
+## 🎯 Key Features
 
-Small retail and grocery shop owners rely heavily on paper registers to track credit sales (*Udhaar*), stock, and daily cash flow. Paper records are prone to damage, miscalculations, lost balances, and lack business insights.
-
-**HisabFlow** is built from the ground up for real retail operations: fast, reliable, offline-tolerant, and simple enough for everyday store counter use.
+- 🇳🇵 **Bikram Sambat (B.S.) Date Toggle & Nepali UI (नेपाली)**: Seamless toggle between Gregorian (A.D.) and Nepali (B.S.) calendars with multi-language UI support.
+- 📖 **Customer Khata (Udhaar) Credit Ledger**: Atomic credit transactions, row-locked balance tracking, and paged customer statements.
+- 🏬 **Wholesaler & Supplier Ledger**: Track stock purchases, payments given, and outstanding supplier payables.
+- 🛒 **Point of Sale (POS) Checkout**: High-speed billing with barcode scanner support, receipt generation, and real-time inventory stock deductions.
+- 📦 **Inventory & Barcode Management**: Catalogue management, low stock alerts, image uploads, search filtering, and paged catalogue browsing.
+- 💸 **Operating Expenses & Financial Reports**: Categorized expense tracking with date-range filters, gross profit margin analysis, and net profit calculations.
+- 🛡️ **Idempotent Transaction Protection**: Prevents duplicate credit billing during network retries via `X-Idempotency-Key` headers.
 
 ---
 
 ## 🏗️ Architecture & Technology Stack
 
-The project follows a clean, pragmatic monorepo architecture designed for speed, type safety, and maintainability without over-engineering:
+HisabFlow is built following **Clean Architecture** principles to deliver enterprise reliability and performance:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│               Unified Application Server                    │
+│               Unified Host Application                     │
 │      ASP.NET Core 9 Web Host (http://localhost:5200)        │
 │                                                             │
 │  ┌───────────────────────┐       ┌───────────────────────┐  │
@@ -27,107 +31,102 @@ The project follows a clean, pragmatic monorepo architecture designed for speed,
 │  │ (Served from wwwroot) │       │      (/api/v1/...)    │  │
 │  └───────────────────────┘       └───────────┬───────────┘  │
 └──────────────────────────────────────────────┼──────────────┘
-                                               │ Dapper / SQL Queries
+                                               │ Dapper Micro-ORM
                                  ┌─────────────▼──────────────┐
-                                 │   SQL Server (SHINIGAMI)   │
-                                 │       Database:            │
-                                 │      HisabFlowDB           │
+                                 │   SQL Server Database      │
+                                 │       (HisabFlowDB)        │
                                  └────────────────────────────┘
 ```
 
-### 💻 Stack Overview
+### 💻 Technology Stack
 
-| Layer | Technology | Rationale |
+| Layer | Technology | Key Responsibilities |
 | :--- | :--- | :--- |
-| **Frontend** | **Next.js 15 + TypeScript** | Modern SPA UI in `frontend/`, statically exported to `frontend/out` |
-| **UI Components** | **Tailwind CSS + Lucide Icons** | Fast, accessible, dark-themed retail interface |
-| **State & API Client** | **React Context + `lib/api.ts`** | Relative same-origin API calls with async loading states |
-| **Backend API** | **ASP.NET Core 9** | Clean Architecture in `backend/` (`Api` ➔ `Application` ➔ `Domain` ➔ `Infrastructure`) |
-| **Data Access** | **Dapper (Micro-ORM)** | High-performance SQL queries and atomic row-level transaction locks |
-| **Database** | **SQL Server 2022 (`SHINIGAMI`)** | ACID compliance, transactional integrity for financial ledgers |
+| **Frontend** | **Next.js 15 + React 19** | Modern App Router UI, Tailwind CSS, Lucide Icons, Bikram Sambat Date Converter |
+| **API Layer** | **ASP.NET Core 9** | Global Exception Handler (RFC 7807 `ProblemDetails`), `AutoValidationFilter`, `IdempotencyFilter` |
+| **Core Layer** | **Clean Architecture** | Centralized `DTOs/`, Centralized `Validators/` (FluentValidation), Pure Interfaces |
+| **Data Layer** | **Dapper Micro-ORM** | Direct SQL queries, `BeginTransactionAsync`, `UPDLOCK, ROWLOCK`, Composite Indexes |
+| **Database** | **SQL Server 2022** | Relational integrity, ACID compliance, soft-deletes, optimistic concurrency |
+| **Testing** | **xUnit + Moq** | Automated unit & integration tests (`backend/tests/HisabFlow.Tests`) |
+| **CI/CD** | **GitHub Actions** | Automated build, typecheck, and test pipeline (`.github/workflows/ci-cd.yml`) |
 
 ---
 
-## 📁 Monorepo Directory Structure
+## 📁 Repository Directory Structure
 
-```plaintext
+```text
 hisabflow/
-├── frontend/                  # Next.js 15 / TypeScript Application
-│   ├── app/                   # App Router pages and layouts
-│   ├── components/            # React UI components, modals, and views
-│   ├── context/               # KhataContext state manager (database-connected)
-│   ├── lib/                   # Typed API client wrapper (lib/api.ts)
-│   ├── package.json           # Frontend dependencies
-│   └── next.config.ts         # Static export configuration
-├── backend/                   # ASP.NET Core 9 Clean Architecture Solution
-│   ├── HisabFlow.sln          # Solution file
-│   └── src/
-│       ├── HisabFlow.Api/     # Controllers, Program.cs, wwwroot static host
-│       ├── HisabFlow.Application/   # Commands, Queries, DTOs
-│       ├── HisabFlow.Domain/        # Entities, Enums, Business Rules
-│       └── HisabFlow.Infrastructure/# Dapper Repositories, Migrations
-├── scripts/                   # Build & deployment automation (build-and-deploy.ps1)
-├── package.json               # Monorepo root script runner
-└── README.md
+├── 📁 .github/workflows/             # ⚙️ CI/CD GitHub Actions Pipeline (ci-cd.yml)
+├── 📁 backend/                       # ⚡ .NET 9 Clean Architecture Solution
+│   ├── 📁 src/
+│   │   ├── 📁 HisabFlow.Api/         # Controllers, Middlewares, Action Filters, wwwroot host
+│   │   ├── 📁 HisabFlow.Application/ # Centralized DTOs, Centralized Validators, Core Interfaces
+│   │   ├── 📁 HisabFlow.Domain/      # Entities (Customer, Supplier, Sale, Expense, Product) & Enums
+│   │   └── 📁 HisabFlow.Infrastructure/# Dapper Repositories, SQL Connection Factory, Migrations
+│   └── 📁 tests/
+│       └── 📁 HisabFlow.Tests/       # xUnit Unit & Integration Test Suite
+├── 📁 frontend/                      # 🎨 Next.js 15 / React 19 Frontend Web Application
+│   ├── 📁 src/
+│   │   ├── 📁 app/                   # App Router Pages (customers, pos, suppliers, expenses, etc.)
+│   │   ├── 📁 components/            # UI Components, Modals, BsDatePicker, LanguageToggle
+│   │   ├── 📁 lib/                   # Typed API Client (api.ts), BS Date Converter, i18n
+│   │   └── 📁 types/                 # TypeScript API & Domain Typings
+│   └── 📄 package.json               # Node.js dependencies
+└── 📄 README.md                      # Project Documentation
 ```
 
 ---
 
 ## 🚀 Quick Start & How to Run
 
-### 1. Database Setup (SQL Server: `SHINIGAMI`)
-The SQL migration script automatically creates `HisabFlowDB` and sets up table schemas and indexes:
-
-```powershell
-sqlcmd -S SHINIGAMI -E -C -i backend/src/HisabFlow.Infrastructure/Migrations/001_InitialSchema.sql
-```
-
-The connection string in `backend/src/HisabFlow.Api/appsettings.json` is configured as:
+### 1. Database Setup (SQL Server)
+Configure your SQL Server connection string in `backend/src/HisabFlow.Api/appsettings.json`:
 ```json
 "ConnectionStrings": {
-  "DefaultConnection": "Server=SHINIGAMI;Database=HisabFlowDB;Trusted_Connection=True;TrustServerCertificate=True;"
+  "DefaultConnection": "Server=localhost;Database=HisabFlowDB;Trusted_Connection=True;TrustServerCertificate=True;"
 }
 ```
+Database tables and indexes are automatically created at application startup asynchronously.
 
-### 2. Build & Bundle Everything (Production Mode)
-Run the one-command bundle script to export the Next.js frontend into ASP.NET Core `wwwroot` and compile the .NET solution:
+### 2. Run Backend & Frontend (Development)
 
+**Run Backend API Server**:
 ```bash
-# Export frontend to wwwroot + compile solution
-npm run bundle
-```
-
-### 3. Run the Unified Backend Server
-```bash
-# Run backend server directly from root
-npm run dev:backend
-# OR
 dotnet run --project backend/src/HisabFlow.Api
 ```
 
-Open your browser at **[http://localhost:5200](http://localhost:5200)**:
-- 🌐 **Frontend App:** `http://localhost:5200/`
-- 🩺 **Health Check:** `http://localhost:5200/api/v1/health`
-- 📑 **Swagger Docs:** `http://localhost:5200/swagger/index.html`
-- 👥 **Customer API:** `http://localhost:5200/api/v1/customers`
+**Run Frontend Development Server**:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open your browser at **[http://localhost:3000](http://localhost:3000)** (Frontend) or **[http://localhost:5200/swagger](http://localhost:5200/swagger)** (Swagger API Docs).
 
 ---
 
-## 🛠️ Development Workflow Scripts
+## 🧪 Running Unit Tests & Verification
 
-From the root directory, you can run:
+Run the full xUnit test suite across all application modules:
 
-- `npm run bundle` — Builds static export inside `frontend/out`, syncs to `backend/src/HisabFlow.Api/wwwroot`, and compiles ASP.NET Core solution.
-- `npm run dev:frontend` — Runs Next.js development server inside `frontend/` (port 3000).
-- `npm run dev:backend` — Runs ASP.NET Core backend server (port 5200).
-- `npm run build:backend` — Compiles the ASP.NET Core solution in Release mode.
+```bash
+dotnet test backend/HisabFlow.sln
+```
+
+Run frontend TypeScript typecheck:
+
+```bash
+cd frontend
+npx tsc --noEmit
+```
 
 ---
 
-## 🚫 Pragmatic Engineering Principles
+## 🛡️ Reliability & Security Highlights
 
-- ❌ **No Microservices** (Monolithic unified server by design)
-- ❌ **No Message Brokers** (No Kafka / RabbitMQ)
-- ❌ **No Kubernetes** (Direct hosting via ASP.NET Core)
-- ❌ **No Event Sourcing** (Direct relational ledger tables with audit trails)
-- ❌ **No Overly Generic Repositories** (Explicit Dapper query handlers)
+- 🔒 **Transaction Idempotency**: Transactions carrying an `X-Idempotency-Key` or `Idempotency-Key` header prevent duplicate billing during network timeouts.
+- 🛑 **Global Exception Handling**: Unhandled exceptions automatically map to RFC 7807 `ProblemDetails` / `ValidationProblemDetails` responses.
+- ⚡ **Row-Level Concurrency Locking**: Ledger entries use SQL Server `WITH (UPDLOCK, ROWLOCK)` to prevent race conditions during simultaneous credit writes.
+- ♻️ **Soft Deletes**: Customer and supplier profiles use soft deletion (`is_active = 0`) to preserve historical invoice audit integrity.
+- 🩺 **Health Monitoring**: Integrated health endpoints available at `/health` and `/health/ready`.

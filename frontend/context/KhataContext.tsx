@@ -1,8 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Customer, CreditLedgerEntry, Product, Expense, ExpenseSummary, Supplier, SupplierLedgerEntry, SupplierSummary, DashboardStats, LedgerTransactionType, SupplierTransactionType } from '@/types';
 import { customersApi, productsApi, expensesApi, suppliersApi, RecordTransactionPayload } from '@/lib/api';
+import { Language, CalendarMode, TRANSLATIONS } from '@/lib/translations';
+import { formatSmartDate } from '@/lib/bikramSambat';
 
 interface ToastNotification {
   id: string;
@@ -24,6 +26,16 @@ interface KhataContextType {
   toasts: ToastNotification[];
   dismissToast: (id: string) => void;
   showToast: (toast: Omit<ToastNotification, 'id'>) => void;
+
+  // Language & Calendar Preferences
+  language: Language;
+  calendarMode: CalendarMode;
+  setLanguage: (lang: Language) => void;
+  setCalendarMode: (mode: CalendarMode) => void;
+  toggleLanguage: () => void;
+  toggleCalendarMode: () => void;
+  formatDate: (dateInput: Date | string) => string;
+  t: (key: keyof typeof TRANSLATIONS['en']) => string;
   
   // Customer operations
   addCustomer: (data: { name: string; phone: string; address?: string; creditLimit: number; initialBalance?: number; initialNote?: string }) => Promise<Customer>;
@@ -100,20 +112,60 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [isLoading, setIsLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastNotification[]>([]);
+  const [language, setLanguage] = useState<Language>('en');
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>('BS');
 
-  const showToast = (toast: Omit<ToastNotification, 'id'>) => {
-    const id = 'toast-' + Math.random().toString(36).substr(2, 9);
-    setToasts((prev) => [...prev, { ...toast, id }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  };
+  const toastTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
-  const dismissToast = (id: string) => {
+  const toggleLanguage = useCallback(() => {
+    setLanguage((prev) => (prev === 'en' ? 'np' : 'en'));
+  }, []);
+
+  const toggleCalendarMode = useCallback(() => {
+    setCalendarMode((prev) => (prev === 'AD' ? 'BS' : 'AD'));
+  }, []);
+
+  const formatDate = useCallback(
+    (dateInput: Date | string) => {
+      return formatSmartDate(dateInput, calendarMode === 'BS', language === 'np');
+    },
+    [calendarMode, language]
+  );
+
+  const t = useCallback(
+    (key: keyof typeof TRANSLATIONS['en']) => {
+      return TRANSLATIONS[language]?.[key] || TRANSLATIONS.en[key] || key;
+    },
+    [language]
+  );
+
+  useEffect(() => {
+    return () => {
+      toastTimersRef.current.forEach((timer) => clearTimeout(timer));
+      toastTimersRef.current.clear();
+    };
+  }, []);
+
+  const dismissToast = useCallback((id: string) => {
+    const timer = toastTimersRef.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimersRef.current.delete(id);
+    }
     setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
+  }, []);
 
-  const refreshData = async () => {
+  const showToast = useCallback((toast: Omit<ToastNotification, 'id'>) => {
+    const id = 'toast-' + Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev, { ...toast, id }]);
+    const timer = setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+      toastTimersRef.current.delete(id);
+    }, 4000);
+    toastTimersRef.current.set(id, timer);
+  }, []);
+
+  const refreshData = useCallback(async () => {
     try {
       setIsLoading(true);
       const [fetchedCustomers, fetchedTransactions, fetchedProducts, fetchedExpenses, fetchedSummary, fetchedSuppliers, fetchedSupplierSummary] = await Promise.all([
@@ -193,15 +245,15 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [showToast]);
 
   useEffect(() => {
     refreshData();
-  }, []);
+  }, [refreshData]);
 
-  const getCustomerById = (id: string) => customers.find((c) => c.id === id);
+  const getCustomerById = useCallback((id: string) => customers.find((c) => c.id === id), [customers]);
 
-  const getCustomerLedger = async (customerId: string): Promise<CreditLedgerEntry[]> => {
+  const getCustomerLedger = useCallback(async (customerId: string): Promise<CreditLedgerEntry[]> => {
     try {
       const stmt = await customersApi.getStatement(customerId);
       return stmt.ledgerEntries.map((t) => ({
@@ -221,7 +273,7 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       console.error('Error fetching statement:', err);
       return ledgerEntries.filter((e) => e.customerId === customerId);
     }
-  };
+  }, [ledgerEntries]);
 
   const addCustomer = async (data: {
     name: string;
@@ -882,42 +934,93 @@ export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [customers, ledgerEntries, products, expenses, expensesSummary, suppliers, suppliersSummary]);
 
+  const contextValue = useMemo(
+    () => ({
+      isLoading,
+      customers,
+      ledgerEntries,
+      products,
+      expenses,
+      expensesSummary,
+      suppliers,
+      suppliersSummary,
+      stats,
+      toasts,
+      dismissToast,
+      showToast,
+      language,
+      calendarMode,
+      setLanguage,
+      setCalendarMode,
+      toggleLanguage,
+      toggleCalendarMode,
+      formatDate,
+      t,
+      addCustomer,
+      updateCustomer,
+      deleteCustomer,
+      getCustomerById,
+      getCustomerLedger,
+      recordTransaction,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      adjustStock,
+      addExpense,
+      deleteExpense,
+      addSupplier,
+      updateSupplier,
+      deleteSupplier,
+      getSupplierById,
+      getSupplierLedger,
+      recordSupplierTransaction,
+      refreshData,
+    }),
+    [
+      isLoading,
+      customers,
+      ledgerEntries,
+      products,
+      expenses,
+      expensesSummary,
+      suppliers,
+      suppliersSummary,
+      stats,
+      toasts,
+      dismissToast,
+      showToast,
+      language,
+      calendarMode,
+      setLanguage,
+      setCalendarMode,
+      toggleLanguage,
+      toggleCalendarMode,
+      formatDate,
+      t,
+      addCustomer,
+      updateCustomer,
+      deleteCustomer,
+      getCustomerById,
+      getCustomerLedger,
+      recordTransaction,
+      addProduct,
+      updateProduct,
+      deleteProduct,
+      adjustStock,
+      addExpense,
+      deleteExpense,
+      addSupplier,
+      updateSupplier,
+      deleteSupplier,
+      getSupplierById,
+      getSupplierLedger,
+      recordSupplierTransaction,
+      refreshData,
+    ]
+  );
+
   return (
-    <KhataContext.Provider
-      value={{
-        isLoading,
-        customers,
-        ledgerEntries,
-        products,
-        expenses,
-        expensesSummary,
-        suppliers,
-        suppliersSummary,
-        stats,
-        toasts,
-        dismissToast,
-        showToast,
-        addCustomer,
-        updateCustomer,
-        deleteCustomer,
-        getCustomerById,
-        getCustomerLedger,
-        recordTransaction,
-        addProduct,
-        updateProduct,
-        deleteProduct,
-        adjustStock,
-        addExpense,
-        deleteExpense,
-        addSupplier,
-        updateSupplier,
-        deleteSupplier,
-        getSupplierById,
-        getSupplierLedger,
-        recordSupplierTransaction,
-        refreshData,
-      }}
-    >
+    <KhataContext.Provider value={contextValue}>
       {children}
     </KhataContext.Provider>
   );

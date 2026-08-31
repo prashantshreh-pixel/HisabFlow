@@ -29,6 +29,7 @@ import {
   TrendingUp,
   Boxes,
   AlertCircle,
+  Keyboard,
 } from 'lucide-react';
 import { ButtonSpinner, PageLoader } from '@/components/Loader';
 import { ReceiptModal } from '@/components/Modals/ReceiptModal';
@@ -143,6 +144,47 @@ export const PosView: React.FC = () => {
   useEffect(() => {
     searchInputRef.current?.focus();
   }, []);
+
+  // Global POS Keyboard Shortcuts Engine
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // F2: POS Terminal tab
+      if (e.key === 'F2') {
+        e.preventDefault();
+        setActiveSubTab('TERMINAL');
+        searchInputRef.current?.focus();
+      }
+      // F3 or Ctrl+K: Focus Search/Barcode Input
+      else if (e.key === 'F3' || (e.ctrlKey && e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        setActiveSubTab('TERMINAL');
+        searchInputRef.current?.focus();
+      }
+      // F4: Recent Invoices tab
+      else if (e.key === 'F4') {
+        e.preventDefault();
+        setActiveSubTab('INVOICES');
+      }
+      // F9 or Ctrl+Enter: Trigger Checkout
+      else if ((e.ctrlKey && e.key === 'Enter') || e.key === 'F9') {
+        e.preventDefault();
+        if (cart.length > 0 && !isProcessing) {
+          handleCheckout();
+        }
+      }
+      // Escape: Clear Search or Cart
+      else if (e.key === 'Escape' && activeSubTab === 'TERMINAL') {
+        if (searchQuery) {
+          setSearchQuery('');
+        } else if (cart.length > 0 && document.activeElement !== searchInputRef.current) {
+          clearCart();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [cart, isProcessing, activeSubTab, searchQuery]);
 
   // Fetch Invoices when switching to INVOICES tab
   const fetchInvoices = async () => {
@@ -435,7 +477,7 @@ export const PosView: React.FC = () => {
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span>POS Terminal</span>
+            <span>POS Terminal (F2)</span>
           </button>
 
           <button
@@ -448,8 +490,23 @@ export const PosView: React.FC = () => {
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Recent Invoices</span>
+            <span>Recent Invoices (F4)</span>
           </button>
+        </div>
+      </div>
+
+      {/* Keyboard Shortcuts Quick Bar */}
+      <div className="px-4 py-2 bg-slate-950/80 border border-slate-800/80 rounded-xl flex items-center justify-between text-[11px] text-slate-400 overflow-x-auto gap-3">
+        <div className="flex items-center gap-1.5 shrink-0 text-amber-400 font-bold">
+          <Keyboard className="w-3.5 h-3.5" />
+          <span>Counter Shortcuts:</span>
+        </div>
+        <div className="flex items-center gap-4 shrink-0 font-mono">
+          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F3 / Ctrl+K</kbd> Search</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F2</kbd> Terminal</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F4</kbd> Invoices</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-emerald-400">Ctrl+Enter / F9</kbd> Checkout</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-rose-300">Esc</kbd> Clear</span>
         </div>
       </div>
 

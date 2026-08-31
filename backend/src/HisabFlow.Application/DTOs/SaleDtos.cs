@@ -1,4 +1,4 @@
-namespace HisabFlow.Application.Sales.DTOs;
+namespace HisabFlow.Application.DTOs;
 
 public record SaleItemDto(
     Guid Id,

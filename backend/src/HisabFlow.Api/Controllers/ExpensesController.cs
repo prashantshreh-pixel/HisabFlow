@@ -1,5 +1,6 @@
 using HisabFlow.Application.Abstractions.Repositories;
-using HisabFlow.Domain.Entities;
+using HisabFlow.Application.Common.Models;
+using HisabFlow.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -19,26 +20,49 @@ public class ExpensesController : ControllerBase
     }
 
     /// <summary>
-    /// Retrieves recent store expenses.
+    /// Retrieves paginated and filtered store expenses with page, pageSize, category, and date range filters.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(IEnumerable<Expense>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAll([FromQuery] int limit = 100)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> GetExpenses(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] int? limit = null,
+        [FromQuery] string? category = null,
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        CancellationToken cancellationToken = default)
     {
-        var expenses = await _expenseRepo.GetAllAsync(limit);
-        return Ok(expenses);
+        var effectivePageSize = limit.HasValue ? Math.Clamp(limit.Value, 1, 100) : Math.Clamp(pageSize, 1, 100);
+        var pagedExpenses = await _expenseRepo.GetPagedAsync(
+            Math.Max(1, page),
+            effectivePageSize,
+            category,
+            startDate,
+            endDate,
+            cancellationToken
+        );
+
+        if (limit.HasValue)
+        {
+            return Ok(pagedExpenses.Items);
+        }
+
+        return Ok(pagedExpenses);
     }
 
     /// <summary>
     /// Retrieves an expense by ID.
     /// </summary>
     [HttpGet("{id:guid}")]
-    [ProducesResponseType(typeof(Expense), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetById(Guid id)
+    public async Task<ActionResult<ExpenseDto>> GetById(
+        Guid id,
+        CancellationToken cancellationToken = default)
     {
-        var expense = await _expenseRepo.GetByIdAsync(id);
-        if (expense == null) return NotFound(new { message = $"Expense '{id}' not found." });
+        var expense = await _expenseRepo.GetByIdAsync(id, cancellationToken);
+        if (expense == null) throw new KeyNotFoundException($"Expense '{id}' not found.");
         return Ok(expense);
     }
 
@@ -46,24 +70,22 @@ public class ExpensesController : ControllerBase
     /// Records a new store expense transaction.
     /// </summary>
     [HttpPost]
-    [ProducesResponseType(typeof(Expense), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Create([FromBody] Expense expense)
+    public async Task<ActionResult<ExpenseDto>> Create(
+        [FromBody] CreateExpenseRequest request,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(expense.Title))
+        if (string.IsNullOrWhiteSpace(request.Title))
         {
-            return BadRequest(new { message = "Expense title is required." });
+            throw new ArgumentException("Expense title is required.");
         }
-        if (string.IsNullOrWhiteSpace(expense.Category))
+        if (request.Amount <= 0)
         {
-            expense.Category = "General Operational";
-        }
-        if (expense.Amount <= 0)
-        {
-            return BadRequest(new { message = "Valid positive expense amount is required." });
+            throw new ArgumentException("Valid positive expense amount is required.");
         }
 
-        var created = await _expenseRepo.CreateAsync(expense);
+        var created = await _expenseRepo.CreateAsync(request, cancellationToken);
         return Ok(created);
     }
 
@@ -73,21 +95,27 @@ public class ExpensesController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Delete(Guid id)
+    public async Task<ActionResult<object>> Delete(
+        Guid id,
+        CancellationToken cancellationToken = default)
     {
-        var success = await _expenseRepo.DeleteAsync(id);
-        if (!success) return NotFound(new { message = $"Expense '{id}' not found." });
+        var success = await _expenseRepo.DeleteAsync(id, cancellationToken);
+        if (!success) throw new KeyNotFoundException($"Expense '{id}' not found.");
         return Ok(new { message = "Expense record deleted." });
     }
 
     /// <summary>
-    /// Returns expense summary statistics (Today's, Month's, Total).
+    /// Returns expense summary statistics with optional date range and category filtering.
     /// </summary>
     [HttpGet("summary")]
-    [ProducesResponseType(typeof(ExpenseSummaryDto), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetSummary()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<ExpenseSummaryDto>> GetSummary(
+        [FromQuery] DateTime? startDate = null,
+        [FromQuery] DateTime? endDate = null,
+        [FromQuery] string? category = null,
+        CancellationToken cancellationToken = default)
     {
-        var summary = await _expenseRepo.GetSummaryAsync();
+        var summary = await _expenseRepo.GetSummaryAsync(startDate, endDate, category, cancellationToken);
         return Ok(summary);
     }
 }

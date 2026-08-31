@@ -1,6 +1,7 @@
-using FluentValidation;
-using HisabFlow.Application.Customers.DTOs;
+using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
+using HisabFlow.Application.Common.Models;
+using HisabFlow.Application.DTOs;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -13,227 +14,145 @@ namespace HisabFlow.Api.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly ICustomerRepository _customerRepository;
-    private readonly IValidator<CreateCustomerRequest> _createValidator;
-    private readonly IValidator<RecordTransactionRequest> _transactionValidator;
 
-    public CustomersController(
-        ICustomerRepository customerRepository,
-        IValidator<CreateCustomerRequest> createValidator,
-        IValidator<RecordTransactionRequest> transactionValidator)
+    public CustomersController(ICustomerRepository customerRepository)
     {
         _customerRepository = customerRepository;
-        _createValidator = createValidator;
-        _transactionValidator = transactionValidator;
     }
 
     /// <summary>
-    /// Retrieves all active customers from the database.
+    /// Retrieves active customers with optional pagination or full listing.
     /// </summary>
-    /// <returns>
-    /// HTTP 200 OK with a list of <see cref="CustomerDto"/> objects representing active customers.
-    /// </returns>
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<CustomerDto>>> GetAll()
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> GetAll(
+        [FromQuery] bool all = true,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
     {
-        try
+        if (!all)
         {
-            var customers = await _customerRepository.GetAllCustomersAsync();
-            return Ok(customers);
+            var paged = await _customerRepository.GetPagedCustomersAsync(page, pageSize, cancellationToken);
+            return Ok(paged);
         }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+
+        var customers = await _customerRepository.GetAllCustomersAsync(cancellationToken);
+        return Ok(customers);
+    }
+
+    /// <summary>
+    /// Retrieves paginated customer profiles.
+    /// </summary>
+    [HttpGet("paged")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedResult<CustomerDto>>> GetPaged(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var paged = await _customerRepository.GetPagedCustomersAsync(page, pageSize, cancellationToken);
+        return Ok(paged);
     }
 
     /// <summary>
     /// Retrieves a single customer profile by their unique ID.
     /// </summary>
-    /// <param name="id">The unique identifier (GUID) of the customer.</param>
-    /// <returns>
-    /// HTTP 200 OK with <see cref="CustomerDto"/> if found; otherwise, HTTP 404 Not Found if customer does not exist.
-    /// </returns>
     [HttpGet("{id:guid}")]
-    public async Task<ActionResult<CustomerDto>> GetById(Guid id)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CustomerDto>> GetById(Guid id, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var customer = await _customerRepository.GetCustomerByIdAsync(id);
-            if (customer == null) return NotFound(new { message = $"Customer with ID {id} not found." });
-            return Ok(customer);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var customer = await _customerRepository.GetCustomerByIdAsync(id, cancellationToken);
+        if (customer == null) throw new KeyNotFoundException($"Customer with ID '{id}' was not found.");
+        return Ok(customer);
     }
 
     /// <summary>
-    /// Creates a new customer record in the database.
+    /// Creates a new customer record in the database atomically within a transaction.
     /// </summary>
-    /// <param name="request">The customer details including name, phone, address, credit limit, and optional opening balance.</param>
-    /// <returns>
-    /// HTTP 200 OK with created <see cref="CustomerDto"/>, HTTP 400 Bad Request on validation error, or HTTP 500 on server error.
-    /// </returns>
     [HttpPost]
-    public async Task<ActionResult<CustomerDto>> Create([FromBody] CreateCustomerRequest request)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<CustomerDto>> Create([FromBody] CreateCustomerRequest request, CancellationToken cancellationToken = default)
     {
-        var validation = await _createValidator.ValidateAsync(request);
-        if (!validation.IsValid)
-        {
-            var errorMsg = string.Join(", ", validation.Errors.Select(e => e.ErrorMessage));
-            return BadRequest(new { message = errorMsg });
-        }
-
-        try
-        {
-            var created = await _customerRepository.CreateCustomerAsync(request);
-            return Ok(created);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var created = await _customerRepository.CreateCustomerAsync(request, cancellationToken);
+        return Ok(created);
     }
 
     /// <summary>
-    /// Retrieves a customer's detailed statement and transaction history.
+    /// Retrieves a customer's detailed statement and transaction history with optional pagination.
     /// </summary>
-    /// <param name="id">The unique identifier (GUID) of the customer.</param>
-    /// <returns>
-    /// HTTP 200 OK with <see cref="CustomerStatementDto"/> if found; otherwise, HTTP 404 Not Found if customer does not exist.
-    /// </returns>
     [HttpGet("{id:guid}/statement")]
-    public async Task<ActionResult<CustomerStatementDto>> GetStatement(Guid id)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CustomerStatementDto>> GetStatement(
+        Guid id,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var statement = await _customerRepository.GetCustomerStatementAsync(id);
-            if (statement == null) return NotFound(new { message = $"Customer with ID {id} not found." });
-            return Ok(statement);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var statement = await _customerRepository.GetCustomerStatementAsync(id, page, pageSize, cancellationToken);
+        if (statement == null) throw new KeyNotFoundException($"Customer with ID '{id}' was not found.");
+        return Ok(statement);
     }
 
     /// <summary>
-    /// Records a new Khata transaction (Udhaar credit sale or Jama repayment) for a customer.
+    /// Records a new Khata transaction with strict Idempotency protection and row-level locking.
     /// </summary>
-    /// <param name="request">The transaction payload containing CustomerId, Type (Debit=1, Credit=2), Amount, PaymentMethod, Notes, and BillNumber.</param>
-    /// <returns>
-    /// HTTP 200 OK with created <see cref="CustomerLedgerEntryDto"/>, HTTP 400 Bad Request on invalid input, or HTTP 404 Not Found if customer does not exist.
-    /// </returns>
     [HttpPost("transactions")]
-    public async Task<ActionResult<CustomerLedgerEntryDto>> RecordTransaction([FromBody] RecordTransactionRequest request)
+    [Idempotent]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<CustomerLedgerEntryDto>> RecordTransaction([FromBody] RecordTransactionRequest request, CancellationToken cancellationToken = default)
     {
-        var validation = await _transactionValidator.ValidateAsync(request);
-        if (!validation.IsValid)
-        {
-            var errorMsg = string.Join(", ", validation.Errors.Select(e => e.ErrorMessage));
-            return BadRequest(new { message = errorMsg });
-        }
-
-        try
-        {
-            var entry = await _customerRepository.RecordTransactionAsync(request);
-            return Ok(entry);
-        }
-        catch (KeyNotFoundException ex)
-        {
-            return NotFound(new { message = ex.Message });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var entry = await _customerRepository.RecordTransactionAsync(request, cancellationToken);
+        return Ok(entry);
     }
 
     /// <summary>
-    /// Fetches a global feed of recent transactions across all customers.
+    /// Fetches a global feed of recent transactions across all customers with capped limit parameter.
     /// </summary>
-    /// <param name="limit">Maximum number of recent transactions to return (default is 50).</param>
-    /// <returns>
-    /// HTTP 200 OK with a list of <see cref="CustomerLedgerEntryDto"/> items.
-    /// </returns>
     [HttpGet("transactions")]
-    public async Task<ActionResult<IReadOnlyList<CustomerLedgerEntryDto>>> GetRecentTransactions([FromQuery] int limit = 50)
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<CustomerLedgerEntryDto>>> GetRecentTransactions(
+        [FromQuery] int limit = 50,
+        CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var entries = await _customerRepository.GetRecentTransactionsAsync(limit);
-            return Ok(entries);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var cappedLimit = Math.Clamp(limit, 1, 100);
+        var entries = await _customerRepository.GetRecentTransactionsAsync(cappedLimit, cancellationToken);
+        return Ok(entries);
     }
 
     /// <summary>
-    /// Updates an existing customer's profile information.
+    /// Updates an existing customer's profile information with optimistic concurrency control.
     /// </summary>
-    /// <param name="id">The unique identifier (GUID) of the customer to update.</param>
-    /// <param name="request">The updated customer profile fields (Name, Phone, Address, CreditLimit).</param>
-    /// <returns>
-    /// HTTP 204 No Content on successful update, HTTP 400 Bad Request on invalid input, or HTTP 404 Not Found if customer does not exist.
-    /// </returns>
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> Update(Guid id, [FromBody] CreateCustomerRequest request)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> Update(
+        Guid id,
+        [FromBody] CreateCustomerRequest request,
+        [FromQuery] DateTime? expectedUpdatedAt = null,
+        CancellationToken cancellationToken = default)
     {
-        var validation = await _createValidator.ValidateAsync(request);
-        if (!validation.IsValid)
-        {
-            var errorMsg = string.Join(", ", validation.Errors.Select(e => e.ErrorMessage));
-            return BadRequest(new { message = errorMsg });
-        }
-
-        try
-        {
-            var updated = await _customerRepository.UpdateCustomerAsync(id, request);
-            if (!updated) return NotFound(new { message = $"Customer with ID {id} not found." });
-
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var updated = await _customerRepository.UpdateCustomerAsync(id, request, expectedUpdatedAt, cancellationToken);
+        if (!updated) throw new KeyNotFoundException($"Customer with ID '{id}' was not found or was modified by another user.");
+        return NoContent();
     }
 
     /// <summary>
-    /// Deletes a customer profile and all their associated ledger entries.
+    /// Soft deletes a customer profile preserving audit trail and FK integrity.
     /// </summary>
-    /// <param name="id">The unique identifier (GUID) of the customer to delete.</param>
-    /// <returns>
-    /// HTTP 204 No Content on successful deletion, or HTTP 404 Not Found if customer does not exist.
-    /// </returns>
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> Delete(Guid id)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> Delete(Guid id, CancellationToken cancellationToken = default)
     {
-        try
-        {
-            var deleted = await _customerRepository.DeleteCustomerAsync(id);
-            if (!deleted) return NotFound(new { message = $"Customer with ID {id} not found." });
-
-            return NoContent();
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, new { message = ex.Message });
-        }
+        var deleted = await _customerRepository.DeleteCustomerAsync(id, cancellationToken);
+        if (!deleted) throw new KeyNotFoundException($"Customer with ID '{id}' was not found.");
+        return NoContent();
     }
 }

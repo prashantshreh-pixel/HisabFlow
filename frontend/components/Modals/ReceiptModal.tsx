@@ -11,6 +11,8 @@ interface ReceiptModalProps {
 }
 
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClose }) => {
+  const [paperSize, setPaperSize] = React.useState<'58mm' | '80mm' | 'A4'>('80mm');
+
   if (!isOpen || !sale) return null;
 
   const handlePrint = () => {
@@ -32,9 +34,38 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
     }
   };
 
+  const printWidth = paperSize === '58mm' ? '58mm' : paperSize === '80mm' ? '80mm' : '100%';
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 print:p-0 print:bg-white">
-      <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:max-w-none print:w-full print:border-none print:shadow-none print:rounded-none print:bg-white">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          @page {
+            size: ${paperSize === 'A4' ? 'auto' : `${paperSize} auto`};
+            margin: 0;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #receipt-printable-content, #receipt-printable-content * {
+            visibility: visible !important;
+          }
+          #receipt-printable-content {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: ${printWidth} !important;
+            padding: ${paperSize === '58mm' ? '2mm' : '4mm'} !important;
+            font-family: 'Courier New', Courier, monospace !important;
+            font-size: ${paperSize === '58mm' ? '9px' : '11px'} !important;
+            color: #000000 !important;
+            background: #ffffff !important;
+          }
+        }
+      ` }} />
+
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200 print:p-0 print:bg-white">
+        <div className="relative w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:max-w-none print:w-full print:border-none print:shadow-none print:rounded-none print:bg-white">
         
         {/* Header - Screen only */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60 print:hidden">
@@ -62,7 +93,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
 
         {/* Printable Receipt Paper Container */}
         <div className="flex-1 overflow-y-auto p-6 space-y-4 print:p-0 print:m-0 print:overflow-visible">
-          <div className="bg-slate-950 rounded-2xl p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4 text-slate-200 print:bg-white print:text-black print:border-none print:p-0 print:m-0">
+          <div id="receipt-printable-content" className="bg-slate-950 rounded-2xl p-5 border border-slate-800 shadow-inner font-mono text-xs space-y-4 text-slate-200 print:bg-white print:text-black print:border-none print:p-0 print:m-0">
             
             {/* Shop Header */}
             <div className="text-center space-y-1 pb-3 border-b border-dashed border-slate-700 print:border-black">
@@ -209,26 +240,48 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
           </div>
         </div>
 
-        {/* Footer Actions - Screen only */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3 print:hidden">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            onClick={handlePrint}
-            className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Print Receipt</span>
-          </button>
-        </div>
+        {/* Printer Setup & Footer Actions - Screen only */}
+        <div className="p-4 border-t border-slate-800 bg-slate-950 space-y-3 print:hidden">
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span className="text-slate-400 font-medium">Printer Paper Size:</span>
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+              {(['58mm', '80mm', 'A4'] as const).map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => setPaperSize(sz)}
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    paperSize === sz
+                      ? 'bg-amber-500 text-slate-950 shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  {sz === '58mm' ? '58mm (2")' : sz === '80mm' ? '80mm (3")' : 'Full A4'}
+                </button>
+              ))}
+            </div>
+          </div>
 
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print {paperSize} Receipt</span>
+            </button>
+          </div>
+          </div>
+        </div>
       </div>
-    </div>
+    </>
   );
 };

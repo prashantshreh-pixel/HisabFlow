@@ -17,6 +17,7 @@ import {
   Wallet,
   AlertCircle,
   FileText,
+  MessageSquare,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
 
@@ -31,7 +32,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
   onOpenRecordTransaction,
   onSelectCustomer,
 }) => {
-  const { customers, stats, isLoading } = useKhata();
+  const { customers, stats, isLoading, formatDate } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'DUE_ONLY' | 'SETTLED' | 'OVER_LIMIT'>('ALL');
@@ -250,11 +251,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                     Math.round((customer.currentBalance / Math.max(1, customer.creditLimit)) * 100)
                   );
 
-                  const dateObj = new Date(customer.lastTransactionDate);
-                  const formattedDate = dateObj.toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                  });
+                  const formattedDate = formatDate(customer.lastTransactionDate);
 
                   return (
                     <tr
@@ -347,7 +344,25 @@ export const KhataView: React.FC<KhataViewProps> = ({
 
                       {/* Actions */}
                       <td className="py-4 px-5 text-center">
-                        <div className="flex items-center justify-center gap-2">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {hasDue && (
+                            <button
+                              id={`wa-reminder-${customer.id}`}
+                              type="button"
+                              onClick={() => {
+                                const digits = customer.phone.replace(/\D/g, '');
+                                const cleanPhone = digits.length === 10 ? `977${digits}` : digits;
+                                const msg = `Namaste ${customer.name}, your total outstanding balance at HisabFlow is Rs. ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
+                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+                              }}
+                              className="h-8 px-2.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                              title="Send WhatsApp Payment Reminder"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 shrink-0 fill-current" />
+                              <span>WhatsApp</span>
+                            </button>
+                          )}
+
                           <button
                             id={`record-tx-${customer.id}`}
                             type="button"
@@ -356,7 +371,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             title="Record Udhaar or Payment"
                           >
                             <Wallet className="w-3.5 h-3.5 shrink-0" />
-                            <span>Record Transaction</span>
+                            <span>Record Tx</span>
                           </button>
 
                           <button

@@ -24,6 +24,7 @@ import { AddExpenseModal } from '@/components/Modals/AddExpenseModal';
 import { AddSupplierModal } from '@/components/Modals/AddSupplierModal';
 import { RecordSupplierTxModal } from '@/components/Modals/RecordSupplierTxModal';
 import { SupplierStatementModal } from '@/components/Modals/SupplierStatementModal';
+import { CashReconciliationModal } from '@/components/Modals/CashReconciliationModal';
 import { PageLoader, GlobalTopProgressBar } from '@/components/Loader';
 import { useKhata } from '@/context/KhataContext';
 import { Product, LedgerTransactionType, SupplierTransactionType } from '@/types';
@@ -37,6 +38,7 @@ function MainApp() {
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
+  const [isCashReconciliationOpen, setIsCashReconciliationOpen] = useState(false);
   
   const [isRecordTxOpen, setIsRecordTxOpen] = useState(false);
   const [recordTxCustomerId, setRecordTxCustomerId] = useState<string | undefined>(undefined);
@@ -88,6 +90,7 @@ function MainApp() {
         onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
         onOpenAddProduct={handleOpenAddProduct}
         onOpenRecordTx={() => handleOpenRecordTx()}
+        onOpenCashReconciliation={() => setIsCashReconciliationOpen(true)}
       />
 
       {/* Main Content Column */}
@@ -228,6 +231,11 @@ function MainApp() {
         isOpen={!!quickStockProduct}
         onClose={() => setQuickStockProduct(null)}
         product={quickStockProduct}
+      />
+
+      <CashReconciliationModal
+        isOpen={isCashReconciliationOpen}
+        onClose={() => setIsCashReconciliationOpen(false)}
       />
 
       {/* Toast Notifications */}

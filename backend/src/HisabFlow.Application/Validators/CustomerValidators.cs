@@ -1,7 +1,7 @@
-﻿using FluentValidation;
-using HisabFlow.Application.Customers.DTOs;
+using FluentValidation;
+using HisabFlow.Application.DTOs;
 
-namespace HisabFlow.Application.Customers.Validators;
+namespace HisabFlow.Application.Validators;
 
 public class CreateCustomerRequestValidator : AbstractValidator<CreateCustomerRequest>
 {
