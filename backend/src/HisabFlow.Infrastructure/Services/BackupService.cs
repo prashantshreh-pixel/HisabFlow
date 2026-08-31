@@ -1,5 +1,6 @@
 using Dapper;
 using HisabFlow.Application.Common.Interfaces;
+using System.Text.Json;
 
 namespace HisabFlow.Infrastructure.Services;
 
@@ -37,11 +38,27 @@ public class BackupService : IBackupService
         }
         catch
         {
-            // If T-SQL BACKUP DATABASE fails (e.g. LocalDB permission restriction), write database snapshot summary
+            // Fallback: Export complete restorable dataset snapshot containing all table row data
             var jsonSnapshotPath = Path.Combine(backupDirectory, $"HisabFlow_Snapshot_{timestamp}.json");
-            var tablesSql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE';";
-            var tables = await conn.QueryAsync<string>(new CommandDefinition(tablesSql, cancellationToken: cancellationToken));
-            await File.WriteAllTextAsync(jsonSnapshotPath, System.Text.Json.JsonSerializer.Serialize(tables), cancellationToken);
+            var tablesSql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE '__%';";
+            var tables = (await conn.QueryAsync<string>(new CommandDefinition(tablesSql, cancellationToken: cancellationToken))).ToList();
+
+            var dataExport = new Dictionary<string, IEnumerable<dynamic>>();
+            foreach (var table in tables)
+            {
+                var querySql = $"SELECT * FROM [{table}];";
+                var rows = await conn.QueryAsync<dynamic>(new CommandDefinition(querySql, cancellationToken: cancellationToken));
+                dataExport[table] = rows;
+            }
+
+            var exportPayload = new
+            {
+                Version = "1.0",
+                ExportedAt = DateTime.UtcNow,
+                Tables = dataExport
+            };
+
+            await File.WriteAllTextAsync(jsonSnapshotPath, JsonSerializer.Serialize(exportPayload, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
             var snapshotInfo = new FileInfo(jsonSnapshotPath);
             return new DatabaseBackupResult(Path.GetFileName(jsonSnapshotPath), jsonSnapshotPath, snapshotInfo.Length, snapshotInfo.CreationTimeUtc);
         }

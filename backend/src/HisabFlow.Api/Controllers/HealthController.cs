@@ -51,13 +51,13 @@ public class HealthController : ControllerBase
                 timestamp = DateTime.UtcNow
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             return StatusCode(StatusCodes.Status503ServiceUnavailable, new
             {
                 status = "Unhealthy",
                 database = "Disconnected",
-                error = ex.Message,
+                message = "Database service is unavailable.",
                 timestamp = DateTime.UtcNow
             });
         }

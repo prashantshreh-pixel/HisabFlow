@@ -26,6 +26,13 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
+        idempotencyKey = idempotencyKey.Trim();
+        if (idempotencyKey.Length > 64)
+        {
+            context.Result = new BadRequestObjectResult(new { message = "Idempotency key exceeds maximum allowed length of 64 characters." });
+            return;
+        }
+
         // Calculate SHA-256 hash of request path + body
         httpContext.Request.EnableBuffering();
         using var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8, leaveOpen: true);
@@ -61,18 +68,34 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
             return;
         }
 
-        var executedContext = await next();
-
-        if (executedContext.Result is ObjectResult objectResult && objectResult.StatusCode >= 200 && objectResult.StatusCode < 300)
+        ActionExecutedContext? executedContext = null;
+        try
         {
-            var responseJson = JsonSerializer.Serialize(objectResult.Value);
-            var statusCode = objectResult.StatusCode ?? 200;
-            await idempotencyService.CompleteReservationAsync(
-                idempotencyKey,
-                statusCode,
-                responseJson,
-                httpContext.RequestAborted
-            );
+            executedContext = await next();
+        }
+        catch
+        {
+            await idempotencyService.ReleaseKeyAsync(idempotencyKey, httpContext.RequestAborted);
+            throw;
+        }
+
+        if (executedContext != null)
+        {
+            if (executedContext.Exception != null || executedContext.Result is ObjectResult errorResult && errorResult.StatusCode >= 400)
+            {
+                await idempotencyService.ReleaseKeyAsync(idempotencyKey, httpContext.RequestAborted);
+            }
+            else if (executedContext.Result is ObjectResult objectResult && objectResult.StatusCode >= 200 && objectResult.StatusCode < 300)
+            {
+                var responseJson = JsonSerializer.Serialize(objectResult.Value);
+                var statusCode = objectResult.StatusCode ?? 200;
+                await idempotencyService.CompleteReservationAsync(
+                    idempotencyKey,
+                    statusCode,
+                    responseJson,
+                    httpContext.RequestAborted
+                );
+            }
         }
     }
 }

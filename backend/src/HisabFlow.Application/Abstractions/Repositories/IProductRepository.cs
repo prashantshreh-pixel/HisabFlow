@@ -10,6 +10,6 @@ public interface IProductRepository
     Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
     Task<Product> CreateAsync(Product product, CancellationToken cancellationToken);
     Task<bool> UpdateAsync(Product product, DateTime? expectedUpdatedAt, CancellationToken cancellationToken);
-    Task<bool> AdjustStockAsync(Guid id, decimal quantityChange, CancellationToken cancellationToken);
+    Task<bool> AdjustStockAsync(Guid id, decimal quantityChange, string? notes = null, CancellationToken cancellationToken = default);
     Task<bool> DeleteAsync(Guid id, CancellationToken cancellationToken);
 }

@@ -30,6 +30,8 @@ public record SaleDto(
     decimal DigitalPaid,
     decimal CreditPaid,
     string? Notes,
+    bool IsRefunded,
+    DateTime? RefundedAt,
     DateTime SaleDate,
     DateTime CreatedAt,
     IReadOnlyList<SaleItemDto> Items

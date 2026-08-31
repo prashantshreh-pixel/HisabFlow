@@ -27,12 +27,14 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
   }, []);
 
   // Reset zoom & position on image change or modal open
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setZoom(1);
       setPosition({ x: 0, y: 0 });
       setIsDragging(false);

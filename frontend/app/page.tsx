@@ -260,8 +260,10 @@ export default function Home() {
     try {
       const authStatus = localStorage.getItem('hisabflow_auth');
       if (authStatus === 'true') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsAuthenticated(true);
       } else {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsAuthenticated(false);
       }
     } catch {

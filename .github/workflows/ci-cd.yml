@@ -2,9 +2,9 @@ name: HisabFlow CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, master, dev ]
+    branches: [ main, master, dev, SHINIGAMI, 'feature/**' ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main, master, dev, SHINIGAMI ]
 
 jobs:
   backend-build-test:
@@ -30,7 +30,7 @@ jobs:
         run: dotnet test backend/HisabFlow.sln --no-build --configuration Release --verbosity normal
 
   frontend-build-test:
-    name: Frontend Typecheck & Build (Next.js 15)
+    name: Frontend Lint, Typecheck & Build (Next.js 15)
     runs-on: ubuntu-latest
 
     steps:
@@ -48,10 +48,14 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Run ESLint Check
+        working-directory: frontend
+        run: npm run lint
+
       - name: Run TypeScript Typecheck
         working-directory: frontend
         run: npx tsc --noEmit
 
-      - name: Build Next.js Web App
+      - name: Build Next.js Static Export
         working-directory: frontend
         run: npm run build

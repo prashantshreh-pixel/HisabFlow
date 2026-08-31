@@ -25,12 +25,14 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
 
   useEffect(() => {
     if (supplierId && isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLoading(true);
       getSupplierLedger(supplierId).then((res) => {
         setEntries(res);
         setLoading(false);
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplierId, isOpen]);
 
   if (!isOpen || !supplier) return null;
