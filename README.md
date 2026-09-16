@@ -8,15 +8,18 @@
 ## 🎯 Key Features
 
 - 🇳🇵 **Bikram Sambat (B.S.) Date Toggle & Nepali UI (नेपाली)**: Seamless toggle between Gregorian (A.D.) and Nepali (B.S.) calendars with multi-language UI support.
+- 🔐 **Multi-Role RBAC (Admin, Manager, Cashier)**: Granular permission matrix with dynamic navigation gating, restricting cashiers from sensitive financial reports, supplier settlements, and cost prices.
 - 📖 **Customer Khata (Udhaar) Credit Ledger**: Atomic credit transactions, row-locked balance tracking, and paged customer statements.
 - 🏬 **Wholesaler & Supplier Ledger**: Track stock purchases, payments given, and outstanding supplier payables.
 - 🛒 **Point of Sale (POS) Checkout**: High-speed billing with barcode scanner support, receipt generation, and real-time inventory stock deductions.
+- 🔒 **POS Inactivity Auto-Lock**: 5-minute idle detection on POS (15-minute global fallback) with PIN/password unlock modal that preserves active shopping carts in memory.
 - 📦 **Inventory & Stock Movements**: Catalogue management, low stock alerts, image uploads, search filtering, and atomic stock movement logs (`stock_movements`).
 - 💸 **Operating Expenses & Financial Reports**: Categorized expense tracking with half-open date-range filters (`>= startOfDay AND < nextDay`), gross profit margin analysis, and net profit calculations.
 - 🏦 **Cash Drawer Shift Reconciliation**: Transaction-scoped register shifts (`cash_drawer_shift_id`), open shift uniqueness enforcement, cash sales/expenses tracking, and variance reporting.
-- 🕵️ **Active Audit Trail**: Real-time logging of customer, product, sale, supplier, expense, and cash drawer mutations into `audit_logs`.
+- 🕵️ **User-Attributed Audit Trail**: Operator identity tracked on all mutations (`Customer`, `Product`, `Sale`, `Supplier`, `Expense`) recording exact user attribution in `audit_logs`.
+- 🛡️ **Session Security & Parameterized Dapper Queries**: Ephemeral `sessionStorage` credential isolation against persistent XSS token theft, and 100% parameterized SQL queries throughout Dapper repositories.
 - 💾 **Restorable Data Snapshots**: Automatic fallback dataset exports (`.json`) containing complete database records across all tables.
-- 🛡️ **Idempotent Transaction Protection**: Prevents duplicate credit billing during network retries via `Idempotency-Key` headers with automatic failure release.
+- ⚡ **Idempotent Transaction Protection**: Prevents duplicate credit billing during network retries via `Idempotency-Key` headers with automatic failure release.
 
 ---
 
@@ -147,8 +150,12 @@ npx tsc --noEmit
 ## 🛡️ Reliability & Security Highlights
 
 - 🔒 **Transaction Idempotency**: Transactions carrying an `Idempotency-Key` or `X-Idempotency-Key` header prevent duplicate billing during network retries with automatic reservation release on failure.
+- 🔐 **Role-Based Access Control (RBAC)**: Enforces capabilities across `Admin`, `Manager`, and `Cashier` tiers, restricting cashiers from supplier settlements, profit margins, and cost prices.
+- 🕵️ **Audited User Attribution**: `ICurrentUserService` captures operator identity from request context/headers (`X-User-Name`, `X-User-Role`) recording the exact user on all entity updates instead of generic system accounts.
 - 🛑 **Global Exception Handling**: Unhandled exceptions automatically map to RFC 7807 `ProblemDetails` / `ValidationProblemDetails` responses.
-- ⚡ **Row-Level Concurrency Locking**: Ledger entries, stock adjustments, and sales refunds use SQL Server `WITH (UPDLOCK, ROWLOCK)` to prevent race conditions during simultaneous writes.
+- ⚡ **Row-Level Concurrency & Parameterized Dapper**: Ledger entries, stock adjustments, and sales refunds use SQL Server `WITH (UPDLOCK, ROWLOCK)` to prevent race conditions during simultaneous writes, and 100% of Dapper queries use parameterized commands against SQL injection.
+- 🛡️ **Session Inactivity Lock & Ephemeral Storage**: POS terminal triggers an automatic idle lock modal after 5 minutes of inactivity while retaining cart state in memory, and authentication tokens reside in `sessionStorage` to mitigate persistent XSS risks.
 - 🏦 **Register Shift Consistency**: Filtered unique index `uq_cash_drawers_open_shift` guarantees only one open shift at any given time per register.
 - ♻️ **Soft Deletes**: Customer and supplier profiles use soft deletion (`is_active = 0`) to preserve historical invoice audit integrity.
 - 🩺 **Sanitized Health Monitoring**: Integrated health endpoints available at `/health` and `/health/ready` with sanitized error responses.
+
