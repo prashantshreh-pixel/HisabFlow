@@ -1,4 +1,4 @@
-using HisabFlow.Application.Abstractions.Repositories;
+﻿using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Infrastructure.Data;
 using HisabFlow.Infrastructure.Repositories;
@@ -28,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<IStockMovementRepository, StockMovementRepository>();
         services.AddScoped<ICashDrawerRepository, CashDrawerRepository>();
         services.AddScoped<IBackupService, BackupService>();
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
         return services;
     }
 }

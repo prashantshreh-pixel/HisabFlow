@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
@@ -1082,7 +1082,7 @@ export const PosView: React.FC = () => {
                                 ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
                                 : s.paymentMethod === 3
                                 ? 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                                : 'bg-purple-500/10 text-purple-300 border border-purple-500/20'
+                                : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
                             }`}
                           >
                             {s.paymentMethod === 1 ? 'Cash' : s.paymentMethod === 2 ? 'QR' : s.paymentMethod === 3 ? 'Khata' : 'Split'}

@@ -1,8 +1,8 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
-import { logoutUser } from '@/lib/auth';
+import { logoutUser, getCurrentUser, getUserPermissions } from '@/lib/auth';
 import { NavTab } from '@/components/Navbar';
 import {
   Store,
@@ -10,23 +10,19 @@ import {
   ScanBarcode,
   BookOpen,
   Boxes,
-  Wallet,
-  UserPlus,
-  PackagePlus,
-  RotateCcw,
-  Sparkles,
-  TrendingUp,
-  CreditCard,
-  ChevronRight,
-  ShieldCheck,
-  Zap,
-  Settings,
   Receipt,
   Truck,
   BarChart3,
-  Calculator,
+  Settings,
   LogOut,
+  Wallet,
+  Calculator,
+  UserPlus,
+  PackagePlus,
+  ShieldCheck,
+  User,
 } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 interface AppSidebarProps {
   currentTab: NavTab;
@@ -48,275 +44,177 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onLogout,
 }) => {
   const { stats, t } = useKhata();
+  const currentUser = getCurrentUser();
+  const perms = getUserPermissions(currentUser?.role);
+
+  const allNavItems: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string; visible: boolean }[] = [
+    { id: 'DASHBOARD', label: t('dashboard'), icon: LayoutDashboard, visible: true },
+    { id: 'POS', label: t('pos'), icon: ScanBarcode, visible: perms.canAccessPOS },
+    { id: 'KHATA', label: t('khata'), icon: BookOpen, visible: perms.canManageKhata || perms.canReceivePayments },
+    { 
+      id: 'PRODUCTS', 
+      label: t('products'), 
+      icon: Boxes,
+      badge: stats.lowStockCount + stats.outOfStockCount > 0 ? `${stats.lowStockCount + stats.outOfStockCount} Low` : undefined,
+      visible: perms.canManageProducts,
+    },
+    { id: 'EXPENSES', label: t('expenses'), icon: Receipt, visible: perms.canManageExpenses },
+    { id: 'SUPPLIERS', label: t('suppliers'), icon: Truck, visible: perms.canManageSuppliers },
+    { id: 'REPORTS', label: t('reports'), icon: BarChart3, visible: perms.canViewReports },
+    { id: 'SETTINGS', label: t('settings'), icon: Settings, visible: perms.canManageSettings },
+  ];
+
+  const visibleNavItems = allNavItems.filter((i) => i.visible);
 
   return (
-    <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-slate-900/95 border-r border-slate-800/90 h-screen sticky top-0 z-30 select-none">
+    <aside className="hidden lg:flex flex-col justify-between w-64 shrink-0 bg-slate-900/90 border-r border-slate-800/80 h-screen sticky top-0 z-30 select-none backdrop-blur-sm">
       {/* Brand & Store Header */}
       <div>
-        <div className="p-5 border-b border-slate-800/80 bg-slate-950/60">
+        <div className="p-4 border-b border-slate-800/80 bg-slate-950/40">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
-              <Store className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 font-bold shrink-0">
+              <Store className="w-4 h-4" />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-lg tracking-tight text-slate-100">
-                  Hisab<span className="text-amber-400">Flow</span>
-                </span>
-                <span className="px-1.5 py-0.2 text-[9px] font-extrabold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded">
-                  POS
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 font-medium">Digital Retail & Khata Ledger</p>
+              <span className="font-semibold text-sm tracking-tight text-slate-100 block">
+                Hisab<span className="text-amber-400">Flow</span>
+              </span>
+              <p className="text-[11px] text-slate-400 font-normal">Retail Ledger &amp; POS</p>
             </div>
           </div>
         </div>
 
-        {/* Quick 1-Click Action Buttons */}
-        <div className="p-4 border-b border-slate-800/60">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2 px-1">
+        {/* Operator Profile Badge */}
+        <div className="px-4 py-2.5 bg-slate-950/50 border-b border-slate-800/60 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-xs font-semibold text-slate-200 truncate block">
+                {currentUser?.displayName || 'Operator'}
+              </span>
+              <span className="text-[10px] text-slate-500 font-mono">@{currentUser?.username || 'user'}</span>
+            </div>
+          </div>
+          <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+            currentUser?.role === 'ADMIN'
+              ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+              : currentUser?.role === 'MANAGER'
+              ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+              : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+          }`}>
+            {currentUser?.role || 'CASHIER'}
+          </span>
+        </div>
+
+        {/* Quick Action Shortcuts */}
+        <div className="p-3 border-b border-slate-800/80">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2 px-1">
             Quick Actions
           </span>
-          <div className="grid grid-cols-1 gap-2">
+          <div className="grid grid-cols-2 gap-1.5">
             <button
-              id="sidebar-quick-payment-btn"
               type="button"
               onClick={onOpenRecordTx}
-              className="w-full flex items-center justify-between px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-all group"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-200 hover:text-white rounded-md text-xs font-medium transition-colors"
             >
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                  <Wallet className="w-3.5 h-3.5" />
-                </div>
-                <span>Receive Payment</span>
-              </div>
-              <span className="text-[10px] text-emerald-400 font-extrabold">+ Jamā</span>
+              <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Payment</span>
             </button>
 
             {onOpenCashReconciliation && (
               <button
-                id="sidebar-day-end-reconciliation-btn"
                 type="button"
                 onClick={onOpenCashReconciliation}
-                className="w-full flex items-center justify-between px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 rounded-xl text-xs font-bold transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-200 hover:text-white rounded-md text-xs font-medium transition-colors"
               >
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400">
-                    <Calculator className="w-3.5 h-3.5" />
-                  </div>
-                  <span>Day-End Closure</span>
-                </div>
-                <span className="text-[10px] text-amber-400 font-extrabold">Tally</span>
+                <Calculator className="w-3.5 h-3.5 text-slate-400" />
+                <span>Closure</span>
               </button>
             )}
 
-            <div className="grid grid-cols-2 gap-2">
+            {perms.canManageKhata && (
               <button
-                id="sidebar-quick-customer-btn"
                 type="button"
                 onClick={onOpenAddCustomer}
-                className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-200 hover:text-white rounded-md text-xs font-medium transition-colors"
               >
-                <UserPlus className="w-3.5 h-3.5 text-amber-400" />
-                <span>+ Customer</span>
+                <UserPlus className="w-3.5 h-3.5 text-slate-400" />
+                <span>Customer</span>
               </button>
+            )}
 
+            {perms.canManageProducts && (
               <button
-                id="sidebar-quick-product-btn"
                 type="button"
                 onClick={onOpenAddProduct}
-                className="flex items-center gap-1.5 px-2.5 py-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-slate-100 rounded-xl text-xs font-semibold transition-all"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-200 hover:text-white rounded-md text-xs font-medium transition-colors"
               >
-                <PackagePlus className="w-3.5 h-3.5 text-amber-400" />
-                <span>+ Product</span>
+                <PackagePlus className="w-3.5 h-3.5 text-slate-400" />
+                <span>Product</span>
               </button>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Primary Navigation Menus */}
-        <div className="p-4 space-y-1.5">
-          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-2 px-1">
-            Store Navigation
+        <div className="p-3 space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5 px-2">
+            Navigation
           </span>
 
-          <button
-            id="sidebar-nav-dashboard"
-            type="button"
-            onClick={() => onTabChange('DASHBOARD')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-              currentTab === 'DASHBOARD'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <LayoutDashboard className="w-4 h-4 text-purple-400" />
-              <span>{t('dashboard')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            id="sidebar-nav-pos"
-            type="button"
-            onClick={() => onTabChange('POS')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'POS'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <ScanBarcode className="w-4 h-4 text-amber-400" />
-              <span>{t('pos')}</span>
-            </div>
-            <span
-              className={`px-1.5 py-0.5 rounded text-[9px] font-black ${
-                currentTab === 'POS'
-                  ? 'bg-amber-400 text-slate-950'
-                  : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-              }`}
-            >
-              BILL
-            </span>
-          </button>
-
-          <button
-            id="sidebar-nav-khata"
-            type="button"
-            onClick={() => onTabChange('KHATA')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'KHATA'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <BookOpen className="w-4 h-4 text-emerald-400" />
-              <span>{t('khata')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            id="sidebar-nav-products"
-            type="button"
-            onClick={() => onTabChange('PRODUCTS')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'PRODUCTS'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Boxes className="w-4 h-4 text-indigo-400" />
-              <span>{t('products')}</span>
-            </div>
-            {stats.lowStockCount + stats.outOfStockCount > 0 && (
-              <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                  currentTab === 'PRODUCTS'
-                    ? 'bg-amber-400 text-slate-950'
-                    : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+          {visibleNavItems.map((item) => {
+            const Icon = item.icon;
+            const isActive = currentTab === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onTabChange(item.id)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs transition-colors ${
+                  isActive
+                    ? 'bg-slate-800/90 text-amber-400 font-semibold border-l-2 border-amber-400 shadow-sm'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/40 font-medium'
                 }`}
               >
-                {stats.lowStockCount + stats.outOfStockCount} Low
-              </span>
-            )}
-          </button>
-
-          <button
-            id="sidebar-nav-expenses"
-            type="button"
-            onClick={() => onTabChange('EXPENSES')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'EXPENSES'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Receipt className="w-4 h-4 text-rose-400" />
-              <span>{t('expenses')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            id="sidebar-nav-suppliers"
-            type="button"
-            onClick={() => onTabChange('SUPPLIERS')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'SUPPLIERS'
-                ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Truck className="w-4 h-4 text-sky-400" />
-              <span>{t('suppliers')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            id="sidebar-nav-reports"
-            type="button"
-            onClick={() => onTabChange('REPORTS')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'REPORTS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <BarChart3 className="w-4 h-4" />
-              <span>{t('reports')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
-
-          <button
-            id="sidebar-nav-settings"
-            type="button"
-            onClick={() => onTabChange('SETTINGS')}
-            className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all relative ${
-              currentTab === 'SETTINGS'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-            }`}
-          >
-            <div className="flex items-center gap-2.5">
-              <Settings className="w-4 h-4" />
-              <span>{t('settings')}</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-          </button>
+                <div className="flex items-center gap-2.5">
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                  <span>{item.label}</span>
+                </div>
+                {item.badge && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-medium font-mono bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Footer Mini Card & Logout */}
-      <div className="p-4 border-t border-slate-800/80 bg-slate-950/60 space-y-3">
-        <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 text-[11px] space-y-1">
-          <div className="flex justify-between items-center text-slate-400">
-            <span>Outstanding Due:</span>
-            <span className="font-black text-rose-400">Rs. {stats.totalOutstandingKhata.toLocaleString()}</span>
+      {/* Footer Balance Overview & Logout */}
+      <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 space-y-2">
+        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs space-y-1.5">
+          <div className="flex items-baseline justify-between text-slate-400">
+            <span className="text-[11px] font-medium">Due Balances:</span>
+            <span className="font-semibold font-mono text-rose-400">
+              {formatCurrency(stats.totalOutstandingKhata)}
+            </span>
           </div>
-          <div className="flex justify-between items-center text-slate-400">
-            <span>Inventory Value:</span>
-            <span className="font-semibold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
+          <div className="flex items-baseline justify-between text-slate-400">
+            <span className="text-[11px] font-medium">Stock Value:</span>
+            <span className="font-medium font-mono text-slate-200">
+              {formatCurrency(stats.totalInventoryCostValue)}
+            </span>
           </div>
         </div>
 
         <button
-          id="sidebar-logout-btn"
           type="button"
           onClick={() => logoutUser(onLogout)}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-xl text-xs font-bold transition-all shadow-sm"
+          className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
         >
           <LogOut className="w-3.5 h-3.5" />
-          <span>Log out</span>
+          <span>Sign Out</span>
         </button>
       </div>
     </aside>

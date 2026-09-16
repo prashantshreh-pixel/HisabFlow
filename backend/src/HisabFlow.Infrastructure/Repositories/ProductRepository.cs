@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
@@ -7,6 +7,8 @@ using HisabFlow.Domain.Entities;
 using Microsoft.Data.SqlClient;
 using System.Text.Json;
 
+using HisabFlow.Infrastructure.Services;
+
 namespace HisabFlow.Infrastructure.Repositories;
 
 public class ProductRepository : IProductRepository
@@ -14,12 +16,14 @@ public class ProductRepository : IProductRepository
     private readonly IDbConnectionFactory _db;
     private readonly IAuditRepository _auditRepo;
     private readonly IReportRepository _reportRepo;
+    private readonly ICurrentUserService _currentUser;
 
-    public ProductRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
+    public ProductRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo, ICurrentUserService? currentUser = null)
     {
         _db = db;
         _auditRepo = auditRepo;
         _reportRepo = reportRepo;
+        _currentUser = currentUser ?? new CurrentUserService(new Microsoft.AspNetCore.Http.HttpContextAccessor());
     }
 
     public async Task<PagedResult<Product>> GetPagedAsync(
