@@ -1,23 +1,25 @@
-'use client';
+﻿'use client';
 
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
-import { logoutUser } from '@/lib/auth';
+import { logoutUser, getCurrentUser, getUserPermissions } from '@/lib/auth';
 import { NavTab } from '@/components/Navbar';
 import {
-  X,
   Store,
   LayoutDashboard,
   ScanBarcode,
   BookOpen,
   Boxes,
-  Truck,
   Receipt,
+  Truck,
   BarChart3,
   Settings,
-  Wallet,
-  ChevronRight,
+  X,
   LogOut,
+  Wallet,
+  UserPlus,
+  PackagePlus,
+  User,
 } from 'lucide-react';
 
 interface LeftMenuDrawerProps {
@@ -41,7 +43,9 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
   onOpenRecordTx,
   onLogout,
 }) => {
-  const { stats, customers, products } = useKhata();
+  const { stats, t } = useKhata();
+  const currentUser = getCurrentUser();
+  const perms = getUserPermissions(currentUser?.role);
 
   if (!isOpen) return null;
 
@@ -50,38 +54,47 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
     onClose();
   };
 
-  return (
-    <div
-      id="left-menu-drawer-backdrop"
-      className="fixed inset-0 z-50 flex bg-slate-950/75 backdrop-blur-sm animate-in fade-in duration-200"
-    >
-      {/* Left Drawer Panel */}
-      <div
-        id="left-menu-drawer-panel"
-        className="w-full max-w-xs sm:max-w-sm h-full bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col justify-between overflow-y-auto animate-in slide-in-from-left duration-300 text-slate-100"
-      >
-        {/* Header */}
-        <div>
-          <div className="p-5 border-b border-slate-800/90 flex items-center justify-between bg-slate-950/40">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-400 flex items-center justify-center text-slate-950 shadow-md shadow-amber-500/20 font-black">
-                <Store className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h3 className="font-extrabold text-base tracking-tight text-slate-100">
-                    Hisab<span className="text-amber-400">Flow</span>
-                  </h3>
-                  <span className="px-1.5 py-0.2 text-[9px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/20 rounded">
-                    PRO
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-400">Digital Khata & Retail Ledger</p>
-              </div>
-            </div>
+  const allNavItems: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string; visible: boolean }[] = [
+    { id: 'DASHBOARD', label: t('dashboard'), icon: LayoutDashboard, visible: true },
+    { id: 'POS', label: t('pos'), icon: ScanBarcode, visible: perms.canAccessPOS },
+    { id: 'KHATA', label: t('khata'), icon: BookOpen, visible: perms.canManageKhata || perms.canReceivePayments },
+    { 
+      id: 'PRODUCTS', 
+      label: t('products'), 
+      icon: Boxes,
+      badge: stats.lowStockCount + stats.outOfStockCount > 0 ? `${stats.lowStockCount + stats.outOfStockCount} Low` : undefined,
+      visible: perms.canManageProducts,
+    },
+    { id: 'EXPENSES', label: t('expenses'), icon: Receipt, visible: perms.canManageExpenses },
+    { id: 'SUPPLIERS', label: t('suppliers'), icon: Truck, visible: perms.canManageSuppliers },
+    { id: 'REPORTS', label: t('reports'), icon: BarChart3, visible: perms.canViewReports },
+    { id: 'SETTINGS', label: t('settings'), icon: Settings, visible: perms.canManageSettings },
+  ];
 
+  const visibleNavItems = allNavItems.filter((i) => i.visible);
+
+  return (
+    <div className="fixed inset-0 z-50 lg:hidden flex">
+      {/* Backdrop */}
+      <div 
+        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" 
+        onClick={onClose} 
+      />
+
+      {/* Drawer Panel */}
+      <div className="relative flex flex-col justify-between w-72 max-w-[80vw] bg-slate-900 border-r border-slate-800 h-full p-4 select-none z-10">
+        <div>
+          {/* Header */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
+                <Store className="w-4 h-4" />
+              </div>
+              <span className="font-bold text-base text-slate-100">
+                Hisab<span className="text-amber-400">Flow</span>
+              </span>
+            </div>
             <button
-              id="close-left-menu-btn"
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
@@ -90,243 +103,101 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
             </button>
           </div>
 
-          {/* Quick Action Shortcuts inside Drawer */}
-          <div className="p-4 bg-slate-950/60 border-b border-slate-800/80">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
-              Quick Shortcuts
+          {/* Operator Profile Badge */}
+          <div className="py-2.5 px-2 border-b border-slate-800/80 flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-slate-200 truncate block">
+                  {currentUser?.displayName || 'Operator'}
+                </span>
+                <span className="text-[10px] text-slate-500 font-mono">@{currentUser?.username || 'user'}</span>
+              </div>
+            </div>
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
+              currentUser?.role === 'ADMIN'
+                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                : currentUser?.role === 'MANAGER'
+                ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+            }`}>
+              {currentUser?.role || 'CASHIER'}
             </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenRecordTx();
-                }}
-                className="px-2.5 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 rounded-xl text-xs font-bold transition-all text-left flex items-center gap-2"
-              >
-                <Wallet className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>+ Payment</span>
-              </button>
+          </div>
 
+          {/* Quick Actions */}
+          <div className="py-3 border-b border-slate-800/80 space-y-2">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block px-1">
+              Actions
+            </span>
+            <div className="grid grid-cols-2 gap-1.5">
               <button
                 type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenAddCustomer();
-                }}
-                className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 text-slate-200 rounded-xl text-xs font-semibold transition-all text-left flex items-center gap-2"
+                onClick={() => { onOpenRecordTx(); onClose(); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 rounded-md text-xs font-medium"
               >
-                <Store className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>+ Customer</span>
+                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Payment</span>
               </button>
+              {perms.canManageKhata && (
+                <button
+                  type="button"
+                  onClick={() => { onOpenAddCustomer(); onClose(); }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 rounded-md text-xs font-medium"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Customer</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Primary Navigation Menus */}
-          <div className="p-4 space-y-5">
-            <div>
-              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1.5 block">
-                Core Modules
-              </span>
-              <nav className="space-y-1">
-                {/* 1. Overview */}
+          {/* Navigation Links */}
+          <div className="py-3 space-y-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5 px-2">
+              Navigation
+            </span>
+            {visibleNavItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentTab === item.id;
+              return (
                 <button
-                  id="drawer-nav-dashboard"
+                  key={item.id}
                   type="button"
-                  onClick={() => handleTabClick('DASHBOARD')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'DASHBOARD'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                  onClick={() => handleTabClick(item.id)}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                    isActive
+                      ? 'bg-slate-800 text-amber-400 font-semibold border-l-2 border-amber-400'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <LayoutDashboard className="w-4 h-4 text-purple-400" />
-                    <span>Overview Dashboard</span>
+                    <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                    <span>{item.label}</span>
                   </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {/* 1.1 POS Quick Billing */}
-                <button
-                  id="drawer-nav-pos"
-                  type="button"
-                  onClick={() => handleTabClick('POS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'POS'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <ScanBarcode className="w-4 h-4 text-amber-400" />
-                    <span>POS / Quick Billing</span>
-                  </div>
-                  <span
-                    className={`px-1.5 py-0.2 rounded text-[9px] font-black ${
-                      currentTab === 'POS'
-                        ? 'bg-amber-400 text-slate-950'
-                        : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
-                    }`}
-                  >
-                    BILL
-                  </span>
-                </button>
-
-                {/* 2. Khata */}
-                <button
-                  id="drawer-nav-khata"
-                  type="button"
-                  onClick={() => handleTabClick('KHATA')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'KHATA'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <BookOpen className="w-4 h-4 text-emerald-400" />
-                    <span>Digital Khata (Ledger)</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {/* 3. Products & Stock */}
-                <button
-                  id="drawer-nav-products"
-                  type="button"
-                  onClick={() => handleTabClick('PRODUCTS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'PRODUCTS'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Boxes className="w-4 h-4 text-indigo-400" />
-                    <span>Products & Inventory</span>
-                  </div>
-                  {stats.lowStockCount + stats.outOfStockCount > 0 ? (
-                    <span
-                      className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${
-                        currentTab === 'PRODUCTS'
-                          ? 'bg-amber-400 text-slate-950'
-                          : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                      }`}
-                    >
-                      {stats.lowStockCount + stats.outOfStockCount} Low
+                  {item.badge && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                      {item.badge}
                     </span>
-                  ) : (
-                    <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                   )}
                 </button>
-
-                {/* 4. Expense Tracker */}
-                <button
-                  id="drawer-nav-expenses"
-                  type="button"
-                  onClick={() => handleTabClick('EXPENSES')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'EXPENSES'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Receipt className="w-4 h-4 text-rose-400" />
-                    <span>Expense Tracker</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {/* 5. Suppliers & Wholesale */}
-                <button
-                  id="drawer-nav-suppliers"
-                  type="button"
-                  onClick={() => handleTabClick('SUPPLIERS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'SUPPLIERS'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Truck className="w-4 h-4 text-sky-400" />
-                    <span>Suppliers & Wholesale</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {/* 6. Profit & Loss Reports */}
-                <button
-                  id="drawer-nav-reports"
-                  type="button"
-                  onClick={() => handleTabClick('REPORTS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'REPORTS'
-                      ? 'bg-gradient-to-r from-purple-700 via-purple-600 to-indigo-700 text-white shadow-md shadow-purple-600/30 border border-purple-500/30'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <BarChart3 className="w-4 h-4 text-purple-400" />
-                    <span>Profit & Loss Reports</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-
-                {/* 7. Store Settings & Backup */}
-                <button
-                  id="drawer-nav-settings"
-                  type="button"
-                  onClick={() => handleTabClick('SETTINGS')}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'SETTINGS'
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <Settings className="w-4 h-4" />
-                    <span>Store Settings & Backup</span>
-                  </div>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-                </button>
-              </nav>
-            </div>
+              );
+            })}
           </div>
         </div>
 
-        {/* Footer info & Reset button */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/60 space-y-3">
-          <div className="p-3 rounded-xl bg-slate-900 border border-slate-800/80 text-[11px] space-y-1">
-            <div className="flex justify-between text-slate-400">
-              <span>Total Khata Receivables:</span>
-              <span className="font-bold text-rose-400">Rs. {stats.totalOutstandingKhata.toLocaleString()}</span>
-            </div>
-            <div className="flex justify-between text-slate-400">
-              <span>Stock Cost Valuation:</span>
-              <span className="font-bold text-slate-200">Rs. {stats.totalInventoryCostValue.toLocaleString()}</span>
-            </div>
-          </div>
-
+        {/* Footer */}
+        <div className="pt-3 border-t border-slate-800 space-y-2">
           <button
-            id="drawer-logout-btn"
             type="button"
-            onClick={() => {
-              onClose();
-              logoutUser(onLogout);
-            }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-rose-500/15 border border-slate-800 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 rounded-xl text-xs font-bold transition-all shadow-sm"
+            onClick={() => logoutUser(onLogout)}
+            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Log out</span>
+            <span>Sign Out</span>
           </button>
         </div>
       </div>
-
-      {/* Transparent Clickable Area to Close */}
-      <div className="flex-1 h-full cursor-pointer" onClick={onClose} />
     </div>
   );
 };

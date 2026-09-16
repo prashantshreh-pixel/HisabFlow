@@ -360,3 +360,21 @@ export const salesApi = {
     return apiFetch<SalesSummary>(`/api/v1/sales/summary${params}`);
   },
 };
+export interface ApiAuditLog {
+  id: string;
+  entityName: string;
+  entityId: string;
+  action: string;
+  changesJson: string;
+  performedBy: string;
+  createdAt: string;
+}
+
+export const auditApi = {
+  getLogs: (entityName?: string, limit = 100) => {
+    const params = new URLSearchParams();
+    if (entityName) params.append('entityName', entityName);
+    params.append('limit', limit.toString());
+    return apiFetch<ApiAuditLog[]>(`/api/v1/audit?${params.toString()}`);
+  },
+};

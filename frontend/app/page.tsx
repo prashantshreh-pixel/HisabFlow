@@ -25,9 +25,11 @@ import { AddSupplierModal } from '@/components/Modals/AddSupplierModal';
 import { RecordSupplierTxModal } from '@/components/Modals/RecordSupplierTxModal';
 import { SupplierStatementModal } from '@/components/Modals/SupplierStatementModal';
 import { CashReconciliationModal } from '@/components/Modals/CashReconciliationModal';
+import { TerminalLockModal } from '@/components/Modals/TerminalLockModal';
 import { GlobalTopProgressBar } from '@/components/Loader';
 import { useKhata } from '@/context/KhataContext';
-import { loginUser, logoutUser, checkIsAuthenticated } from '@/lib/auth';
+import { logoutUser, checkIsAuthenticated, getCurrentUser } from '@/lib/auth';
+import { useIdleTimer } from '@/hooks/useIdleTimer';
 import { Product, LedgerTransactionType, SupplierTransactionType } from '@/types';
 
 interface MainAppProps {
@@ -38,6 +40,15 @@ function MainApp({ onLogout }: MainAppProps) {
   const { isLoading } = useKhata();
   const [currentTab, setCurrentTab] = useState<NavTab>('DASHBOARD');
   const [isLeftMenuOpen, setIsLeftMenuOpen] = useState(false);
+  const [isTerminalLocked, setIsTerminalLocked] = useState(false);
+
+  // Inactivity detection: 5 minutes idle lock on POS, 15 minutes otherwise
+  const idleTimeout = currentTab === 'POS' ? 5 * 60 * 1000 : 15 * 60 * 1000;
+  useIdleTimer({
+    timeoutMs: idleTimeout,
+    onIdle: () => setIsTerminalLocked(true),
+    enabled: !isTerminalLocked,
+  });
 
   // Modal / Drawer states
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
@@ -84,7 +95,7 @@ function MainApp({ onLogout }: MainAppProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex font-sans selection:bg-amber-500 selection:text-slate-950 relative">
+    <div className="min-h-screen bg-slate-950 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900/60 via-slate-950 to-slate-950 text-slate-100 flex font-sans selection:bg-amber-500 selection:text-slate-950 relative">
       {/* Top Slim Animated Progress Bar */}
       <GlobalTopProgressBar isLoading={isLoading} />
 
@@ -106,6 +117,7 @@ function MainApp({ onLogout }: MainAppProps) {
           currentTab={currentTab}
           onTabChange={setCurrentTab}
           onToggleLeftMenu={() => setIsLeftMenuOpen(true)}
+          onOpenAddCustomer={() => setIsAddCustomerOpen(true)}
           onLogout={onLogout}
         />
 
@@ -153,9 +165,7 @@ function MainApp({ onLogout }: MainAppProps) {
           )}
 
           {currentTab === 'EXPENSES' && (
-            <ExpensesView
-              onOpenAddExpense={() => setIsAddExpenseOpen(true)}
-            />
+            <ExpensesView onOpenAddExpense={() => setIsAddExpenseOpen(true)} />
           )}
 
           {currentTab === 'SUPPLIERS' && (
@@ -172,33 +182,23 @@ function MainApp({ onLogout }: MainAppProps) {
         </main>
       </div>
 
-      {/* Right Slide-Over Drawers */}
+      {/* Modals & Dialogs */}
       <AddCustomerModal
-        key={`add-cust-${isAddCustomerOpen}`}
         isOpen={isAddCustomerOpen}
         onClose={() => setIsAddCustomerOpen(false)}
-        onSuccess={(newId) => {
-          setStatementCustomerId(newId);
-        }}
       />
 
       <AddExpenseModal
-        key={`add-exp-${isAddExpenseOpen}`}
         isOpen={isAddExpenseOpen}
         onClose={() => setIsAddExpenseOpen(false)}
       />
 
       <AddSupplierModal
-        key={`add-sup-${isAddSupplierOpen}`}
         isOpen={isAddSupplierOpen}
         onClose={() => setIsAddSupplierOpen(false)}
-        onSuccess={(newId) => {
-          setStatementSupplierId(newId);
-        }}
       />
 
       <RecordSupplierTxModal
-        key={`rec-sup-tx-${recordSupplierTxId || 'all'}-${recordSupplierTxType}-${isRecordSupplierTxOpen}`}
         isOpen={isRecordSupplierTxOpen}
         onClose={() => setIsRecordSupplierTxOpen(false)}
         defaultSupplierId={recordSupplierTxId}
@@ -206,7 +206,6 @@ function MainApp({ onLogout }: MainAppProps) {
       />
 
       <SupplierStatementModal
-        key={`supplier-stmt-${statementSupplierId || 'none'}`}
         supplierId={statementSupplierId}
         isOpen={!!statementSupplierId}
         onClose={() => setStatementSupplierId(null)}
@@ -246,6 +245,16 @@ function MainApp({ onLogout }: MainAppProps) {
         onClose={() => setIsCashReconciliationOpen(false)}
       />
 
+      {/* POS Terminal Idle Lock Screen */}
+      <TerminalLockModal
+        isOpen={isTerminalLocked}
+        onUnlock={() => setIsTerminalLocked(false)}
+        onLogout={() => {
+          setIsTerminalLocked(false);
+          onLogout();
+        }}
+      />
+
       {/* Toast Notifications */}
       <ToastContainer />
     </div>
@@ -258,14 +267,8 @@ export default function Home() {
 
   useEffect(() => {
     try {
-      const authStatus = localStorage.getItem('hisabflow_auth');
-      if (authStatus === 'true') {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsAuthenticated(true);
-      } else {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setIsAuthenticated(false);
-      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsAuthenticated(checkIsAuthenticated());
     } catch {
       setIsAuthenticated(false);
     } finally {
@@ -278,7 +281,6 @@ export default function Home() {
   };
 
   const handleLoginSuccess = () => {
-    loginUser();
     setIsAuthenticated(true);
   };
 

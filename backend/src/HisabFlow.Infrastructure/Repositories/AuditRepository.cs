@@ -1,4 +1,4 @@
-using Dapper;
+﻿using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.DTOs;
@@ -35,7 +35,7 @@ public class AuditRepository : IAuditRepository
     public async Task<IEnumerable<AuditLogDto>> GetLogsAsync(string? entityName = null, int limit = 100, CancellationToken cancellationToken = default)
     {
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
-        var sql = @"
+        const string sql = @"
             SELECT TOP (@Limit)
                 id AS Id,
                 entity_name AS EntityName,
@@ -45,7 +45,7 @@ public class AuditRepository : IAuditRepository
                 performed_by AS PerformedBy,
                 created_at AS CreatedAt
             FROM audit_logs
-            " + (!string.IsNullOrWhiteSpace(entityName) ? "WHERE entity_name = @EntityName " : "") + @"
+            WHERE (@EntityName IS NULL OR entity_name = @EntityName)
             ORDER BY created_at DESC;";
 
         return await conn.QueryAsync<AuditLogDto>(new CommandDefinition(sql, new { EntityName = entityName, Limit = limit }, cancellationToken: cancellationToken));
