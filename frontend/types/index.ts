@@ -250,3 +250,44 @@ export interface CartItem {
   unitPrice: number;
   subtotal: number;
 }
+
+export interface StoreProfile {
+  storeName: string;
+  tagline: string;
+  ownerName: string;
+  phone: string;
+  address: string;
+  panNumber?: string;
+  currencySymbol: string;
+  defaultCreditLimit: string;
+  receiptFooter: string;
+  updatedAt?: string;
+
+  // Dynamic QR Payment Settings (NepalPay / MoBank / connectIPS)
+  qrAccountName?: string;
+  qrAccountNumber?: string;
+  qrBankName?: string;
+  qrBankCode?: string;
+  qrBankCodeCIPS?: string;
+  qrFormat?: 'MOBANK_JSON' | 'EMVCO_NEPALPAY';
+}
+
+export const DEFAULT_STORE_PROFILE: StoreProfile = {
+  storeName: 'HisabFlow Store',
+  tagline: 'Digital Khata & Retail Ledger',
+  ownerName: 'Pasal Manager',
+  phone: '9851000000',
+  address: 'Kathmandu, Nepal',
+  panNumber: '',
+  currencySymbol: 'Rs.',
+  defaultCreditLimit: '10000',
+  receiptFooter: 'Thank you for shopping with us! Visit again.',
+
+  // Pre-configured with NIC ASIA MoBank merchant/account
+  qrAccountName: 'SADIKSHYA DAHAL',
+  qrAccountNumber: '0215752768506001',
+  qrBankName: 'NIC ASIA Bank',
+  qrBankCode: 'BOALNPKA',
+  qrBankCodeCIPS: '2301',
+  qrFormat: 'MOBANK_JSON',
+};

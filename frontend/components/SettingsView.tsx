@@ -19,68 +19,85 @@ import {
   MapPin,
   Tag,
   Receipt,
-  FileJson
+  FileJson,
+  QrCode,
+  Smartphone,
 } from 'lucide-react';
 
 export const SettingsView: React.FC = () => {
-  const { customers, products, stats, showToast } = useKhata();
+  const { customers, products, stats, showToast, storeProfile, updateStoreProfile } = useKhata();
 
   // Store Profile State
-  const [storeName, setStoreName] = useState('HisabFlow Grocery & Retail');
-  const [tagline, setTagline] = useState('Digital Khata & Retail Ledger');
-  const [ownerName, setOwnerName] = useState('Pasal Manager');
-  const [phone, setPhone] = useState('9851000000');
-  const [address, setAddress] = useState('Kathmandu, Nepal');
-  const [currencySymbol, setCurrencySymbol] = useState('Rs.');
-  const [defaultCreditLimit, setDefaultCreditLimit] = useState('10000');
-  const [receiptFooter, setReceiptFooter] = useState('Thank you for shopping with us! Visit again.');
+  const [storeName, setStoreName] = useState(storeProfile.storeName || 'HisabFlow Store');
+  const [tagline, setTagline] = useState(storeProfile.tagline || '');
+  const [ownerName, setOwnerName] = useState(storeProfile.ownerName || '');
+  const [phone, setPhone] = useState(storeProfile.phone || '');
+  const [address, setAddress] = useState(storeProfile.address || '');
+  const [panNumber, setPanNumber] = useState(storeProfile.panNumber || '');
+  const [currencySymbol, setCurrencySymbol] = useState(storeProfile.currencySymbol || 'Rs.');
+  const [defaultCreditLimit, setDefaultCreditLimit] = useState(storeProfile.defaultCreditLimit || '10000');
+  const [receiptFooter, setReceiptFooter] = useState(storeProfile.receiptFooter || 'Thank you for shopping with us! Visit again.');
+
+  // Dynamic QR Payment State
+  const [qrAccountName, setQrAccountName] = useState(storeProfile.qrAccountName || 'SADIKSHYA DAHAL');
+  const [qrAccountNumber, setQrAccountNumber] = useState(storeProfile.qrAccountNumber || '0215752768506001');
+  const [qrBankName, setQrBankName] = useState(storeProfile.qrBankName || 'NIC ASIA Bank');
+  const [qrBankCode, setQrBankCode] = useState(storeProfile.qrBankCode || 'BOALNPKA');
+  const [qrBankCodeCIPS, setQrBankCodeCIPS] = useState(storeProfile.qrBankCodeCIPS || '2301');
+  const [qrFormat, setQrFormat] = useState<'MOBANK_JSON' | 'EMVCO_NEPALPAY'>(storeProfile.qrFormat || 'MOBANK_JSON');
 
   const [isSaving, setIsSaving] = useState(false);
 
-  // Load saved store profile from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('hisabflow_store_profile');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        if (parsed.storeName) setStoreName(parsed.storeName);
-        if (parsed.tagline) setTagline(parsed.tagline);
-        if (parsed.ownerName) setOwnerName(parsed.ownerName);
-        if (parsed.phone) setPhone(parsed.phone);
-        if (parsed.address) setAddress(parsed.address);
-        if (parsed.currencySymbol) setCurrencySymbol(parsed.currencySymbol);
-        if (parsed.defaultCreditLimit) setDefaultCreditLimit(parsed.defaultCreditLimit);
-        if (parsed.receiptFooter) setReceiptFooter(parsed.receiptFooter);
-      }
-    } catch (e) {
-      console.error('Error loading store profile:', e);
-    }
-  }, []);
+  // Sync state whenever storeProfile in context changes
+  const [prevProfile, setPrevProfile] = useState(storeProfile);
+  if (storeProfile !== prevProfile) {
+    setPrevProfile(storeProfile);
+    setStoreName(storeProfile.storeName || 'HisabFlow Store');
+    setTagline(storeProfile.tagline || '');
+    setOwnerName(storeProfile.ownerName || '');
+    setPhone(storeProfile.phone || '');
+    setAddress(storeProfile.address || '');
+    setPanNumber(storeProfile.panNumber || '');
+    setCurrencySymbol(storeProfile.currencySymbol || 'Rs.');
+    setDefaultCreditLimit(storeProfile.defaultCreditLimit || '10000');
+    setReceiptFooter(storeProfile.receiptFooter || 'Thank you for shopping with us! Visit again.');
+    setQrAccountName(storeProfile.qrAccountName || 'SADIKSHYA DAHAL');
+    setQrAccountNumber(storeProfile.qrAccountNumber || '0215752768506001');
+    setQrBankName(storeProfile.qrBankName || 'NIC ASIA Bank');
+    setQrBankCode(storeProfile.qrBankCode || 'BOALNPKA');
+    setQrBankCodeCIPS(storeProfile.qrBankCodeCIPS || '2301');
+    setQrFormat(storeProfile.qrFormat || 'MOBANK_JSON');
+  }
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    const profile = {
-      storeName,
-      tagline,
-      ownerName,
-      phone,
-      address,
-      currencySymbol,
-      defaultCreditLimit,
-      receiptFooter,
-      updatedAt: new Date().toISOString()
-    };
-    localStorage.setItem('hisabflow_store_profile', JSON.stringify(profile));
+    updateStoreProfile({
+      storeName: storeName.trim(),
+      tagline: tagline.trim(),
+      ownerName: ownerName.trim(),
+      phone: phone.trim(),
+      address: address.trim(),
+      panNumber: panNumber.trim(),
+      currencySymbol: currencySymbol.trim() || 'Rs.',
+      defaultCreditLimit: defaultCreditLimit.trim(),
+      receiptFooter: receiptFooter.trim(),
+      qrAccountName: qrAccountName.trim(),
+      qrAccountNumber: qrAccountNumber.trim(),
+      qrBankName: qrBankName.trim(),
+      qrBankCode: qrBankCode.trim(),
+      qrBankCodeCIPS: qrBankCodeCIPS.trim(),
+      qrFormat: qrFormat,
+    });
+
     setTimeout(() => {
       setIsSaving(false);
       showToast({
         type: 'success',
         title: 'Settings Saved',
-        message: 'Store profile settings updated successfully.'
+        message: 'Store profile settings updated and reflected across billing & statements.'
       });
-    }, 400);
+    }, 200);
   };
 
   // ---------------- Export & Backup Functions ----------------
@@ -271,10 +288,10 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <User className="w-3.5 h-3.5 text-amber-400" /> Owner Name
+                  <User className="w-3.5 h-3.5 text-amber-400" /> Owner / Proprietor Name
                 </label>
                 <input
                   type="text"
@@ -286,25 +303,42 @@ export const SettingsView: React.FC = () => {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-amber-400" /> Contact Phone
+                  <Phone className="w-3.5 h-3.5 text-amber-400" /> Contact Phone / Mobile
                 </label>
                 <input
                   type="tel"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
+                  placeholder="e.g. 98XXXXXXXX"
                 />
               </div>
+            </div>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5 text-amber-400" /> Store Address
+                  <MapPin className="w-3.5 h-3.5 text-amber-400" /> Store Address / Location
                 </label>
                 <input
                   type="text"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-medium focus:ring-2 focus:ring-amber-500/50"
+                  placeholder="e.g. New Road, Kathmandu"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-400" /> PAN / VAT Registration Number
+                </label>
+                <input
+                  type="text"
+                  value={panNumber}
+                  onChange={(e) => setPanNumber(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
+                  placeholder="e.g. 601234567 (Optional)"
                 />
               </div>
             </div>
@@ -347,6 +381,120 @@ export const SettingsView: React.FC = () => {
                 onChange={(e) => setReceiptFooter(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-medium focus:ring-2 focus:ring-amber-500/50"
               />
+            </div>
+
+            {/* Dynamic QR Payment Setup */}
+            <div className="pt-4 border-t border-slate-800 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <QrCode className="w-4 h-4" /> Digital Dynamic QR Payment Setup
+                  </h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Auto-fills exact cart bill amounts into customer banking apps upon scan.
+                  </p>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
+                  <Smartphone className="w-3 h-3" /> Pre-Filled Amount
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Account Beneficiary Name
+                  </label>
+                  <input
+                    type="text"
+                    value={qrAccountName}
+                    onChange={(e) => setQrAccountName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-bold focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="e.g. SADIKSHYA DAHAL"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Bank Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={qrAccountNumber}
+                    onChange={(e) => setQrAccountNumber(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono font-bold focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="e.g. 0215752768506001"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    Bank Name
+                  </label>
+                  <input
+                    type="text"
+                    value={qrBankName}
+                    onChange={(e) => setQrBankName(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-medium focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="e.g. NIC ASIA Bank"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    SWIFT / Bank Code
+                  </label>
+                  <input
+                    type="text"
+                    value={qrBankCode}
+                    onChange={(e) => setQrBankCode(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="e.g. BOALNPKA"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                    connectIPS Code
+                  </label>
+                  <input
+                    type="text"
+                    value={qrBankCodeCIPS}
+                    onChange={(e) => setQrBankCodeCIPS(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
+                    placeholder="e.g. 2301"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-400 font-medium">QR Encoding Standard:</span>
+                <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setQrFormat('MOBANK_JSON')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      qrFormat === 'MOBANK_JSON'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    MoBank / connectIPS JSON
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setQrFormat('EMVCO_NEPALPAY')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      qrFormat === 'EMVCO_NEPALPAY'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    NepalQR EMV Standard
+                  </button>
+                </div>
+              </div>
             </div>
 
             <div className="flex justify-end pt-2">

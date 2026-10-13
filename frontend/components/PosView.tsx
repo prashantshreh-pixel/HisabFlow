@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
@@ -30,12 +30,16 @@ import {
   Boxes,
   AlertCircle,
   Keyboard,
+  Store,
 } from 'lucide-react';
 import { ButtonSpinner, PageLoader } from '@/components/Loader';
 import { ReceiptModal } from '@/components/Modals/ReceiptModal';
+import { DynamicQrModal } from '@/components/Modals/DynamicQrModal';
+import { generateDynamicQrPayload, generateQrDataUrl } from '@/lib/qrUtils';
 
 export const PosView: React.FC = () => {
-  const { products, customers, refreshData, showToast } = useKhata();
+  const { products, customers, refreshData, showToast, storeProfile } = useKhata();
+  const cur = storeProfile?.currencySymbol || 'Rs.';
 
   // Mode: POS Terminal vs. Recent Invoices
   const [activeSubTab, setActiveSubTab] = useState<'TERMINAL' | 'INVOICES'>('TERMINAL');
@@ -67,6 +71,8 @@ export const PosView: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState<boolean>(false);
+  const [isDynamicQrModalOpen, setIsDynamicQrModalOpen] = useState<boolean>(false);
+  const [inlineQrUrl, setInlineQrUrl] = useState<string>('');
 
   // Invoices Tab State
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
@@ -132,6 +138,37 @@ export const PosView: React.FC = () => {
     const tendered = typeof cashTendered === 'number' ? cashTendered : 0;
     return Math.max(0, tendered - grandTotal);
   }, [paymentMethod, cashTendered, grandTotal]);
+
+  // Generate inline dynamic QR for checkout
+  useEffect(() => {
+    let isCurrent = true;
+    const qrAmount = paymentMethod === 4 && typeof splitDigital === 'number' && splitDigital > 0 ? splitDigital : grandTotal;
+    if ((paymentMethod === 2 || (paymentMethod === 4 && typeof splitDigital === 'number' && splitDigital > 0)) && qrAmount > 0) {
+      const payload = generateDynamicQrPayload({
+        accountName: storeProfile?.qrAccountName || 'SADIKSHYA DAHAL',
+        accountNumber: storeProfile?.qrAccountNumber || '0215752768506001',
+        bankCode: storeProfile?.qrBankCode || 'BOALNPKA',
+        bankCodeCIPS: storeProfile?.qrBankCodeCIPS || '2301',
+        bankName: storeProfile?.qrBankName || 'NIC ASIA Bank',
+        amount: qrAmount,
+        remarks: 'HisabFlow POS',
+        format: storeProfile?.qrFormat || 'MOBANK_JSON',
+      });
+      generateQrDataUrl(payload, { width: 180, margin: 1 })
+        .then((url) => {
+          if (isCurrent) setInlineQrUrl(url);
+        })
+        .catch(() => {
+          if (isCurrent) setInlineQrUrl('');
+        });
+    } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setInlineQrUrl('');
+    }
+    return () => {
+      isCurrent = false;
+    };
+  }, [paymentMethod, grandTotal, splitDigital, storeProfile]);
 
   // Clear Cart
   const clearCart = useCallback(() => {
@@ -387,6 +424,7 @@ export const PosView: React.FC = () => {
 
       setCompletedSale(created);
       setIsReceiptOpen(true);
+      setIsDynamicQrModalOpen(false);
       clearCart();
       showToast({ type: 'success', title: 'Sale Completed', message: `Invoice #${created.invoiceNumber} recorded successfully.` });
     } catch (err: any) {
@@ -395,7 +433,7 @@ export const PosView: React.FC = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData]);
+  }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData, clearCart]);
 
   // Global POS Keyboard Shortcuts Engine
   useEffect(() => {
@@ -436,7 +474,7 @@ export const PosView: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cart, isProcessing, activeSubTab, searchQuery, handleCheckout]);
+  }, [cart, isProcessing, activeSubTab, searchQuery, handleCheckout, clearCart]);
 
   // Filtered recent invoices
   const filteredInvoices = useMemo(() => {
@@ -459,11 +497,21 @@ export const PosView: React.FC = () => {
             <ScanBarcode className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-black text-slate-100 tracking-tight">
-              POS / Quick Billing
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-black text-slate-100 tracking-tight">
+                POS / Quick Billing
+              </h2>
+              {storeProfile?.storeName && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                  {storeProfile.storeName}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400">
-              High-speed retail billing, barcode scanning, live stock deduction & Khata linking
+              {storeProfile?.address ? `${storeProfile.address} · ` : ''}
+              {storeProfile?.phone ? `Tel: ${storeProfile.phone} · ` : ''}
+              {storeProfile?.panNumber ? `PAN: ${storeProfile.panNumber} · ` : ''}
+              Live stock deduction &amp; instant billing
             </p>
           </div>
         </div>
@@ -612,7 +660,7 @@ export const PosView: React.FC = () => {
 
                       <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between">
                         <span className="font-mono font-black text-sm text-emerald-400">
-                          Rs. {p.sellingPrice.toLocaleString()}
+                          {cur} {p.sellingPrice.toLocaleString()}
                         </span>
                         <div className="w-6 h-6 rounded-lg bg-slate-800 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-300 flex items-center justify-center transition-colors">
                           <Plus className="w-3.5 h-3.5" />
@@ -628,6 +676,26 @@ export const PosView: React.FC = () => {
           {/* RIGHT 5 COLS: Interactive Cart, Calculations & Checkout */}
           <div className="lg:col-span-5 space-y-4">
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
+              {/* Active Billing Counter & Store Profile Banner */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
+                <div className="min-w-0">
+                  <span className="text-[11px] font-bold text-amber-400 tracking-wide flex items-center gap-1.5 truncate">
+                    <Store className="w-3.5 h-3.5 shrink-0" />
+                    <span>{storeProfile?.storeName || 'HisabFlow Store'}</span>
+                  </span>
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
+                    {storeProfile?.address || 'Kathmandu, Nepal'}
+                    {storeProfile?.phone ? ` · Tel: ${storeProfile.phone}` : ''}
+                    {storeProfile?.panNumber ? ` · PAN: ${storeProfile.panNumber}` : ''}
+                  </p>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300">
+                    Currency: <strong className="text-amber-400">{cur}</strong>
+                  </span>
+                </div>
+              </div>
+
               {/* Customer Selector & Cart Controls */}
               <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-3">
                 <div className="flex-1">
@@ -639,7 +707,7 @@ export const PosView: React.FC = () => {
                     <option value="">Walk-in Customer (Cash / Direct)</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} ({c.phone}) - Due: Rs. {c.currentBalance.toLocaleString()}
+                        {c.name} ({c.phone}) - Due: {cur} {c.currentBalance.toLocaleString()}
                       </option>
                     ))}
                   </select>
@@ -710,7 +778,7 @@ export const PosView: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <h5 className="font-bold text-slate-100 truncate">{item.product.name}</h5>
                         <span className="text-[11px] text-slate-400 font-mono">
-                          Rs. {item.unitPrice} / {item.product.unit}
+                          {cur} {item.unitPrice} / {item.product.unit}
                         </span>
                       </div>
 
@@ -742,7 +810,7 @@ export const PosView: React.FC = () => {
                       {/* Subtotal & Delete */}
                       <div className="text-right shrink-0">
                         <div className="font-mono font-bold text-emerald-400">
-                          Rs. {item.subtotal.toLocaleString()}
+                          {cur} {item.subtotal.toLocaleString()}
                         </div>
                       </div>
 
@@ -762,7 +830,7 @@ export const PosView: React.FC = () => {
               <div className="space-y-2 pt-2 border-t border-slate-800 text-xs text-slate-300">
                 <div className="flex justify-between">
                   <span className="text-slate-400">Items Subtotal ({cart.length} items):</span>
-                  <span className="font-mono font-bold text-slate-200">Rs. {subtotal.toLocaleString()}</span>
+                  <span className="font-mono font-bold text-slate-200">{cur} {subtotal.toLocaleString()}</span>
                 </div>
 
                 {/* Discount and VAT toggles */}
@@ -782,7 +850,7 @@ export const PosView: React.FC = () => {
                       onClick={() => setDiscountType((t) => (t === 'FLAT' ? 'PERCENT' : 'FLAT'))}
                       className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-amber-400"
                     >
-                      {discountType === 'FLAT' ? 'Rs' : '%'}
+                      {discountType === 'FLAT' ? cur : '%'}
                     </button>
                   </div>
 
@@ -804,7 +872,7 @@ export const PosView: React.FC = () => {
                       Payable Grand Total
                     </span>
                     <span className="text-xl font-mono font-black text-slate-100">
-                      Rs. {grandTotal.toLocaleString()}
+                      {cur} {grandTotal.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -848,7 +916,7 @@ export const PosView: React.FC = () => {
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-400">Cash Received:</span>
                       <div className="flex items-center gap-1 bg-slate-900 px-3 py-1 rounded-xl border border-slate-700">
-                        <span className="text-xs text-slate-500 font-mono">Rs.</span>
+                        <span className="text-xs text-slate-500 font-mono">{cur}</span>
                         <input
                           type="number"
                           value={cashTendered}
@@ -876,20 +944,76 @@ export const PosView: React.FC = () => {
                     <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-xs">
                       <span className="text-slate-400">Change Return Due:</span>
                       <span className="font-mono font-black text-amber-400 text-sm">
-                        Rs. {changeAmount.toLocaleString()}
+                        {cur} {changeAmount.toLocaleString()}
                       </span>
                     </div>
                   </div>
                 )}
 
-                {/* Method 2: QR Pay info */}
+                {/* Method 2: Dynamic QR Pay */}
                 {paymentMethod === 2 && (
-                  <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 flex items-center justify-between text-xs text-emerald-400">
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-5 h-5 text-emerald-400" />
-                      <span>Scan Fonepay / eSewa / Khalti QR code</span>
+                  <div className="p-3.5 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3 shadow-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                        </span>
+                        <span className="text-xs font-bold text-emerald-400">
+                          Dynamic QR Ready
+                        </span>
+                      </div>
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold">
+                        Auto-Fills {cur} {grandTotal.toFixed(2)}
+                      </span>
                     </div>
-                    <span className="font-mono font-bold text-slate-100">Rs. {grandTotal.toLocaleString()}</span>
+
+                    <div className="flex items-center gap-3">
+                      {/* Inline QR Canvas Thumbnail */}
+                      <button
+                        type="button"
+                        onClick={() => setIsDynamicQrModalOpen(true)}
+                        className="bg-white p-1.5 rounded-xl shrink-0 cursor-pointer hover:scale-105 transition-transform shadow-md group relative block text-left border border-slate-200"
+                        title="Click to enlarge QR for customer"
+                      >
+                        {inlineQrUrl ? (
+                          <img
+                            src={inlineQrUrl}
+                            alt="Dynamic Payment QR"
+                            className="w-20 h-20 object-contain rounded-md"
+                          />
+                        ) : (
+                          <div className="w-20 h-20 flex items-center justify-center text-slate-400">
+                            <QrCode className="w-8 h-8 animate-pulse text-emerald-500" />
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-slate-950/60 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <span className="text-[8.5px] font-bold text-white bg-slate-900 px-1 py-0.5 rounded">Enlarge</span>
+                        </div>
+                      </button>
+
+                      {/* Payment Beneficiary info */}
+                      <div className="space-y-1 min-w-0 flex-1 text-xs">
+                        <p className="font-bold text-slate-200 truncate">
+                          {storeProfile?.qrAccountName || 'SADIKSHYA DAHAL'}
+                        </p>
+                        <p className="text-[11px] text-slate-400 truncate">
+                          {storeProfile?.qrBankName || 'NIC ASIA Bank'} • <span className="font-mono">{storeProfile?.qrAccountNumber || '0215752768506001'}</span>
+                        </p>
+                        <p className="text-[10px] text-emerald-400 font-semibold">
+                          ✓ Pre-filled {cur} {grandTotal.toFixed(2)} • No manual typing
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => setIsDynamicQrModalOpen(true)}
+                          className="mt-1 px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold rounded-lg border border-emerald-500/30 transition-colors flex items-center gap-1.5 shadow-sm"
+                        >
+                          <QrCode className="w-3 h-3" />
+                          <span>Show Fullscreen QR to Customer</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -906,7 +1030,7 @@ export const PosView: React.FC = () => {
                       <div className="flex justify-between items-center text-[11px] text-slate-400">
                         <span>New Balance will be:</span>
                         <span className="font-mono font-bold text-rose-400">
-                          Rs. {(selectedCustomer.currentBalance + grandTotal).toLocaleString()}
+                          {cur} {(selectedCustomer.currentBalance + grandTotal).toLocaleString()}
                         </span>
                       </div>
                     )}
@@ -936,6 +1060,16 @@ export const PosView: React.FC = () => {
                         className="w-24 px-2 py-1 bg-slate-900 border border-slate-700 rounded-lg text-right font-mono font-bold text-slate-100 text-xs focus:outline-none"
                       />
                     </div>
+                    {typeof splitDigital === 'number' && splitDigital > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsDynamicQrModalOpen(true)}
+                        className="w-full py-1.5 px-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 rounded-lg text-[10px] font-bold border border-emerald-500/30 flex items-center justify-center gap-1.5 transition-colors"
+                      >
+                        <QrCode className="w-3 h-3" />
+                        <span>Show Dynamic QR for {cur} {splitDigital.toFixed(2)}</span>
+                      </button>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-slate-400">Khata (Credit):</span>
                       <input
@@ -969,7 +1103,7 @@ export const PosView: React.FC = () => {
                 ) : (
                   <>
                     <CheckCircle className="w-5 h-5" />
-                    <span>Complete Sale & Bill (Rs. {grandTotal.toLocaleString()})</span>
+                    <span>Complete Sale & Bill ({cur} {grandTotal.toLocaleString()})</span>
                   </>
                 )}
               </button>
@@ -987,7 +1121,7 @@ export const PosView: React.FC = () => {
                   Today&apos;s POS Sales
                 </span>
                 <div className="text-xl font-black font-mono text-emerald-400 mt-1">
-                  Rs. {salesSummary.totalSalesAmount.toLocaleString()}
+                  {cur} {salesSummary.totalSalesAmount.toLocaleString()}
                 </div>
                 <span className="text-[11px] text-slate-400">{salesSummary.totalBillsCount} Invoices</span>
               </div>
@@ -997,7 +1131,7 @@ export const PosView: React.FC = () => {
                   Cash Collections
                 </span>
                 <div className="text-xl font-black font-mono text-slate-100 mt-1">
-                  Rs. {salesSummary.cashSalesAmount.toLocaleString()}
+                  {cur} {salesSummary.cashSalesAmount.toLocaleString()}
                 </div>
               </div>
 
@@ -1006,7 +1140,7 @@ export const PosView: React.FC = () => {
                   Digital / QR Sales
                 </span>
                 <div className="text-xl font-black font-mono text-cyan-400 mt-1">
-                  Rs. {salesSummary.digitalSalesAmount.toLocaleString()}
+                  {cur} {salesSummary.digitalSalesAmount.toLocaleString()}
                 </div>
               </div>
 
@@ -1015,7 +1149,7 @@ export const PosView: React.FC = () => {
                   Khata Credit Sales
                 </span>
                 <div className="text-xl font-black font-mono text-rose-400 mt-1">
-                  Rs. {salesSummary.creditSalesAmount.toLocaleString()}
+                  {cur} {salesSummary.creditSalesAmount.toLocaleString()}
                 </div>
               </div>
             </div>
@@ -1089,7 +1223,7 @@ export const PosView: React.FC = () => {
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-black text-emerald-400">
-                          Rs. {s.totalAmount.toLocaleString()}
+                          {cur} {s.totalAmount.toLocaleString()}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
@@ -1119,6 +1253,19 @@ export const PosView: React.FC = () => {
         sale={completedSale}
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
+      />
+
+      {/* Dynamic Customer-Facing QR Payment Modal */}
+      <DynamicQrModal
+        isOpen={isDynamicQrModalOpen}
+        onClose={() => setIsDynamicQrModalOpen(false)}
+        amount={
+          paymentMethod === 4 && typeof splitDigital === 'number' && splitDigital > 0
+            ? splitDigital
+            : grandTotal
+        }
+        invoiceNumber="POS-BILL"
+        onConfirmPayment={handleCheckout}
       />
     </div>
   );

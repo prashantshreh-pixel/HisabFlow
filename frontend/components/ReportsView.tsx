@@ -20,10 +20,14 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
+import { useKhata } from '@/context/KhataContext';
 
 type PeriodPreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'custom';
 
 export const ReportsView: React.FC = () => {
+  const { storeProfile } = useKhata();
+  const cur = storeProfile?.currencySymbol || 'Rs.';
+
   const [period, setPeriod] = useState<PeriodPreset>('this_month');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -160,7 +164,12 @@ export const ReportsView: React.FC = () => {
         <>
           {/* Printable Report Header (Visible only when printing) */}
           <div className="hidden print:block border-b border-slate-300 pb-4 mb-4 text-black">
-            <h1 className="text-2xl font-black">HisabFlow Store - Profit & Loss Financial Statement</h1>
+            <h1 className="text-2xl font-black">{storeProfile?.storeName || 'HisabFlow Store'} - Profit & Loss Financial Statement</h1>
+            {(storeProfile?.address || storeProfile?.phone || storeProfile?.panNumber) && (
+              <p className="text-xs text-slate-500 mb-1">
+                {[storeProfile?.address, storeProfile?.phone && `Phone: ${storeProfile.phone}`, storeProfile?.panNumber && `PAN/VAT: ${storeProfile.panNumber}`].filter(Boolean).join(' • ')}
+              </p>
+            )}
             <p className="text-sm text-slate-600">
               Reporting Period: <span className="font-bold">{report.period}</span> ({new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()})
             </p>
@@ -180,7 +189,7 @@ export const ReportsView: React.FC = () => {
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-slate-100 font-mono">
-                  Rs. {report.grossSalesRevenue.toLocaleString()}
+                  {cur} {report.grossSalesRevenue.toLocaleString()}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
                   <span>{report.totalSalesCount} Credit / Khata Sales</span>
@@ -200,7 +209,7 @@ export const ReportsView: React.FC = () => {
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-amber-300 font-mono">
-                  Rs. {report.wholesaleStockPurchases.toLocaleString()}
+                  {cur} {report.wholesaleStockPurchases.toLocaleString()}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
                   <span>{report.wholesalePurchasesCount} Supplier Shipments</span>
@@ -220,7 +229,7 @@ export const ReportsView: React.FC = () => {
               </div>
               <div className="mt-3">
                 <div className="text-2xl font-black text-rose-400 font-mono">
-                  Rs. {report.totalOperatingExpenses.toLocaleString()}
+                  {cur} {report.totalOperatingExpenses.toLocaleString()}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
                   <span>{report.totalExpensesCount} Expense Entries</span>
@@ -266,7 +275,7 @@ export const ReportsView: React.FC = () => {
                     report.isProfitable ? 'text-emerald-400' : 'text-rose-400'
                   }`}
                 >
-                  Rs. {report.netProfit.toLocaleString()}
+                  {cur} {report.netProfit.toLocaleString()}
                 </div>
                 <div className="flex items-center gap-1.5 text-[11px] text-slate-400 mt-1">
                   <span>Net Margin:</span>
@@ -287,7 +296,7 @@ export const ReportsView: React.FC = () => {
                     Statement of Profit & Loss ({report.period})
                   </h3>
                 </div>
-                <span className="text-xs text-slate-500 font-mono">Nepali Rupees (Rs.)</span>
+                <span className="text-xs text-slate-500 font-mono">Currency ({cur})</span>
               </div>
 
               <div className="space-y-3">
@@ -296,12 +305,12 @@ export const ReportsView: React.FC = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">1. Gross Revenue from Sales</span>
                     <span className="font-mono font-black text-emerald-400">
-                      + Rs. {report.grossSalesRevenue.toLocaleString()}
+                      + {cur} {report.grossSalesRevenue.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pl-4">
                     <span>• Cash / QR Collections from Customers</span>
-                    <span className="font-mono text-slate-300">Rs. {report.totalPaymentsCollected.toLocaleString()}</span>
+                    <span className="font-mono text-slate-300">{cur} {report.totalPaymentsCollected.toLocaleString()}</span>
                   </div>
                 </div>
 
@@ -310,7 +319,7 @@ export const ReportsView: React.FC = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">2. Cost of Goods & Stock Purchases</span>
                     <span className="font-mono font-black text-amber-400">
-                      - Rs. {report.wholesaleStockPurchases.toLocaleString()}
+                      - {cur} {report.wholesaleStockPurchases.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-[11px] text-slate-400 pl-4">
@@ -323,7 +332,7 @@ export const ReportsView: React.FC = () => {
                 <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between text-xs font-bold text-amber-300">
                   <span>Gross Operating Profit (Revenue - Stock Cost)</span>
                   <span className="font-mono font-black text-sm text-amber-400">
-                    Rs. {report.grossProfit.toLocaleString()}
+                    {cur} {report.grossProfit.toLocaleString()}
                   </span>
                 </div>
 
@@ -332,7 +341,7 @@ export const ReportsView: React.FC = () => {
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-slate-200">3. Store Overhead Expenses</span>
                     <span className="font-mono font-black text-rose-400">
-                      - Rs. {report.totalOperatingExpenses.toLocaleString()}
+                      - {cur} {report.totalOperatingExpenses.toLocaleString()}
                     </span>
                   </div>
                   <div className="space-y-1 pl-4 pt-1">
@@ -342,7 +351,7 @@ export const ReportsView: React.FC = () => {
                       report.expenseBreakdown.slice(0, 5).map((e) => (
                         <div key={e.category} className="flex items-center justify-between text-[11px] text-slate-400">
                           <span>• {e.category} ({e.count} entries)</span>
-                          <span className="font-mono text-slate-300">Rs. {e.amount.toLocaleString()}</span>
+                          <span className="font-mono text-slate-300">{cur} {e.amount.toLocaleString()}</span>
                         </div>
                       ))
                     )}
@@ -363,7 +372,7 @@ export const ReportsView: React.FC = () => {
                   </div>
                   <div className="text-right">
                     <span className="font-mono text-lg block">
-                      Rs. {report.netProfit.toLocaleString()}
+                      {cur} {report.netProfit.toLocaleString()}
                     </span>
                     <span className="text-[10px] font-normal opacity-80">
                       {report.isProfitable ? 'Net Profit Margin' : 'Loss Deficit'}: {report.netProfitMarginPercentage}%
@@ -395,7 +404,7 @@ export const ReportsView: React.FC = () => {
                         <div className="flex items-center justify-between text-xs">
                           <span className="text-slate-300 font-medium">{item.category}</span>
                           <span className="font-mono text-slate-200 font-bold">
-                            Rs. {item.amount.toLocaleString()} ({item.percentageOfTotal}%)
+                            {cur} {item.amount.toLocaleString()} ({item.percentageOfTotal}%)
                           </span>
                         </div>
                         <div className="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800">
@@ -423,14 +432,14 @@ export const ReportsView: React.FC = () => {
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                     <span className="text-slate-400">Total Inflows (Collections):</span>
                     <span className="font-mono font-bold text-emerald-400">
-                      + Rs. {report.cashFlow.totalCashIn.toLocaleString()}
+                      + {cur} {report.cashFlow.totalCashIn.toLocaleString()}
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950 border border-slate-800">
                     <span className="text-slate-400">Total Outflows (Wholesale + Expenses):</span>
                     <span className="font-mono font-bold text-rose-400">
-                      - Rs. {report.cashFlow.totalCashOut.toLocaleString()}
+                      - {cur} {report.cashFlow.totalCashOut.toLocaleString()}
                     </span>
                   </div>
 
@@ -441,7 +450,7 @@ export const ReportsView: React.FC = () => {
                         report.cashFlow.netCashFlow >= 0 ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
-                      Rs. {report.cashFlow.netCashFlow.toLocaleString()}
+                      {cur} {report.cashFlow.netCashFlow.toLocaleString()}
                     </span>
                   </div>
                 </div>
@@ -479,11 +488,11 @@ export const ReportsView: React.FC = () => {
                     {report.dailyTrends.map((t) => (
                       <tr key={t.date} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 px-4 text-slate-200 font-sans font-bold">{t.date}</td>
-                        <td className="py-3 px-4 text-right text-emerald-400">Rs. {t.salesRevenue.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right text-amber-400">Rs. {t.wholesaleCost.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right text-rose-400">Rs. {t.operatingExpense.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right text-emerald-400">{cur} {t.salesRevenue.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right text-amber-400">{cur} {t.wholesaleCost.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right text-rose-400">{cur} {t.operatingExpense.toLocaleString()}</td>
                         <td className={`py-3 px-4 text-right font-black ${t.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          Rs. {t.netProfit.toLocaleString()}
+                          {cur} {t.netProfit.toLocaleString()}
                         </td>
                       </tr>
                     ))}
