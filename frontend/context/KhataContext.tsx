@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { Customer, CreditLedgerEntry, Product, Expense, ExpenseSummary, Supplier, SupplierLedgerEntry, SupplierSummary, DashboardStats, LedgerTransactionType, SupplierTransactionType } from '@/types';
+import { Customer, CreditLedgerEntry, Product, Expense, ExpenseSummary, Supplier, SupplierLedgerEntry, SupplierSummary, DashboardStats, LedgerTransactionType, SupplierTransactionType, StoreProfile } from '@/types';
 import { reportsApi, ApiDashboardSummary } from '@/lib/api';
 import { ToastProvider, useToast, ToastNotification } from '@/context/ToastContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
@@ -27,6 +27,10 @@ interface KhataContextType {
   suppliers: Supplier[];
   suppliersSummary: SupplierSummary;
   stats: DashboardStats;
+
+  // Store Profile Facade
+  storeProfile: StoreProfile;
+  updateStoreProfile: (profile: Partial<StoreProfile>) => void;
 
   // Toast Facade
   toasts: ToastNotification[];
@@ -95,7 +99,7 @@ const KhataContext = createContext<KhataContextType | null>(null);
 
 const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { toasts, showToast, dismissToast } = useToast();
-  const { language, calendarMode, setLanguage, setCalendarMode, toggleLanguage, toggleCalendarMode, formatDate, t } = useSettings();
+  const { language, calendarMode, storeProfile, setLanguage, setCalendarMode, updateStoreProfile, toggleLanguage, toggleCalendarMode, formatDate, t } = useSettings();
 
   const [dashboardSummary, setDashboardSummary] = useState<ApiDashboardSummary>({
     totalOutstandingKhata: 0,
@@ -200,6 +204,8 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         suppliers: supplierDomain.suppliers,
         suppliersSummary: supplierDomain.suppliersSummary,
         stats,
+        storeProfile,
+        updateStoreProfile,
         toasts,
         dismissToast,
         showToast,

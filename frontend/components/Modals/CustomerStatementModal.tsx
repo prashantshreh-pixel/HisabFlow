@@ -38,7 +38,10 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     getCustomerById,
     getCustomerLedger,
     showToast,
+    storeProfile,
   } = useKhata();
+
+  const cur = storeProfile?.currencySymbol || 'Rs.';
 
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [localLedger, setLocalLedger] = useState<CreditLedgerEntry[]>([]);
@@ -54,7 +57,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       };
       loadLedger();
     }
-  }, [customerId, isOpen]);
+  }, [customerId, isOpen, getCustomerLedger]);
 
   if (!isOpen || !customerId) return null;
 
@@ -71,7 +74,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     return digits;
   };
 
-  const reminderMessage = `Namaste ${customer.name}, your total outstanding balance at HisabFlow is Rs. ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
+  const reminderMessage = `Namaste ${customer.name}, your total outstanding balance at ${storeProfile?.storeName || 'HisabFlow'} is ${cur} ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
 
   const handleOpenWhatsApp = () => {
     const cleanPhone = getCleanPhone(customer.phone);
@@ -270,7 +273,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
               </span>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-2xl font-black text-rose-400">
-                  Rs. {customer.currentBalance.toLocaleString()}
+                  {cur} {customer.currentBalance.toLocaleString()}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-1">Current total amount owed to shop</p>
@@ -283,7 +286,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   Assigned Credit Limit
                 </span>
                 <span className="text-xs font-bold text-slate-300">
-                  Rs. {customer.creditLimit.toLocaleString()}
+                  {cur} {customer.creditLimit.toLocaleString()}
                 </span>
               </div>
               <div className="mt-2.5">
@@ -302,7 +305,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 <div className="flex justify-between text-[11px] text-slate-400 mt-1">
                   <span>{limitUsedPercent}% credit limit used</span>
                   <span>
-                    Rs. {Math.max(0, customer.creditLimit - customer.currentBalance).toLocaleString()} remaining
+                    {cur} {Math.max(0, customer.creditLimit - customer.currentBalance).toLocaleString()} remaining
                   </span>
                 </div>
               </div>
@@ -395,15 +398,15 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                             </td>
 
                             <td className="py-3 px-4 text-right font-bold text-rose-400">
-                              {isPurchase ? `Rs. ${entry.amount.toLocaleString()}` : '-'}
+                              {isPurchase ? `${cur} ${entry.amount.toLocaleString()}` : '-'}
                             </td>
 
                             <td className="py-3 px-4 text-right font-bold text-emerald-400">
-                              {!isPurchase ? `Rs. ${entry.amount.toLocaleString()}` : '-'}
+                              {!isPurchase ? `${cur} ${entry.amount.toLocaleString()}` : '-'}
                             </td>
 
                             <td className="py-3 px-4 text-right font-mono font-bold text-slate-100">
-                              Rs. {entry.balanceAfter.toLocaleString()}
+                              {cur} {entry.balanceAfter.toLocaleString()}
                             </td>
                           </tr>
                         );
@@ -420,8 +423,16 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
       {/* Hidden Essential Print Statement Document (Visible ONLY during print) */}
       <div id="printable-statement" className="hidden">
         <div style={{ borderBottom: '2px solid #000', paddingBottom: '12px', marginBottom: '16px' }}>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>HisabFlow Retail POS</h1>
+          <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{storeProfile?.storeName || 'HisabFlow Retail POS'}</h1>
+          {storeProfile?.tagline && (
+            <p style={{ fontSize: '11px', margin: '2px 0 0 0', color: '#555' }}>{storeProfile.tagline}</p>
+          )}
           <p style={{ fontSize: '13px', margin: '4px 0 0 0', color: '#444' }}>Customer Credit Statement (खाता विवरण)</p>
+          {(storeProfile?.address || storeProfile?.phone || storeProfile?.panNumber) && (
+            <p style={{ fontSize: '11px', margin: '2px 0 0 0', color: '#555' }}>
+              {[storeProfile?.address, storeProfile?.phone && `Phone: ${storeProfile.phone}`, storeProfile?.panNumber && `PAN/VAT: ${storeProfile.panNumber}`].filter(Boolean).join(' • ')}
+            </p>
+          )}
           <p style={{ fontSize: '11px', margin: '2px 0 0 0', color: '#666' }}>Printed on: {printDate}</p>
         </div>
 
@@ -433,9 +444,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
             <div>Address: {customer.address || 'N/A'}</div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div>Credit Limit: Rs. {customer.creditLimit.toLocaleString()}</div>
+            <div>Credit Limit: {cur} {customer.creditLimit.toLocaleString()}</div>
             <div style={{ fontSize: '16px', fontWeight: 'bold', marginTop: '4px', color: '#b91c1c' }}>
-              Total Dues (Udhaar): Rs. {customer.currentBalance.toLocaleString()}
+              Total Dues (Udhaar): {cur} {customer.currentBalance.toLocaleString()}
             </div>
           </div>
         </div>
@@ -465,9 +476,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                   <td style={{ padding: '6px' }}>{formattedDate}</td>
                   <td style={{ padding: '6px' }}>{isPurchase ? 'Udhaar' : 'Repayment'}</td>
                   <td style={{ padding: '6px' }}>{entry.notes || '-'}</td>
-                  <td style={{ padding: '6px', textAlign: 'right' }}>{isPurchase ? `Rs. ${entry.amount.toLocaleString()}` : '-'}</td>
-                  <td style={{ padding: '6px', textAlign: 'right' }}>{!isPurchase ? `Rs. ${entry.amount.toLocaleString()}` : '-'}</td>
-                  <td style={{ padding: '6px', textAlign: 'right', fontWeight: 'bold' }}>Rs. {entry.balanceAfter.toLocaleString()}</td>
+                  <td style={{ padding: '6px', textAlign: 'right' }}>{isPurchase ? `${cur} ${entry.amount.toLocaleString()}` : '-'}</td>
+                  <td style={{ padding: '6px', textAlign: 'right' }}>{!isPurchase ? `${cur} ${entry.amount.toLocaleString()}` : '-'}</td>
+                  <td style={{ padding: '6px', textAlign: 'right', fontWeight: 'bold' }}>{cur} {entry.balanceAfter.toLocaleString()}</td>
                 </tr>
               );
             })}
@@ -475,7 +486,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         </table>
 
         <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #ddd', fontSize: '11px', textAlign: 'center', color: '#666' }}>
-          Thank you for your business! — HisabFlow Digital Retail System
+          {storeProfile?.receiptFooter || `Thank you for your business! — ${storeProfile?.storeName || 'HisabFlow Digital Retail System'}`}
         </div>
       </div>
     </>
