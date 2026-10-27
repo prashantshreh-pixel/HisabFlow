@@ -33,16 +33,16 @@ export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDom
   }, []);
 
   const addExpense = useCallback(
-    async (data: { category: string; title: string; amount: number; paymentMethod?: 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER'; particulars?: string; expenseDate?: string }) => {
-      let pmNum = 1;
-      if (data.paymentMethod === 'QR_PAYMENT') pmNum = 2;
-      else if (data.paymentMethod === 'BANK_TRANSFER') pmNum = 3;
+    async (data: { category: string; title: string; amount: number; paymentMethod?: string; particulars?: string; expenseDate?: string }) => {
+      let pmStr = 'Cash';
+      if (data.paymentMethod === 'QR_PAYMENT' || data.paymentMethod === '2') pmStr = 'QR_PAYMENT';
+      else if (data.paymentMethod === 'BANK_TRANSFER' || data.paymentMethod === '3') pmStr = 'BANK_TRANSFER';
 
       const created = await expensesApi.create({
         category: data.category,
         title: data.title,
         amount: data.amount,
-        paymentMethod: pmNum as unknown as Expense['paymentMethod'],
+        paymentMethod: pmStr as unknown as Expense['paymentMethod'],
         particulars: data.particulars,
         expenseDate: data.expenseDate || new Date().toISOString(),
       });

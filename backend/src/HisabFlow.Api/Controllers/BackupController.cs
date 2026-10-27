@@ -1,13 +1,15 @@
 using HisabFlow.Application.Common.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
 
 /// <summary>
-/// Manages database backups and snapshot exports.
+/// Manages database backups and snapshot exports (Admin only).
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "ADMIN")]
 public class BackupController : ControllerBase
 {
     private readonly IBackupService _backupService;

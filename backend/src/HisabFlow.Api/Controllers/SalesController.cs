@@ -2,12 +2,14 @@ using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/sales")]
+[Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
 public class SalesController : ControllerBase
 {
     private readonly ISaleRepository _saleRepository;
@@ -107,9 +109,10 @@ public class SalesController : ControllerBase
     }
 
     /// <summary>
-    /// Refund/cancels a sale invoice, automatically restoring product stock and reversing credit balances.
+    /// Refund/cancels a sale invoice, automatically restoring product stock and reversing credit balances (Admin & Manager only).
     /// </summary>
     [HttpPost("{id:guid}/refund")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [Idempotent]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -120,5 +123,3 @@ public class SalesController : ControllerBase
         return Ok(refunded);
     }
 }
-
-public record RefundSaleApiRequest(string? Reason);

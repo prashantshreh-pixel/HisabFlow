@@ -4,7 +4,9 @@ using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
 using HisabFlow.Domain.Enums;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
+using System.Text.Json;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -13,14 +15,16 @@ public class SupplierRepository : ISupplierRepository
     private readonly IDbConnectionFactory _db;
     private readonly IAuditRepository _auditRepo;
     private readonly IReportRepository _reportRepo;
+    private readonly ICurrentUserService _currentUser;
 
     private readonly record struct SupplierLockRecord(string Name, string Phone, decimal CurrentBalance);
 
-    public SupplierRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
+    public SupplierRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo, ICurrentUserService? currentUser = null)
     {
         _db = db;
         _auditRepo = auditRepo;
         _reportRepo = reportRepo;
+        _currentUser = currentUser ?? new CurrentUserService(new Microsoft.AspNetCore.Http.HttpContextAccessor());
     }
 
     public async Task<IEnumerable<Supplier>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -158,6 +162,16 @@ public class SupplierRepository : ISupplierRepository
             }
 
             await tx.CommitAsync(cancellationToken);
+
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Supplier",
+                supplier.Id.ToString(),
+                "CREATE",
+                JsonSerializer.Serialize(new { supplier.Name, supplier.Phone, supplier.CompanyName, InitialBalance = initialBalance }),
+                _currentUser.Username
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
             return supplier;
         }
         catch
@@ -192,6 +206,15 @@ public class SupplierRepository : ISupplierRepository
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id, Name = name, Phone = phone, CompanyName = companyName, Address = address, ExpectedUpdatedAt = expectedUpdatedAt, UpdatedAt = now }, cancellationToken: cancellationToken));
         if (rows == 0) return null;
 
+        await _auditRepo.LogAsync(new CreateAuditLogRequest(
+            "Supplier",
+            id.ToString(),
+            "UPDATE",
+            JsonSerializer.Serialize(new { Name = name, Phone = phone, CompanyName = companyName }),
+            _currentUser.Username
+        ), cancellationToken);
+
+        _reportRepo.InvalidateCache();
         return await GetByIdAsync(id, cancellationToken);
     }
 
@@ -209,6 +232,18 @@ public class SupplierRepository : ISupplierRepository
             WHERE id = @Id AND is_active = 1;";
 
         var rows = await conn.ExecuteAsync(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+        if (rows > 0)
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Supplier",
+                id.ToString(),
+                "DELETE",
+                "Supplier soft-deleted.",
+                _currentUser.Username
+            ), cancellationToken);
+
+            _reportRepo.InvalidateCache();
+        }
         return rows > 0;
     }
 
@@ -266,19 +301,18 @@ public class SupplierRepository : ISupplierRepository
                 CreatedAt = now
             }, tx, cancellationToken: cancellationToken));
 
-            // Process inventory stock increases for supplier purchases
+            // Process inventory stock increases for supplier purchases in deterministic ProductId order
             if (request.Type == 1 && request.PurchasedItems != null && request.PurchasedItems.Count > 0)
             {
-                foreach (var item in request.PurchasedItems)
+                foreach (var item in request.PurchasedItems.OrderBy(i => i.ProductId))
                 {
                     const string updateProductStockSql = @"
                         UPDATE products
                         SET stock_quantity = stock_quantity + @Quantity,
                             cost_price = CASE WHEN @UnitCostPrice > 0 THEN @UnitCostPrice ELSE cost_price END,
                             updated_at = @Now
-                        WHERE id = @ProductId;
-
-                        SELECT stock_quantity FROM products WHERE id = @ProductId;";
+                        OUTPUT INSERTED.stock_quantity
+                        WHERE id = @ProductId;";
 
                     var newStock = await conn.ExecuteScalarAsync<decimal>(
                         new CommandDefinition(updateProductStockSql, new { ProductId = item.ProductId, Quantity = item.Quantity, UnitCostPrice = item.UnitCostPrice, Now = now }, tx, cancellationToken: cancellationToken));
@@ -306,8 +340,8 @@ public class SupplierRepository : ISupplierRepository
                 "Supplier",
                 request.SupplierId.ToString(),
                 "RECORD_TRANSACTION",
-                System.Text.Json.JsonSerializer.Serialize(new { Type = request.Type, Amount = request.Amount, BalanceAfter = newBalance }),
-                "System"
+                JsonSerializer.Serialize(new { Type = request.Type, Amount = request.Amount, BalanceAfter = newBalance }),
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -389,6 +423,7 @@ public class SupplierRepository : ISupplierRepository
     {
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
         var todayUtc = DateTime.UtcNow.Date;
+        var nextDayUtc = todayUtc.AddDays(1);
 
         const string sql = @"
             SELECT 
@@ -399,11 +434,12 @@ public class SupplierRepository : ISupplierRepository
             WHERE is_active = 1;
 
             SELECT 
-                ISNULL(SUM(CASE WHEN type = 1 AND CAST(transaction_date AS DATE) = CAST(@TodayUtc AS DATE) THEN amount ELSE 0 END), 0) AS TodayPurchases,
-                ISNULL(SUM(CASE WHEN type = 2 AND CAST(transaction_date AS DATE) = CAST(@TodayUtc AS DATE) THEN amount ELSE 0 END), 0) AS TodayPaymentsGiven
-            FROM supplier_ledger_entries;";
+                ISNULL(SUM(CASE WHEN type = 1 THEN amount ELSE 0 END), 0) AS TodayPurchases,
+                ISNULL(SUM(CASE WHEN type = 2 THEN amount ELSE 0 END), 0) AS TodayPaymentsGiven
+            FROM supplier_ledger_entries
+            WHERE transaction_date >= @TodayUtc AND transaction_date < @NextDayUtc;";
 
-        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, new { TodayUtc = todayUtc }, cancellationToken: cancellationToken));
+        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(sql, new { TodayUtc = todayUtc, NextDayUtc = nextDayUtc }, cancellationToken: cancellationToken));
         var stats1 = await multi.ReadSingleAsync();
         var stats2 = await multi.ReadSingleAsync();
 

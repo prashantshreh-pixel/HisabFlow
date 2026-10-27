@@ -25,10 +25,10 @@ public record RecordSupplierTransactionRequest(
     Guid SupplierId,
     int Type, // 1: Stock Purchase (Payable Increases), 2: Payment Given (Payable Decreases)
     decimal Amount,
-    PaymentMethod PaymentMethod,
-    string? Particulars,
-    string? InvoiceNumber,
-    DateTime? TransactionDate,
+    PaymentMethod PaymentMethod = PaymentMethod.Cash,
+    string? Particulars = null,
+    string? InvoiceNumber = null,
+    DateTime? TransactionDate = null,
     List<SupplierInventoryItem>? PurchasedItems = null
 );
 
@@ -58,4 +58,20 @@ public record SupplierSummaryDto(
     decimal TodayPaymentsGiven,
     int ActiveSuppliersCount,
     int TotalSuppliersCount
+);
+
+public record CreateSupplierApiRequest(
+    string Name,
+    string Phone,
+    string? CompanyName,
+    string? Address,
+    decimal InitialBalance = 0,
+    string? InitialNote = null
+);
+
+public record UpdateSupplierApiRequest(
+    string Name,
+    string Phone,
+    string? CompanyName,
+    string? Address
 );

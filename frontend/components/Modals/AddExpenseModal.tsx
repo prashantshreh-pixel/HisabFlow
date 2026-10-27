@@ -64,14 +64,11 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
 
     try {
       setIsSubmitting(true);
-      // 1 = Cash, 2 = QrPayment (Matches C# PaymentMethod enum in HisabFlow.Domain.Enums)
-      const paymentMethodEnum = paymentMethod === 'CASH' ? 1 : 2;
-
       await addExpense({
         category,
         title: title.trim(),
         amount: numAmount,
-        paymentMethod: paymentMethodEnum as any,
+        paymentMethod: paymentMethod,
         particulars: particulars.trim() || undefined,
         expenseDate: new Date(expenseDate).toISOString(),
       });

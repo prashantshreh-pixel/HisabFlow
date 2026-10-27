@@ -36,12 +36,33 @@ const getInitialCalendarMode = (): CalendarMode => {
   return 'BS';
 };
 
+const isLegacyProfile = (p: Partial<StoreProfile> | null | undefined): boolean => {
+  if (!p) return true;
+  if (
+    p.qrAccountNumber === '0215752768506001' ||
+    p.qrAccountName === 'SADIKSHYA DAHAL' ||
+    (typeof p.qrBankName === 'string' && p.qrBankName.includes('NIC ASIA')) ||
+    !p.qrFormat ||
+    p.qrFormat === 'MOBANK_JSON' ||
+    p.storeName === 'Pasal POS' ||
+    p.storeName === 'HisabFlow Retail Store'
+  ) {
+    return true;
+  }
+  return false;
+};
+
 const getInitialStoreProfile = (): StoreProfile => {
   if (typeof window === 'undefined') return DEFAULT_STORE_PROFILE;
   try {
     const saved = localStorage.getItem('hisabflow_store_profile');
     if (saved) {
       const p = JSON.parse(saved);
+      // Migrate legacy demo accounts to the new Fonepay Anjali Store configuration
+      if (isLegacyProfile(p)) {
+        localStorage.removeItem('hisabflow_store_profile');
+        return DEFAULT_STORE_PROFILE;
+      }
       return {
         storeName: p.storeName || DEFAULT_STORE_PROFILE.storeName,
         tagline: p.tagline !== undefined ? p.tagline : DEFAULT_STORE_PROFILE.tagline,
@@ -59,6 +80,10 @@ const getInitialStoreProfile = (): StoreProfile => {
         qrBankCode: p.qrBankCode || DEFAULT_STORE_PROFILE.qrBankCode,
         qrBankCodeCIPS: p.qrBankCodeCIPS || DEFAULT_STORE_PROFILE.qrBankCodeCIPS,
         qrFormat: p.qrFormat || DEFAULT_STORE_PROFILE.qrFormat,
+        qrMerchantId: p.qrMerchantId || DEFAULT_STORE_PROFILE.qrMerchantId,
+        qrAcquirerId: p.qrAcquirerId || DEFAULT_STORE_PROFILE.qrAcquirerId,
+        qrTerminalLabel: p.qrTerminalLabel || DEFAULT_STORE_PROFILE.qrTerminalLabel,
+        qrCity: p.qrCity || DEFAULT_STORE_PROFILE.qrCity,
       };
     }
   } catch {}
@@ -77,6 +102,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const saved = localStorage.getItem('hisabflow_store_profile');
       if (saved) {
         const p = JSON.parse(saved);
+        if (isLegacyProfile(p)) {
+          localStorage.removeItem('hisabflow_store_profile');
+          setStoreProfileState(DEFAULT_STORE_PROFILE);
+          return;
+        }
         setStoreProfileState({
           storeName: p.storeName || DEFAULT_STORE_PROFILE.storeName,
           tagline: p.tagline !== undefined ? p.tagline : DEFAULT_STORE_PROFILE.tagline,
@@ -94,6 +124,10 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           qrBankCode: p.qrBankCode || DEFAULT_STORE_PROFILE.qrBankCode,
           qrBankCodeCIPS: p.qrBankCodeCIPS || DEFAULT_STORE_PROFILE.qrBankCodeCIPS,
           qrFormat: p.qrFormat || DEFAULT_STORE_PROFILE.qrFormat,
+          qrMerchantId: p.qrMerchantId || DEFAULT_STORE_PROFILE.qrMerchantId,
+          qrAcquirerId: p.qrAcquirerId || DEFAULT_STORE_PROFILE.qrAcquirerId,
+          qrTerminalLabel: p.qrTerminalLabel || DEFAULT_STORE_PROFILE.qrTerminalLabel,
+          qrCity: p.qrCity || DEFAULT_STORE_PROFILE.qrCity,
         });
       }
     } catch (e) {

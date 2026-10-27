@@ -47,8 +47,8 @@ public record RecordTransactionRequest(
     Guid CustomerId,
     TransactionType Type,
     decimal Amount,
-    PaymentMethod PaymentMethod,
-    string? Particulars,
-    string? BillNumber,
-    DateTime? TransactionDate
+    PaymentMethod PaymentMethod = PaymentMethod.Cash,
+    string? Particulars = null,
+    string? BillNumber = null,
+    DateTime? TransactionDate = null
 );

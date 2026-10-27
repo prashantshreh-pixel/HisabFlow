@@ -1,5 +1,6 @@
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -9,6 +10,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
 public class CashDrawerController : ControllerBase
 {
     private readonly ICashDrawerRepository _cashDrawerRepo;
@@ -60,7 +62,8 @@ public class CashDrawerController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<CashDrawerShiftDto>>> GetHistory([FromQuery] int limit = 30, CancellationToken cancellationToken = default)
     {
-        var history = await _cashDrawerRepo.GetShiftHistoryAsync(limit, cancellationToken);
+        var cappedLimit = Math.Clamp(limit, 1, 100);
+        var history = await _cashDrawerRepo.GetShiftHistoryAsync(cappedLimit, cancellationToken);
         return Ok(history);
     }
 }

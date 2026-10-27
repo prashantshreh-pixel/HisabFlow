@@ -23,6 +23,11 @@ public class GlobalExceptionHandler : IExceptionHandler
 
         var (statusCode, title, detail) = exception switch
         {
+            UnauthorizedAccessException unauthorizedEx => (
+                StatusCodes.Status401Unauthorized,
+                "Unauthorized Access",
+                unauthorizedEx.Message
+            ),
             InvalidOperationException invalidOp => (
                 StatusCodes.Status400BadRequest,
                 "Business Validation Error",

@@ -1,11 +1,13 @@
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/reports")]
+[Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
 public class ReportsController : ControllerBase
 {
     private readonly IReportRepository _reportRepository;
@@ -16,9 +18,10 @@ public class ReportsController : ControllerBase
     }
 
     /// <summary>
-    /// Generates a comprehensive Profit & Loss (P&L) statement and retail financial report.
+    /// Generates a comprehensive Profit & Loss (P&L) statement and retail financial report (Admin & Manager only).
     /// </summary>
     [HttpGet("profit-loss")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<ProfitLossReportDto>> GetProfitLoss(
         [FromQuery] string period = "this_month",
@@ -73,9 +76,7 @@ public class ReportsController : ControllerBase
                 to = endDate ?? new DateTime(now.Year, now.Month, now.Day, 23, 59, 59, DateTimeKind.Utc);
                 if (to < from)
                 {
-                    var temp = from;
-                    from = to;
-                    to = temp;
+                    (from, to) = (to, from);
                 }
                 to = new DateTime(to.Year, to.Month, to.Day, 23, 59, 59, DateTimeKind.Utc);
                 periodTitle = $"{from:dd MMM yyyy} - {to:dd MMM yyyy}";
@@ -101,6 +102,10 @@ public class ReportsController : ControllerBase
     public async Task<ActionResult<DashboardSummaryDto>> GetDashboardSummary(CancellationToken cancellationToken = default)
     {
         var summary = await _reportRepository.GetDashboardSummaryAsync(cancellationToken);
+        if (User?.IsInRole("CASHIER") == true)
+        {
+            summary = summary with { TotalInventoryCostValue = 0m };
+        }
         return Ok(summary);
     }
 }

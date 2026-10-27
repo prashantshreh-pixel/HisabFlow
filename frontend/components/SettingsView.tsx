@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useKhata } from '@/context/KhataContext';
+import { downloadCSV } from '@/lib/exportUtils';
 import {
   Store,
   Database,
@@ -9,10 +10,7 @@ import {
   Upload,
   FileSpreadsheet,
   Save,
-  CheckCircle2,
   ShieldCheck,
-  Server,
-  RefreshCw,
   HardDrive,
   User,
   Phone,
@@ -39,12 +37,12 @@ export const SettingsView: React.FC = () => {
   const [receiptFooter, setReceiptFooter] = useState(storeProfile.receiptFooter || 'Thank you for shopping with us! Visit again.');
 
   // Dynamic QR Payment State
-  const [qrAccountName, setQrAccountName] = useState(storeProfile.qrAccountName || 'SADIKSHYA DAHAL');
-  const [qrAccountNumber, setQrAccountNumber] = useState(storeProfile.qrAccountNumber || '0215752768506001');
-  const [qrBankName, setQrBankName] = useState(storeProfile.qrBankName || 'NIC ASIA Bank');
-  const [qrBankCode, setQrBankCode] = useState(storeProfile.qrBankCode || 'BOALNPKA');
-  const [qrBankCodeCIPS, setQrBankCodeCIPS] = useState(storeProfile.qrBankCodeCIPS || '2301');
-  const [qrFormat, setQrFormat] = useState<'MOBANK_JSON' | 'EMVCO_NEPALPAY'>(storeProfile.qrFormat || 'MOBANK_JSON');
+  const [qrAccountName, setQrAccountName] = useState(storeProfile.qrAccountName || 'Anjali Store');
+  const [qrAccountNumber, setQrAccountNumber] = useState(storeProfile.qrAccountNumber || '2222610021768837');
+  const [qrBankName, setQrBankName] = useState(storeProfile.qrBankName || 'Fonepay (Khalti)');
+  const [qrBankCode, setQrBankCode] = useState(storeProfile.qrBankCode || 'fonepay.com');
+  const [qrBankCodeCIPS, setQrBankCodeCIPS] = useState(storeProfile.qrBankCodeCIPS || '4271420021768837');
+  const [qrFormat, setQrFormat] = useState<'FONEPAY_DYNAMIC' | 'EMVCO_NEPALPAY' | 'MOBANK_JSON'>(storeProfile.qrFormat || 'FONEPAY_DYNAMIC');
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -61,12 +59,12 @@ export const SettingsView: React.FC = () => {
     setCurrencySymbol(storeProfile.currencySymbol || 'Rs.');
     setDefaultCreditLimit(storeProfile.defaultCreditLimit || '10000');
     setReceiptFooter(storeProfile.receiptFooter || 'Thank you for shopping with us! Visit again.');
-    setQrAccountName(storeProfile.qrAccountName || 'SADIKSHYA DAHAL');
-    setQrAccountNumber(storeProfile.qrAccountNumber || '0215752768506001');
-    setQrBankName(storeProfile.qrBankName || 'NIC ASIA Bank');
-    setQrBankCode(storeProfile.qrBankCode || 'BOALNPKA');
-    setQrBankCodeCIPS(storeProfile.qrBankCodeCIPS || '2301');
-    setQrFormat(storeProfile.qrFormat || 'MOBANK_JSON');
+    setQrAccountName(storeProfile.qrAccountName || 'Anjali Store');
+    setQrAccountNumber(storeProfile.qrAccountNumber || '2222610021768837');
+    setQrBankName(storeProfile.qrBankName || 'Fonepay (Khalti)');
+    setQrBankCode(storeProfile.qrBankCode || 'fonepay.com');
+    setQrBankCodeCIPS(storeProfile.qrBankCodeCIPS || '4271420021768837');
+    setQrFormat(storeProfile.qrFormat || 'FONEPAY_DYNAMIC');
   }
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -117,14 +115,16 @@ export const SettingsView: React.FC = () => {
       products
     };
 
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(backupData, null, 2));
+    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement('a');
     const filename = `hisabflow-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    downloadAnchor.setAttribute('href', dataStr);
+    downloadAnchor.setAttribute('href', url);
     downloadAnchor.setAttribute('download', filename);
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
     downloadAnchor.remove();
+    URL.revokeObjectURL(url);
 
     showToast({
       type: 'success',
@@ -135,24 +135,17 @@ export const SettingsView: React.FC = () => {
 
   const handleExportCustomersCSV = () => {
     const headers = ['ID', 'Name', 'Phone', 'Address', 'Current Balance (Rs)', 'Credit Limit (Rs)', 'Last Activity'];
-    const rows = customers.map(c => [
-      `"${c.id}"`,
-      `"${c.name.replace(/"/g, '""')}"`,
-      `"${c.phone}"`,
-      `"${(c.address || '').replace(/"/g, '""')}"`,
+    const rows = customers.map((c) => [
+      c.id,
+      c.name,
+      c.phone,
+      c.address || '',
       c.currentBalance,
       c.creditLimit,
-      `"${c.lastTransactionDate}"`
+      c.lastTransactionDate || '',
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const link = document.createElement('a');
-    const filename = `hisabflow-customers-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    downloadCSV(`hisabflow-customers-${new Date().toISOString().slice(0, 10)}`, headers, rows);
 
     showToast({
       type: 'info',
@@ -163,24 +156,17 @@ export const SettingsView: React.FC = () => {
 
   const handleExportProductsCSV = () => {
     const headers = ['ID', 'Name', 'Category', 'Selling Price (Rs)', 'Cost Price (Rs)', 'Current Stock', 'Min Stock Level'];
-    const rows = products.map(p => [
-      `"${p.id}"`,
-      `"${p.name.replace(/"/g, '""')}"`,
-      `"${p.category}"`,
+    const rows = products.map((p) => [
+      p.id,
+      p.name,
+      p.category,
       p.sellingPrice,
       p.costPrice,
       p.stockQuantity,
-      p.minStockAlert
+      p.minStockAlert,
     ]);
 
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const link = document.createElement('a');
-    const filename = `hisabflow-inventory-${new Date().toISOString().slice(0, 10)}.csv`;
-    link.setAttribute('href', encodeURI(csvContent));
-    link.setAttribute('download', filename);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    downloadCSV(`hisabflow-inventory-${new Date().toISOString().slice(0, 10)}`, headers, rows);
 
     showToast({
       type: 'info',
@@ -207,7 +193,7 @@ export const SettingsView: React.FC = () => {
         } else {
           throw new Error('Invalid format');
         }
-      } catch (err) {
+      } catch {
         showToast({
           type: 'error',
           title: 'Import Failed',
@@ -409,7 +395,7 @@ export const SettingsView: React.FC = () => {
                     value={qrAccountName}
                     onChange={(e) => setQrAccountName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-bold focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="e.g. SADIKSHYA DAHAL"
+                    placeholder="e.g. Anjali Store"
                   />
                 </div>
 
@@ -422,7 +408,7 @@ export const SettingsView: React.FC = () => {
                     value={qrAccountNumber}
                     onChange={(e) => setQrAccountNumber(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono font-bold focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="e.g. 0215752768506001"
+                    placeholder="e.g. 2222610021768837"
                   />
                 </div>
               </div>
@@ -437,7 +423,7 @@ export const SettingsView: React.FC = () => {
                     value={qrBankName}
                     onChange={(e) => setQrBankName(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-medium focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="e.g. NIC ASIA Bank"
+                    placeholder="e.g. Fonepay (Khalti)"
                   />
                 </div>
 
@@ -450,7 +436,7 @@ export const SettingsView: React.FC = () => {
                     value={qrBankCode}
                     onChange={(e) => setQrBankCode(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="e.g. BOALNPKA"
+                    placeholder="e.g. fonepay.com"
                   />
                 </div>
 
@@ -463,7 +449,7 @@ export const SettingsView: React.FC = () => {
                     value={qrBankCodeCIPS}
                     onChange={(e) => setQrBankCodeCIPS(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-xs font-mono focus:ring-2 focus:ring-amber-500/50"
-                    placeholder="e.g. 2301"
+                    placeholder="e.g. 4271420021768837"
                   />
                 </div>
               </div>
@@ -471,6 +457,17 @@ export const SettingsView: React.FC = () => {
               <div className="flex items-center gap-3">
                 <span className="text-xs text-slate-400 font-medium">QR Encoding Standard:</span>
                 <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setQrFormat('FONEPAY_DYNAMIC')}
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      qrFormat === 'FONEPAY_DYNAMIC'
+                        ? 'bg-rose-500 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Fonepay Dynamic (Default)
+                  </button>
                   <button
                     type="button"
                     onClick={() => setQrFormat('MOBANK_JSON')}

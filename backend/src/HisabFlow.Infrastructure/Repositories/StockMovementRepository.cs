@@ -35,6 +35,7 @@ public class StockMovementRepository : IStockMovementRepository
 
     public async Task<IEnumerable<StockMovementDto>> GetMovementsByProductAsync(Guid productId, int limit = 50, CancellationToken cancellationToken = default)
     {
+        var cappedLimit = Math.Clamp(limit, 1, 200);
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             SELECT TOP (@Limit)
@@ -52,11 +53,12 @@ public class StockMovementRepository : IStockMovementRepository
             WHERE sm.product_id = @ProductId
             ORDER BY sm.created_at DESC;";
 
-        return await conn.QueryAsync<StockMovementDto>(new CommandDefinition(sql, new { ProductId = productId, Limit = limit }, cancellationToken: cancellationToken));
+        return await conn.QueryAsync<StockMovementDto>(new CommandDefinition(sql, new { ProductId = productId, Limit = cappedLimit }, cancellationToken: cancellationToken));
     }
 
     public async Task<IEnumerable<StockMovementDto>> GetRecentMovementsAsync(int limit = 100, CancellationToken cancellationToken = default)
     {
+        var cappedLimit = Math.Clamp(limit, 1, 200);
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             SELECT TOP (@Limit)
@@ -73,6 +75,6 @@ public class StockMovementRepository : IStockMovementRepository
             LEFT JOIN products p ON sm.product_id = p.id
             ORDER BY sm.created_at DESC;";
 
-        return await conn.QueryAsync<StockMovementDto>(new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
+        return await conn.QueryAsync<StockMovementDto>(new CommandDefinition(sql, new { Limit = cappedLimit }, cancellationToken: cancellationToken));
     }
 }

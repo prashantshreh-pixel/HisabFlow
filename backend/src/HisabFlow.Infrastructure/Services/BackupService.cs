@@ -1,12 +1,16 @@
 using Dapper;
 using HisabFlow.Application.Common.Interfaces;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace HisabFlow.Infrastructure.Services;
 
-public class BackupService : IBackupService
+public partial class BackupService : IBackupService
 {
     private readonly IDbConnectionFactory _db;
+
+    [GeneratedRegex(@"^[a-zA-Z0-9_]+$")]
+    private static partial Regex SafeTableNameRegex();
 
     public BackupService(IDbConnectionFactory db)
     {
@@ -34,18 +38,25 @@ public class BackupService : IBackupService
         {
             await conn.ExecuteAsync(new CommandDefinition(sql, new { BackupPath = backupPath, BackupName = fileName }, cancellationToken: cancellationToken));
             var fileInfo = new FileInfo(backupPath);
-            return new DatabaseBackupResult(fileName, backupPath, fileInfo.Length, fileInfo.CreationTimeUtc);
+            // Return sanitized logical path to prevent server file system path disclosure
+            return new DatabaseBackupResult(fileName, $"backups/{fileName}", fileInfo.Length, fileInfo.CreationTimeUtc);
         }
         catch
         {
-            // Fallback: Export complete restorable dataset snapshot containing all table row data
-            var jsonSnapshotPath = Path.Combine(backupDirectory, $"HisabFlow_Snapshot_{timestamp}.json");
-            var tablesSql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE '__%';";
+            // Fallback: Export complete restorable dataset snapshot containing all table row data (excluding sensitive password hashes)
+            var snapshotFileName = $"HisabFlow_Snapshot_{timestamp}.json";
+            var jsonSnapshotPath = Path.Combine(backupDirectory, snapshotFileName);
+            const string tablesSql = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME NOT LIKE '__%' AND TABLE_NAME <> 'users';";
             var tables = (await conn.QueryAsync<string>(new CommandDefinition(tablesSql, cancellationToken: cancellationToken))).ToList();
 
             var dataExport = new Dictionary<string, IEnumerable<dynamic>>();
             foreach (var table in tables)
             {
+                if (!SafeTableNameRegex().IsMatch(table))
+                {
+                    continue;
+                }
+
                 var querySql = $"SELECT * FROM [{table}];";
                 var rows = await conn.QueryAsync<dynamic>(new CommandDefinition(querySql, cancellationToken: cancellationToken));
                 dataExport[table] = rows;
@@ -60,7 +71,7 @@ public class BackupService : IBackupService
 
             await File.WriteAllTextAsync(jsonSnapshotPath, JsonSerializer.Serialize(exportPayload, new JsonSerializerOptions { WriteIndented = true }), cancellationToken);
             var snapshotInfo = new FileInfo(jsonSnapshotPath);
-            return new DatabaseBackupResult(Path.GetFileName(jsonSnapshotPath), jsonSnapshotPath, snapshotInfo.Length, snapshotInfo.CreationTimeUtc);
+            return new DatabaseBackupResult(snapshotFileName, $"backups/{snapshotFileName}", snapshotInfo.Length, snapshotInfo.CreationTimeUtc);
         }
     }
 
@@ -74,8 +85,9 @@ public class BackupService : IBackupService
         }
 
         var files = new DirectoryInfo(backupDirectory).GetFiles("*.*")
+            .Where(f => f.Extension.Equals(".bak", StringComparison.OrdinalIgnoreCase) || f.Extension.Equals(".json", StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(f => f.CreationTimeUtc)
-            .Select(f => new DatabaseBackupResult(f.Name, f.FullName, f.Length, f.CreationTimeUtc));
+            .Select(f => new DatabaseBackupResult(f.Name, $"backups/{f.Name}", f.Length, f.CreationTimeUtc));
 
         return Task.FromResult<IEnumerable<DatabaseBackupResult>>(files);
     }

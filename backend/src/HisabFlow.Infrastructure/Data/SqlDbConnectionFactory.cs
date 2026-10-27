@@ -335,7 +335,49 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                     IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'supplier_ledger_entries') AND name = N'cash_drawer_shift_id')
                     BEGIN
                         ALTER TABLE supplier_ledger_entries ADD cash_drawer_shift_id UNIQUEIDENTIFIER NULL REFERENCES cash_drawers(id);
-                    END")
+                    END"),
+
+                ("006_UsersAndSecurityIndexes", $@"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'users')
+                    BEGIN
+                        CREATE TABLE users (
+                            id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            username NVARCHAR(50) NOT NULL UNIQUE,
+                            display_name NVARCHAR(100) NOT NULL,
+                            password_hash NVARCHAR(256) NOT NULL,
+                            role NVARCHAR(20) NOT NULL,
+                            is_active BIT NOT NULL DEFAULT 1,
+                            created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+                            updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
+                        );
+                    END
+
+                    IF NOT EXISTS (SELECT 1 FROM users WHERE username = N'admin')
+                    BEGIN
+                        INSERT INTO users (id, username, display_name, password_hash, role, is_active)
+                        VALUES ('00000000-0000-0000-0000-000000000001', N'admin', N'Store Owner', N'{HisabFlow.Infrastructure.Services.PasswordHasher.HashPassword("admin")}', N'ADMIN', 1);
+                    END
+
+                    IF NOT EXISTS (SELECT 1 FROM users WHERE username = N'manager')
+                    BEGIN
+                        INSERT INTO users (id, username, display_name, password_hash, role, is_active)
+                        VALUES ('00000000-0000-0000-0000-000000000002', N'manager', N'Inventory Manager', N'{HisabFlow.Infrastructure.Services.PasswordHasher.HashPassword("manager")}', N'MANAGER', 1);
+                    END
+
+                    IF NOT EXISTS (SELECT 1 FROM users WHERE username = N'cashier')
+                    BEGIN
+                        INSERT INTO users (id, username, display_name, password_hash, role, is_active)
+                        VALUES ('00000000-0000-0000-0000-000000000003', N'cashier', N'POS Cashier', N'{HisabFlow.Infrastructure.Services.PasswordHasher.HashPassword("cashier")}', N'CASHIER', 1);
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_products_active_category')
+                        CREATE INDEX idx_products_active_category ON products(is_active, category, name);
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_products_barcode')
+                        CREATE INDEX idx_products_barcode ON products(barcode) WHERE barcode IS NOT NULL;
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_audit_logs_entity_created')
+                        CREATE INDEX idx_audit_logs_entity_created ON audit_logs(entity_name, created_at DESC);
+                    IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_stock_movements_product_created')
+                        CREATE INDEX idx_stock_movements_product_created ON stock_movements(product_id, created_at DESC);")
             };
 
             foreach (var (id, sqlScript) in migrations)

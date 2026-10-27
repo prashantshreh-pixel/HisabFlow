@@ -15,9 +15,9 @@ public record CreateExpenseRequest(
     string Category,
     string Title,
     decimal Amount,
-    string? PaymentMethod,
-    string? Particulars,
-    DateTime? ExpenseDate
+    string? PaymentMethod = "Cash",
+    string? Particulars = null,
+    DateTime? ExpenseDate = null
 );
 
 public record ExpenseSummaryDto(

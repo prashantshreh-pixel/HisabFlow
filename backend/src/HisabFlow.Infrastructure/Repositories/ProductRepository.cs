@@ -1,13 +1,12 @@
-﻿using Dapper;
+using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
 using System.Text.Json;
-
-using HisabFlow.Infrastructure.Services;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -47,14 +46,15 @@ public class ProductRepository : IProductRepository
         if (!string.IsNullOrWhiteSpace(category))
         {
             whereClause += " AND category = @Category";
-            p.Add("Category", category);
+            p.Add("Category", category.Trim());
         }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
+            var trimmedSearch = search.Trim();
             whereClause += " AND (name LIKE @Search OR barcode = @BarcodeSearch)";
-            p.Add("Search", $"%{search}%");
-            p.Add("BarcodeSearch", search);
+            p.Add("Search", $"%{trimmedSearch}%");
+            p.Add("BarcodeSearch", trimmedSearch);
         }
 
         string sql = $@"
@@ -162,7 +162,7 @@ public class ProductRepository : IProductRepository
             product.Id.ToString(),
             "CREATE",
             JsonSerializer.Serialize(new { product.Name, product.SellingPrice, product.StockQuantity }),
-            "System"
+            _currentUser.Username
         ), cancellationToken);
 
         _reportRepo.InvalidateCache();
@@ -212,7 +212,7 @@ public class ProductRepository : IProductRepository
                 product.Id.ToString(),
                 "UPDATE",
                 JsonSerializer.Serialize(new { product.Name, product.SellingPrice, product.StockQuantity }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -280,7 +280,7 @@ public class ProductRepository : IProductRepository
                 id.ToString(),
                 "ADJUST_STOCK",
                 JsonSerializer.Serialize(new { ProductName = productName, QuantityChange = quantityChange, StockAfter = newStock, Notes = notes }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -310,7 +310,7 @@ public class ProductRepository : IProductRepository
                 id.ToString(),
                 "DELETE",
                 "Product soft-deleted from inventory.",
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();

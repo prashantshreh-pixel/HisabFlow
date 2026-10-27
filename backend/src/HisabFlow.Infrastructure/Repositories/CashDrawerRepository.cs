@@ -2,6 +2,7 @@ using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.DTOs;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
 using System.Text.Json;
 
@@ -11,11 +12,13 @@ public class CashDrawerRepository : ICashDrawerRepository
 {
     private readonly IDbConnectionFactory _db;
     private readonly IAuditRepository _auditRepo;
+    private readonly ICurrentUserService _currentUser;
 
-    public CashDrawerRepository(IDbConnectionFactory db, IAuditRepository auditRepo)
+    public CashDrawerRepository(IDbConnectionFactory db, IAuditRepository auditRepo, ICurrentUserService? currentUser = null)
     {
         _db = db;
         _auditRepo = auditRepo;
+        _currentUser = currentUser ?? new CurrentUserService(new Microsoft.AspNetCore.Http.HttpContextAccessor());
     }
 
     public async Task<CashDrawerShiftDto?> GetCurrentOpenShiftAsync(CancellationToken cancellationToken = default)
@@ -78,10 +81,22 @@ public class CashDrawerRepository : ICashDrawerRepository
                 shiftId.ToString(),
                 "OPEN_SHIFT",
                 JsonSerializer.Serialize(new { request.OpeningCash, OpenedAt = now }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
-            return (await GetCurrentOpenShiftAsync(cancellationToken))!;
+            return new CashDrawerShiftDto(
+                shiftId,
+                request.OpeningCash,
+                0m,
+                0m,
+                0m,
+                request.OpeningCash,
+                null,
+                null,
+                "OPEN",
+                now,
+                null
+            );
         }
         catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601) // Unique index violation on open shift
         {
@@ -168,27 +183,22 @@ public class CashDrawerRepository : ICashDrawerRepository
                 shiftId.ToString(),
                 "CLOSE_SHIFT",
                 JsonSerializer.Serialize(new { OpeningCash = openingCash, CashSales = cashSales, CashExpenses = cashExpenses, SupplierCash = supplierCash, ExpectedCash = expectedCash, ActualCash = request.ActualCash, Variance = variance }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
-            const string selectClosedSql = @"
-                SELECT 
-                    id AS Id,
-                    opening_cash AS OpeningCash,
-                    cash_sales AS CashSales,
-                    cash_expenses AS CashExpenses,
-                    supplier_cash_payments AS SupplierCashPayments,
-                    expected_cash AS ExpectedCash,
-                    actual_cash AS ActualCash,
-                    variance AS Variance,
-                    status AS Status,
-                    opened_at AS OpenedAt,
-                    closed_at AS ClosedAt
-                FROM cash_drawers
-                WHERE id = @ShiftId;";
-
-            using var readConn = await _db.CreateConnectionAsync(cancellationToken);
-            return await readConn.QuerySingleAsync<CashDrawerShiftDto>(new CommandDefinition(selectClosedSql, new { ShiftId = shiftId }, cancellationToken: cancellationToken));
+            return new CashDrawerShiftDto(
+                shiftId,
+                openingCash,
+                cashSales,
+                cashExpenses,
+                supplierCash,
+                expectedCash,
+                request.ActualCash,
+                variance,
+                "CLOSED",
+                openedAt,
+                now
+            );
         }
         catch
         {
@@ -199,6 +209,7 @@ public class CashDrawerRepository : ICashDrawerRepository
 
     public async Task<IEnumerable<CashDrawerShiftDto>> GetShiftHistoryAsync(int limit = 30, CancellationToken cancellationToken = default)
     {
+        var cappedLimit = Math.Clamp(limit, 1, 100);
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
         const string sql = @"
             SELECT TOP (@Limit)
@@ -216,6 +227,6 @@ public class CashDrawerRepository : ICashDrawerRepository
             FROM cash_drawers
             ORDER BY opened_at DESC;";
 
-        return await conn.QueryAsync<CashDrawerShiftDto>(new CommandDefinition(sql, new { Limit = limit }, cancellationToken: cancellationToken));
+        return await conn.QueryAsync<CashDrawerShiftDto>(new CommandDefinition(sql, new { Limit = cappedLimit }, cancellationToken: cancellationToken));
     }
 }

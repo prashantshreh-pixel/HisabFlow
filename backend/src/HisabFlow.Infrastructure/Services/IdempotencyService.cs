@@ -21,7 +21,12 @@ public class IdempotencyService : IIdempotencyService
         var trimmedKey = key.Trim();
         using var conn = await _db.CreateConnectionAsync(cancellationToken);
 
-        const string selectSql = @"
+        // Opportunistically clean up expired idempotency records (>24h) or abandoned Processing locks (>5m)
+        const string cleanupAndSelectSql = @"
+            DELETE FROM __IdempotencyKeys
+            WHERE created_at < DATEADD(HOUR, -24, SYSUTCDATETIME())
+               OR (status = 'Processing' AND created_at < DATEADD(MINUTE, -5, SYSUTCDATETIME()));
+
             SELECT 
                 idempotency_key AS [Key],
                 request_hash AS RequestHash,
@@ -33,7 +38,7 @@ public class IdempotencyService : IIdempotencyService
             WHERE idempotency_key = @Key;";
 
         var existing = await conn.QuerySingleOrDefaultAsync<IdempotencyRecord>(
-            new CommandDefinition(selectSql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
+            new CommandDefinition(cleanupAndSelectSql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
 
         if (existing != null)
         {
@@ -59,8 +64,19 @@ public class IdempotencyService : IIdempotencyService
         }
         catch (SqlException ex) when (ex.Number == 2627 || ex.Number == 2601) // Primary key constraint violation
         {
+            const string selectOnlySql = @"
+                SELECT 
+                    idempotency_key AS [Key],
+                    request_hash AS RequestHash,
+                    status AS Status,
+                    response_code AS StatusCode,
+                    response_body AS ResponseBody,
+                    created_at AS CreatedAt
+                FROM __IdempotencyKeys
+                WHERE idempotency_key = @Key;";
+
             var recheck = await conn.QuerySingleOrDefaultAsync<IdempotencyRecord>(
-                new CommandDefinition(selectSql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
+                new CommandDefinition(selectOnlySql, new { Key = trimmedKey }, cancellationToken: cancellationToken));
 
             if (recheck != null)
             {
