@@ -121,8 +121,8 @@ public class ExpenseRepository : IExpenseRepository
 
         var paymentMethodCode = request.PaymentMethod?.ToUpperInvariant() switch
         {
-            "QR_PAYMENT" => 2,
-            "BANK_TRANSFER" => 3,
+            "2" or "QR_PAYMENT" or "QR" => 2,
+            "3" or "BANK_TRANSFER" or "BANK" => 3,
             _ => 1
         };
 

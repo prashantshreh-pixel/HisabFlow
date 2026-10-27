@@ -36,6 +36,22 @@ const getInitialCalendarMode = (): CalendarMode => {
   return 'BS';
 };
 
+const isLegacyProfile = (p: Partial<StoreProfile> | null | undefined): boolean => {
+  if (!p) return true;
+  if (
+    p.qrAccountNumber === '0215752768506001' ||
+    p.qrAccountName === 'SADIKSHYA DAHAL' ||
+    (typeof p.qrBankName === 'string' && p.qrBankName.includes('NIC ASIA')) ||
+    !p.qrFormat ||
+    p.qrFormat === 'MOBANK_JSON' ||
+    p.storeName === 'Pasal POS' ||
+    p.storeName === 'HisabFlow Retail Store'
+  ) {
+    return true;
+  }
+  return false;
+};
+
 const getInitialStoreProfile = (): StoreProfile => {
   if (typeof window === 'undefined') return DEFAULT_STORE_PROFILE;
   try {
@@ -43,7 +59,7 @@ const getInitialStoreProfile = (): StoreProfile => {
     if (saved) {
       const p = JSON.parse(saved);
       // Migrate legacy demo accounts to the new Fonepay Anjali Store configuration
-      if (p.qrAccountNumber === '0215752768506001' || p.qrAccountName === 'SADIKSHYA DAHAL' || !p.qrFormat || p.qrFormat === 'MOBANK_JSON') {
+      if (isLegacyProfile(p)) {
         localStorage.removeItem('hisabflow_store_profile');
         return DEFAULT_STORE_PROFILE;
       }
@@ -86,7 +102,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const saved = localStorage.getItem('hisabflow_store_profile');
       if (saved) {
         const p = JSON.parse(saved);
-        if (p.qrAccountNumber === '0215752768506001' || p.qrAccountName === 'SADIKSHYA DAHAL' || !p.qrFormat || p.qrFormat === 'MOBANK_JSON') {
+        if (isLegacyProfile(p)) {
           localStorage.removeItem('hisabflow_store_profile');
           setStoreProfileState(DEFAULT_STORE_PROFILE);
           return;

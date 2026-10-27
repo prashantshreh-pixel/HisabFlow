@@ -25,10 +25,10 @@ public record RecordSupplierTransactionRequest(
     Guid SupplierId,
     int Type, // 1: Stock Purchase (Payable Increases), 2: Payment Given (Payable Decreases)
     decimal Amount,
-    PaymentMethod PaymentMethod,
-    string? Particulars,
-    string? InvoiceNumber,
-    DateTime? TransactionDate,
+    PaymentMethod PaymentMethod = PaymentMethod.Cash,
+    string? Particulars = null,
+    string? InvoiceNumber = null,
+    DateTime? TransactionDate = null,
     List<SupplierInventoryItem>? PurchasedItems = null
 );
 
