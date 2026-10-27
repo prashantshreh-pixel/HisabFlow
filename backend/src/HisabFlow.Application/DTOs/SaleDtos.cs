@@ -75,3 +75,5 @@ public record SalesSummaryDto(
     decimal CreditSalesAmount,
     int TotalItemsSold
 );
+
+public record RefundSaleApiRequest(string? Reason);

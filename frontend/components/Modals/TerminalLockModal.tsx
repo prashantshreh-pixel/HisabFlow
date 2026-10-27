@@ -1,8 +1,9 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
-import { Lock, ArrowRight, ShieldAlert, LogOut } from 'lucide-react';
-import { getCurrentUser, DEMO_USERS, logoutUser } from '@/lib/auth';
+import { Lock, ArrowRight, LogOut } from 'lucide-react';
+import { authApi } from '@/lib/api';
+import { getCurrentUser, DEMO_USERS } from '@/lib/auth';
 
 interface TerminalLockModalProps {
   isOpen: boolean;
@@ -17,11 +18,12 @@ export const TerminalLockModal: React.FC<TerminalLockModalProps> = ({
 }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
   const currentUser = getCurrentUser();
 
   if (!isOpen) return null;
 
-  const handleUnlock = (e: React.FormEvent) => {
+  const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -31,16 +33,31 @@ export const TerminalLockModal: React.FC<TerminalLockModalProps> = ({
       return;
     }
 
-    const username = currentUser?.username || 'admin';
-    const demoUser = DEMO_USERS[username.toLowerCase()];
-
-    // Verify password against current user
-    if (demoUser && demoUser.password === trimmed) {
-      setPassword('');
-      setError('');
-      onUnlock();
-    } else {
+    setIsVerifying(true);
+    try {
+      const res = await authApi.verifyUnlock(trimmed);
+      if (res.verified) {
+        setPassword('');
+        setError('');
+        onUnlock();
+        return;
+      }
       setError('Incorrect password. Please try again.');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : '';
+      if (errMessage.includes('Cannot connect to HisabFlow API server')) {
+        const username = currentUser?.username || 'admin';
+        const demoUser = DEMO_USERS[username.toLowerCase()];
+        if (demoUser && demoUser.password === trimmed) {
+          setPassword('');
+          setError('');
+          onUnlock();
+          return;
+        }
+      }
+      setError('Incorrect password. Please try again.');
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -73,10 +90,11 @@ export const TerminalLockModal: React.FC<TerminalLockModalProps> = ({
               type="password"
               autoFocus
               required
+              disabled={isVerifying}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono text-center tracking-widest"
+              className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-mono text-center tracking-widest disabled:opacity-50"
             />
           </div>
 
@@ -88,9 +106,10 @@ export const TerminalLockModal: React.FC<TerminalLockModalProps> = ({
 
           <button
             type="submit"
-            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition-colors text-xs flex items-center justify-center gap-2 shadow-sm"
+            disabled={isVerifying}
+            className="w-full py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg transition-colors text-xs flex items-center justify-center gap-2 shadow-sm disabled:opacity-60"
           >
-            <span>Resume Terminal</span>
+            <span>{isVerifying ? 'Verifying...' : 'Resume Terminal'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>

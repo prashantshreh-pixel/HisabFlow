@@ -59,3 +59,19 @@ public record SupplierSummaryDto(
     int ActiveSuppliersCount,
     int TotalSuppliersCount
 );
+
+public record CreateSupplierApiRequest(
+    string Name,
+    string Phone,
+    string? CompanyName,
+    string? Address,
+    decimal InitialBalance = 0,
+    string? InitialNote = null
+);
+
+public record UpdateSupplierApiRequest(
+    string Name,
+    string Phone,
+    string? CompanyName,
+    string? Address
+);

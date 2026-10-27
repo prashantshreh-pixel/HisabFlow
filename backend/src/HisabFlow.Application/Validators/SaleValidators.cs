@@ -67,3 +67,13 @@ public class CreateSaleRequestValidator : AbstractValidator<CreateSaleRequest>
             .InclusiveBetween(1, 4).WithMessage("Payment method must be Cash (1), Digital (2), Credit (3), or Split (4).");
     }
 }
+
+public class RefundSaleApiRequestValidator : AbstractValidator<RefundSaleApiRequest>
+{
+    public RefundSaleApiRequestValidator()
+    {
+        RuleFor(x => x.Reason)
+            .MaximumLength(500).WithMessage("Refund reason cannot exceed 500 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Reason));
+    }
+}

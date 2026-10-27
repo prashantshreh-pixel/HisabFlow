@@ -60,7 +60,7 @@ public class CashFlowSummaryDto
     public decimal NetCashFlow { get; set; }
 }
 
-public class DashboardSummaryDto
+public record DashboardSummaryDto
 {
     public decimal TotalOutstandingKhata { get; set; }
     public decimal TotalInventoryCostValue { get; set; }

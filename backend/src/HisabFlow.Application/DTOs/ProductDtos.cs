@@ -39,3 +39,9 @@ public record UpdateProductRequest(
     string? Barcode,
     string? ImageUrl
 );
+
+public class StockAdjustmentPayload
+{
+    public decimal QuantityChange { get; set; }
+    public string? Notes { get; set; }
+}

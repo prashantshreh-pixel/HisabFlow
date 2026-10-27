@@ -1,18 +1,47 @@
 // CSV & Data Export Utility for HisabFlow
 
-import { CreditLedgerEntry, SupplierLedgerEntry } from '@/types';
+import { CreditLedgerEntry, SupplierLedgerEntry } from '../types';
+
+/**
+ * Sanitizes a CSV cell string against spreadsheet formula injection (CSV Injection)
+ * by prefixing potentially dangerous leading characters (=, +, -, @, tab, CR) with a single quote,
+ * while leaving valid numeric values untouched.
+ */
+export function sanitizeCsvField(field: string | number | null | undefined): string {
+  if (typeof field === 'number') {
+    return String(field);
+  }
+  const str = String(field ?? '');
+  if (!str) return '';
+
+  const firstChar = str[0];
+  if (
+    (firstChar === '=' ||
+      firstChar === '+' ||
+      firstChar === '-' ||
+      firstChar === '@' ||
+      firstChar === '\t' ||
+      firstChar === '\r') &&
+    !/^[+-]?\d+(\.\d+)?$/.test(str)
+  ) {
+    return `'${str}`;
+  }
+  return str;
+}
 
 /**
  * Downloads a CSV file in browser
  */
 export function downloadCSV(filename: string, headers: string[], rows: (string | number)[][]) {
   const csvContent = [
-    headers.join(','),
+    headers.map((h) => sanitizeCsvField(h)).join(','),
     ...rows.map((row) =>
       row
         .map((field) => {
-          const str = String(field ?? '').replace(/"/g, '""');
-          return str.includes(',') || str.includes('\n') || str.includes('"') ? `"${str}"` : str;
+          const sanitized = sanitizeCsvField(field).replace(/"/g, '""');
+          return sanitized.includes(',') || sanitized.includes('\n') || sanitized.includes('"')
+            ? `"${sanitized}"`
+            : sanitized;
         })
         .join(',')
     ),

@@ -1,4 +1,5 @@
 using HisabFlow.Application.Common.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -8,6 +9,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[AllowAnonymous]
 public class HealthController : ControllerBase
 {
     private readonly IDbConnectionFactory _db;

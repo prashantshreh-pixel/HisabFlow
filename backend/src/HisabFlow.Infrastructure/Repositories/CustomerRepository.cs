@@ -1,13 +1,12 @@
-﻿using Dapper;
+using Dapper;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Enums;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
 using System.Text.Json;
-
-using HisabFlow.Infrastructure.Services;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -156,7 +155,7 @@ public class CustomerRepository : ICustomerRepository
                 id.ToString(),
                 "CREATE",
                 JsonSerializer.Serialize(new { request.Name, request.Phone, request.CreditLimit, request.InitialBalance }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -299,7 +298,7 @@ public class CustomerRepository : ICustomerRepository
                 request.CustomerId.ToString(),
                 "RECORD_TRANSACTION",
                 JsonSerializer.Serialize(new { Type = request.Type.ToString(), Amount = request.Amount, BalanceAfter = newBalance }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -378,7 +377,7 @@ public class CustomerRepository : ICustomerRepository
                 id.ToString(),
                 "UPDATE",
                 JsonSerializer.Serialize(new { request.Name, request.Phone, request.CreditLimit }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();
@@ -408,7 +407,7 @@ public class CustomerRepository : ICustomerRepository
                 id.ToString(),
                 "DELETE",
                 "Customer soft-deleted.",
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();

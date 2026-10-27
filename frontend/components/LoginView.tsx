@@ -1,10 +1,10 @@
-﻿'use client';
+'use client';
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { Store, KeyRound, User, ArrowRight, Eye, EyeOff, ShieldCheck, CheckSquare, Square, Shield } from 'lucide-react';
+import { Store, KeyRound, User, ArrowRight, Eye, EyeOff, ShieldCheck, CheckSquare, Square } from 'lucide-react';
 import { ButtonSpinner } from '@/components/Loader';
-import { getImageUrl } from '@/lib/api';
+import { authApi, getImageUrl } from '@/lib/api';
 import { loginUser, DEMO_USERS } from '@/lib/auth';
 
 interface LoginViewProps {
@@ -32,14 +32,31 @@ export function LoginView({ onLoginSuccess }: LoginViewProps) {
     }
 
     setIsLoading(true);
-    await new Promise((r) => setTimeout(r, 400));
 
-    const matched = DEMO_USERS[trimmedUser];
-    if (matched && matched.password === trimmedPass) {
-      loginUser(matched.user);
+    try {
+      const response = await authApi.login(trimmedUser, trimmedPass);
+      loginUser({
+        ...response.user,
+        token: response.token,
+      });
       onLoginSuccess();
-    } else {
-      setError('Invalid credentials. Use demo roles: admin/admin, manager/manager, or cashier/cashier.');
+      return;
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : '';
+      // If backend API is unreachable in standalone demo mode, fall back to local demo credentials
+      if (errMessage.includes('Cannot connect to HisabFlow API server')) {
+        const matched = DEMO_USERS[trimmedUser];
+        if (matched && matched.password === trimmedPass) {
+          loginUser(matched.user);
+          onLoginSuccess();
+          return;
+        }
+      }
+      setError(
+        errMessage && !errMessage.includes('Cannot connect')
+          ? errMessage
+          : 'Invalid credentials. Use demo roles: admin/admin, manager/manager, or cashier/cashier.'
+      );
       setIsLoading(false);
     }
   };

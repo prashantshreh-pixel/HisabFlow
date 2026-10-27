@@ -263,31 +263,39 @@ export interface StoreProfile {
   receiptFooter: string;
   updatedAt?: string;
 
-  // Dynamic QR Payment Settings (NepalPay / MoBank / connectIPS)
+  // Dynamic QR Payment Settings (Fonepay / NepalPay / connectIPS)
   qrAccountName?: string;
   qrAccountNumber?: string;
   qrBankName?: string;
   qrBankCode?: string;
   qrBankCodeCIPS?: string;
-  qrFormat?: 'MOBANK_JSON' | 'EMVCO_NEPALPAY';
+  qrFormat?: 'FONEPAY_DYNAMIC' | 'EMVCO_NEPALPAY' | 'MOBANK_JSON';
+  qrMerchantId?: string;
+  qrAcquirerId?: string;
+  qrTerminalLabel?: string;
+  qrCity?: string;
 }
 
 export const DEFAULT_STORE_PROFILE: StoreProfile = {
-  storeName: 'HisabFlow Store',
-  tagline: 'Digital Khata & Retail Ledger',
-  ownerName: 'Pasal Manager',
+  storeName: 'Anjali Store',
+  tagline: 'Retail Ledger & Point of Sale',
+  ownerName: 'Anjali Store',
   phone: '9851000000',
-  address: 'Kathmandu, Nepal',
+  address: 'Lalitpur MP',
   panNumber: '',
   currencySymbol: 'Rs.',
   defaultCreditLimit: '10000',
   receiptFooter: 'Thank you for shopping with us! Visit again.',
 
-  // Pre-configured with NIC ASIA MoBank merchant/account
-  qrAccountName: 'SADIKSHYA DAHAL',
-  qrAccountNumber: '0215752768506001',
-  qrBankName: 'NIC ASIA Bank',
-  qrBankCode: 'BOALNPKA',
-  qrBankCodeCIPS: '2301',
-  qrFormat: 'MOBANK_JSON',
+  // Pre-configured with Fonepay (Acquired by Khalti) Dynamic QR
+  qrAccountName: 'Anjali Store',
+  qrAccountNumber: '2222610021768837', // Terminal / Merchant ID
+  qrBankName: 'Fonepay (Khalti)',
+  qrBankCode: 'fonepay.com',
+  qrBankCodeCIPS: '4271420021768837',
+  qrFormat: 'FONEPAY_DYNAMIC',
+  qrMerchantId: '2222610021768837',
+  qrAcquirerId: '4271420021768837',
+  qrTerminalLabel: '2236157',
+  qrCity: 'Lalitpur MP',
 };

@@ -145,14 +145,21 @@ export const PosView: React.FC = () => {
     const qrAmount = paymentMethod === 4 && typeof splitDigital === 'number' && splitDigital > 0 ? splitDigital : grandTotal;
     if ((paymentMethod === 2 || (paymentMethod === 4 && typeof splitDigital === 'number' && splitDigital > 0)) && qrAmount > 0) {
       const payload = generateDynamicQrPayload({
-        accountName: storeProfile?.qrAccountName || 'SADIKSHYA DAHAL',
-        accountNumber: storeProfile?.qrAccountNumber || '0215752768506001',
-        bankCode: storeProfile?.qrBankCode || 'BOALNPKA',
-        bankCodeCIPS: storeProfile?.qrBankCodeCIPS || '2301',
-        bankName: storeProfile?.qrBankName || 'NIC ASIA Bank',
+        accountName: storeProfile?.qrAccountName || 'Anjali Store',
+        accountNumber: storeProfile?.qrAccountNumber || '2222610021768837',
+        bankCode: storeProfile?.qrBankCode || 'fonepay.com',
+        bankCodeCIPS: storeProfile?.qrBankCodeCIPS || '4271420021768837',
+        bankName: storeProfile?.qrBankName || 'Fonepay (Khalti)',
+        merchantId: storeProfile?.qrMerchantId || storeProfile?.qrAccountNumber || '2222610021768837',
+        acquirerId: storeProfile?.qrAcquirerId || storeProfile?.qrBankCodeCIPS || '4271420021768837',
+        terminalLabel: storeProfile?.qrTerminalLabel || '2236157',
+        city: storeProfile?.qrCity || storeProfile?.address || 'Lalitpur MP',
+
+
+
         amount: qrAmount,
         remarks: 'HisabFlow POS',
-        format: storeProfile?.qrFormat || 'MOBANK_JSON',
+        format: storeProfile?.qrFormat || 'FONEPAY_DYNAMIC',
       });
       generateQrDataUrl(payload, { width: 180, margin: 1 })
         .then((url) => {
@@ -995,10 +1002,10 @@ export const PosView: React.FC = () => {
                       {/* Payment Beneficiary info */}
                       <div className="space-y-1 min-w-0 flex-1 text-xs">
                         <p className="font-bold text-slate-200 truncate">
-                          {storeProfile?.qrAccountName || 'SADIKSHYA DAHAL'}
+                          {storeProfile?.qrAccountName || 'Anjali Store'}
                         </p>
                         <p className="text-[11px] text-slate-400 truncate">
-                          {storeProfile?.qrBankName || 'NIC ASIA Bank'} • <span className="font-mono">{storeProfile?.qrAccountNumber || '0215752768506001'}</span>
+                          {storeProfile?.qrBankName || 'Fonepay (Khalti)'} • <span className="font-mono">{storeProfile?.qrAccountNumber || '2222610021768837'}</span>
                         </p>
                         <p className="text-[10px] text-emerald-400 font-semibold">
                           ✓ Pre-filled {cur} {grandTotal.toFixed(2)} • No manual typing

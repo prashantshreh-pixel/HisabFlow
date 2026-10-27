@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { Customer, CreditLedgerEntry, Product, Expense, ExpenseSummary, Supplier, SupplierLedgerEntry, SupplierSummary, DashboardStats, LedgerTransactionType, SupplierTransactionType, StoreProfile } from '@/types';
 import { reportsApi, ApiDashboardSummary } from '@/lib/api';
+import { hasPermission } from '@/lib/auth';
 import { ToastProvider, useToast, ToastNotification } from '@/context/ToastContext';
 import { SettingsProvider, useSettings } from '@/context/SettingsContext';
 import { Language, CalendarMode, TRANSLATIONS } from '@/lib/translations';
@@ -131,14 +132,21 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const supplierDomain = useSupplierDomain({ showToast, onMutationSuccess: fetchDashboardSummary });
 
   const refreshData = useCallback(async () => {
-    await Promise.all([
+    const tasks: Promise<unknown>[] = [
       customerDomain.fetchCustomers(),
       customerDomain.fetchRecentTransactions(),
       productDomain.fetchProducts(),
-      expenseDomain.fetchExpenses(),
-      supplierDomain.fetchSuppliers(),
       fetchDashboardSummary(),
-    ]);
+    ];
+
+    if (hasPermission('canManageExpenses')) {
+      tasks.push(expenseDomain.fetchExpenses());
+    }
+    if (hasPermission('canManageSuppliers')) {
+      tasks.push(supplierDomain.fetchSuppliers());
+    }
+
+    await Promise.all(tasks);
   }, [customerDomain, productDomain, expenseDomain, supplierDomain, fetchDashboardSummary]);
 
   useEffect(() => {
@@ -186,61 +194,85 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [dashboardSummary, customerDomain.customers, productDomain.products, expenseDomain.expensesSummary, supplierDomain.suppliersSummary]);
 
-  const isLoading = customerDomain.isCustomersLoading || productDomain.isProductsLoading || expenseDomain.isExpensesLoading || supplierDomain.isSuppliersLoading;
+  const isLoading =
+    customerDomain.isCustomersLoading ||
+    productDomain.isProductsLoading ||
+    (hasPermission('canManageExpenses') && expenseDomain.isExpensesLoading) ||
+    (hasPermission('canManageSuppliers') && supplierDomain.isSuppliersLoading);
 
-  return (
-    <KhataContext.Provider
-      value={{
-        isLoading,
-        isCustomersLoading: customerDomain.isCustomersLoading,
-        isProductsLoading: productDomain.isProductsLoading,
-        isExpensesLoading: expenseDomain.isExpensesLoading,
-        isSuppliersLoading: supplierDomain.isSuppliersLoading,
-        customers: customerDomain.customers,
-        ledgerEntries: customerDomain.ledgerEntries,
-        products: productDomain.products,
-        expenses: expenseDomain.expenses,
-        expensesSummary: expenseDomain.expensesSummary,
-        suppliers: supplierDomain.suppliers,
-        suppliersSummary: supplierDomain.suppliersSummary,
-        stats,
-        storeProfile,
-        updateStoreProfile,
-        toasts,
-        dismissToast,
-        showToast,
-        language,
-        calendarMode,
-        setLanguage,
-        setCalendarMode,
-        toggleLanguage,
-        toggleCalendarMode,
-        formatDate,
-        t,
-        addCustomer: customerDomain.addCustomer,
-        updateCustomer: customerDomain.updateCustomer,
-        deleteCustomer: customerDomain.deleteCustomer,
-        getCustomerById: customerDomain.getCustomerById,
-        getCustomerLedger: customerDomain.getCustomerLedger,
-        recordTransaction: customerDomain.recordTransaction,
-        addProduct: productDomain.addProduct,
-        updateProduct: productDomain.updateProduct,
-        deleteProduct: productDomain.deleteProduct,
-        adjustStock: productDomain.adjustStock,
-        addExpense: expenseDomain.addExpense,
-        deleteExpense: expenseDomain.deleteExpense,
-        addSupplier: supplierDomain.addSupplier,
-        updateSupplier: supplierDomain.updateSupplier,
-        deleteSupplier: supplierDomain.deleteSupplier,
-        getSupplierById: supplierDomain.getSupplierById,
-        getSupplierLedger: supplierDomain.getSupplierLedger,
-        recordSupplierTransaction: supplierDomain.recordSupplierTransaction,
-        refreshData,
-      }}
-    >
-      {children}
-    </KhataContext.Provider>
+  const contextValue = useMemo<KhataContextType>(
+    () => ({
+      isLoading,
+      isCustomersLoading: customerDomain.isCustomersLoading,
+      isProductsLoading: productDomain.isProductsLoading,
+      isExpensesLoading: expenseDomain.isExpensesLoading,
+      isSuppliersLoading: supplierDomain.isSuppliersLoading,
+      customers: customerDomain.customers,
+      ledgerEntries: customerDomain.ledgerEntries,
+      products: productDomain.products,
+      expenses: expenseDomain.expenses,
+      expensesSummary: expenseDomain.expensesSummary,
+      suppliers: supplierDomain.suppliers,
+      suppliersSummary: supplierDomain.suppliersSummary,
+      stats,
+      storeProfile,
+      updateStoreProfile,
+      toasts,
+      dismissToast,
+      showToast,
+      language,
+      calendarMode,
+      setLanguage,
+      setCalendarMode,
+      toggleLanguage,
+      toggleCalendarMode,
+      formatDate,
+      t,
+      addCustomer: customerDomain.addCustomer,
+      updateCustomer: customerDomain.updateCustomer,
+      deleteCustomer: customerDomain.deleteCustomer,
+      getCustomerById: customerDomain.getCustomerById,
+      getCustomerLedger: customerDomain.getCustomerLedger,
+      recordTransaction: customerDomain.recordTransaction,
+      addProduct: productDomain.addProduct,
+      updateProduct: productDomain.updateProduct,
+      deleteProduct: productDomain.deleteProduct,
+      adjustStock: productDomain.adjustStock,
+      addExpense: expenseDomain.addExpense,
+      deleteExpense: expenseDomain.deleteExpense,
+      addSupplier: supplierDomain.addSupplier,
+      updateSupplier: supplierDomain.updateSupplier,
+      deleteSupplier: supplierDomain.deleteSupplier,
+      getSupplierById: supplierDomain.getSupplierById,
+      getSupplierLedger: supplierDomain.getSupplierLedger,
+      recordSupplierTransaction: supplierDomain.recordSupplierTransaction,
+      refreshData,
+    }),
+    [
+      isLoading,
+      customerDomain,
+      productDomain,
+      expenseDomain,
+      supplierDomain,
+      stats,
+      storeProfile,
+      updateStoreProfile,
+      toasts,
+      dismissToast,
+      showToast,
+      language,
+      calendarMode,
+      setLanguage,
+      setCalendarMode,
+      toggleLanguage,
+      toggleCalendarMode,
+      formatDate,
+      t,
+      refreshData,
+    ]
   );
+
+  return <KhataContext.Provider value={contextValue}>{children}</KhataContext.Provider>;
 };
 
 export const KhataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => (

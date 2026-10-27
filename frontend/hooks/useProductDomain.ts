@@ -84,12 +84,16 @@ export function useProductDomain({ showToast, onMutationSuccess }: UseProductDom
   );
 
   const adjustStock = useCallback(
-    async (productId: string, delta: number) => {
-      await productsApi.adjustStock(productId, delta);
+    async (productId: string, delta: number, reason?: string) => {
+      await productsApi.adjustStock(productId, delta, reason);
       setProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, stockQuantity: Math.max(0, p.stockQuantity + delta) } : p))
       );
-      showToast({ type: 'info', title: 'Stock Adjusted', message: `Stock updated by ${delta > 0 ? '+' : ''}${delta}.` });
+      showToast({
+        type: 'info',
+        title: 'Stock Adjusted',
+        message: `Stock updated by ${delta > 0 ? '+' : ''}${delta}${reason ? ` (${reason})` : ''}.`,
+      });
       onMutationSuccess?.();
     },
     [showToast, onMutationSuccess]

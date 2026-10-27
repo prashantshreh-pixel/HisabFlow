@@ -3,6 +3,7 @@ using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
+using HisabFlow.Infrastructure.Services;
 using System.Text;
 using System.Text.Json;
 
@@ -13,12 +14,14 @@ public class ExpenseRepository : IExpenseRepository
     private readonly IDbConnectionFactory _db;
     private readonly IAuditRepository _auditRepo;
     private readonly IReportRepository _reportRepo;
+    private readonly ICurrentUserService _currentUser;
 
-    public ExpenseRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo)
+    public ExpenseRepository(IDbConnectionFactory db, IAuditRepository auditRepo, IReportRepository reportRepo, ICurrentUserService? currentUser = null)
     {
         _db = db;
         _auditRepo = auditRepo;
         _reportRepo = reportRepo;
+        _currentUser = currentUser ?? new CurrentUserService(new Microsoft.AspNetCore.Http.HttpContextAccessor());
     }
 
     public async Task<PagedResult<ExpenseDto>> GetPagedAsync(
@@ -136,7 +139,7 @@ public class ExpenseRepository : IExpenseRepository
         {
             Id = id,
             Category = category,
-            Title = request.Title,
+            Title = request.Title.Trim(),
             Amount = request.Amount,
             PaymentMethod = paymentMethodCode,
             Particulars = request.Particulars,
@@ -150,7 +153,7 @@ public class ExpenseRepository : IExpenseRepository
             id.ToString(),
             "CREATE",
             JsonSerializer.Serialize(new { request.Title, Category = category, request.Amount, PaymentMethod = request.PaymentMethod }),
-            "System"
+            _currentUser.Username
         ), cancellationToken);
 
         _reportRepo.InvalidateCache();
@@ -165,7 +168,7 @@ public class ExpenseRepository : IExpenseRepository
         return new ExpenseDto(
             id,
             category,
-            request.Title,
+            request.Title.Trim(),
             request.Amount,
             paymentMethodStr,
             request.Particulars,
@@ -187,7 +190,7 @@ public class ExpenseRepository : IExpenseRepository
                 id.ToString(),
                 "DELETE",
                 "Expense record deleted.",
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepo.InvalidateCache();

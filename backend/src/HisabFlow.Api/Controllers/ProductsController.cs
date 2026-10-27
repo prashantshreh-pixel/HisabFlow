@@ -2,6 +2,7 @@ using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -11,6 +12,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
 public class ProductsController : ControllerBase
 {
     private readonly IProductRepository _productRepo;
@@ -26,21 +28,25 @@ public class ProductsController : ControllerBase
         _env = env;
     }
 
-    private static ProductDto MapToDto(Product p) => new(
-        p.Id,
-        p.Name,
-        p.Category,
-        p.Unit,
-        p.CostPrice,
-        p.SellingPrice,
-        p.StockQuantity,
-        p.MinStockAlert,
-        p.Barcode,
-        p.ImageUrl,
-        p.IsActive,
-        p.CreatedAt,
-        p.UpdatedAt
-    );
+    private ProductDto MapToDto(Product p)
+    {
+        var isCashier = User?.IsInRole("CASHIER") == true;
+        return new(
+            p.Id,
+            p.Name,
+            p.Category,
+            p.Unit,
+            isCashier ? 0m : p.CostPrice,
+            p.SellingPrice,
+            p.StockQuantity,
+            p.MinStockAlert,
+            p.Barcode,
+            p.ImageUrl,
+            p.IsActive,
+            p.CreatedAt,
+            p.UpdatedAt
+        );
+    }
 
     /// <summary>
     /// Retrieves active products with optional pagination and category/search filtering.
@@ -120,10 +126,12 @@ public class ProductsController : ControllerBase
     /// Retrieves stock movement audit trail ledger entries for a product.
     /// </summary>
     [HttpGet("{id:guid}/stock-movements")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IEnumerable<StockMovementDto>>> GetStockMovements(Guid id, [FromQuery] int limit = 50, CancellationToken cancellationToken = default)
     {
-        var movements = await _stockMovementRepo.GetMovementsByProductAsync(id, limit, cancellationToken);
+        var cappedLimit = Math.Clamp(limit, 1, 200);
+        var movements = await _stockMovementRepo.GetMovementsByProductAsync(id, cappedLimit, cancellationToken);
         return Ok(movements);
     }
 
@@ -131,21 +139,22 @@ public class ProductsController : ControllerBase
     /// Creates a new inventory product in the database.
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ProductDto>> Create([FromBody] CreateProductRequest request, CancellationToken cancellationToken = default)
     {
         var productEntity = new Product
         {
-            Name = request.Name,
-            Category = request.Category,
-            Unit = request.Unit,
+            Name = request.Name.Trim(),
+            Category = request.Category.Trim(),
+            Unit = request.Unit.Trim(),
             CostPrice = request.CostPrice,
             SellingPrice = request.SellingPrice,
             StockQuantity = request.StockQuantity,
             MinStockAlert = request.MinStockAlert,
-            Barcode = request.Barcode,
-            ImageUrl = request.ImageUrl,
+            Barcode = request.Barcode?.Trim(),
+            ImageUrl = request.ImageUrl?.Trim(),
         };
 
         var created = await _productRepo.CreateAsync(productEntity, cancellationToken);
@@ -153,9 +162,11 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
-    /// Uploads a product image file with strict size ceiling (5MB) and MIME type validation.
+    /// Uploads a product image file with strict size ceiling (5MB), MIME type check, and binary magic-byte verification.
     /// </summary>
     [HttpPost("upload-image")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
+    [RequestSizeLimit(MaxImageFileSizeBytes)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<object>> UploadImage(IFormFile file, CancellationToken cancellationToken = default)
@@ -183,6 +194,14 @@ public class ProductsController : ControllerBase
             return BadRequest(new { message = "Invalid file MIME content type." });
         }
 
+        await using var inputStream = file.OpenReadStream();
+        if (!await IsValidImageSignatureAsync(inputStream, ext, cancellationToken))
+        {
+            return BadRequest(new { message = "File binary header signature does not match a valid image file." });
+        }
+
+        inputStream.Position = 0;
+
         var webRoot = _env.WebRootPath;
         if (string.IsNullOrEmpty(webRoot))
         {
@@ -198,19 +217,42 @@ public class ProductsController : ControllerBase
         var uniqueFileName = $"prod_{Guid.NewGuid():N}{ext}";
         var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        await using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None))
         {
-            await file.CopyToAsync(stream, cancellationToken);
+            await inputStream.CopyToAsync(fileStream, cancellationToken);
         }
 
         var relativeUrl = $"/uploads/products/{uniqueFileName}";
         return Ok(new { imageUrl = relativeUrl });
     }
 
+    private static async Task<bool> IsValidImageSignatureAsync(Stream stream, string ext, CancellationToken cancellationToken)
+    {
+        var header = new byte[12];
+        var bytesRead = await stream.ReadAsync(header.AsMemory(0, header.Length), cancellationToken);
+        if (bytesRead < 4) return false;
+
+        return ext switch
+        {
+            ".jpg" or ".jpeg" => header[0] == 0xFF && header[1] == 0xD8 && header[2] == 0xFF,
+            ".png" => bytesRead >= 8 &&
+                      header[0] == 0x89 && header[1] == 0x50 && header[2] == 0x4E && header[3] == 0x47 &&
+                      header[4] == 0x0D && header[5] == 0x0A && header[6] == 0x1A && header[7] == 0x0A,
+            ".gif" => bytesRead >= 6 &&
+                      header[0] == 0x47 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x38 &&
+                      (header[4] == 0x37 || header[4] == 0x39) && header[5] == 0x61,
+            ".webp" => bytesRead >= 12 &&
+                       header[0] == 0x52 && header[1] == 0x49 && header[2] == 0x46 && header[3] == 0x46 &&
+                       header[8] == 0x57 && header[9] == 0x45 && header[10] == 0x42 && header[11] == 0x50,
+            _ => false
+        };
+    }
+
     /// <summary>
     /// Updates an existing product's pricing, category, stock alerts, or image URL with optimistic concurrency control.
     /// </summary>
     [HttpPut("{id}")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -228,15 +270,15 @@ public class ProductsController : ControllerBase
         var productEntity = new Product
         {
             Id = guidId,
-            Name = request.Name,
-            Category = request.Category,
-            Unit = request.Unit,
+            Name = request.Name.Trim(),
+            Category = request.Category.Trim(),
+            Unit = request.Unit.Trim(),
             CostPrice = request.CostPrice,
             SellingPrice = request.SellingPrice,
             StockQuantity = request.StockQuantity,
             MinStockAlert = request.MinStockAlert,
-            Barcode = request.Barcode,
-            ImageUrl = request.ImageUrl,
+            Barcode = request.Barcode?.Trim(),
+            ImageUrl = request.ImageUrl?.Trim(),
         };
 
         var success = await _productRepo.UpdateAsync(productEntity, expectedUpdatedAt, cancellationToken);
@@ -251,6 +293,7 @@ public class ProductsController : ControllerBase
     /// Adjusts the stock quantity of a product (+ to add stock, - for sales/adjustments).
     /// </summary>
     [HttpPost("{id}/adjust-stock")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<object>> AdjustStock(string id, [FromBody] StockAdjustmentPayload payload, CancellationToken cancellationToken = default)
@@ -273,6 +316,7 @@ public class ProductsController : ControllerBase
     /// Soft deletes a product from the inventory catalogue.
     /// </summary>
     [HttpDelete("{id}")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<object>> Delete(string id, CancellationToken cancellationToken = default)
@@ -289,10 +333,4 @@ public class ProductsController : ControllerBase
         }
         return Ok(new { message = "Product removed from inventory." });
     }
-}
-
-public class StockAdjustmentPayload
-{
-    public decimal QuantityChange { get; set; }
-    public string? Notes { get; set; }
 }

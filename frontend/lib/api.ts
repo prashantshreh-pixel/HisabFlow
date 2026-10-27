@@ -1,4 +1,6 @@
 import type { Expense, ExpenseSummary, ProfitLossReport, Sale, CreateSaleRequest, SalesSummary } from '@/types';
+import type { AuthUser } from '@/types/auth';
+import { getCurrentUser } from '@/lib/auth';
 
 export const getApiBase = (): string => {
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
@@ -34,8 +36,25 @@ async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKe
   let res: Response;
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
+  const currentUser = getCurrentUser();
+  const authHeaders: Record<string, string> = {};
+  if (currentUser) {
+    const token = currentUser.token || `hisabflow_dev_token_${(currentUser.role || 'admin').toLowerCase()}`;
+    authHeaders['Authorization'] = `Bearer ${token}`;
+    authHeaders['X-User-Id'] = currentUser.id || 'usr_admin';
+    authHeaders['X-User-Name'] = currentUser.username || 'admin';
+    authHeaders['X-User-Role'] = currentUser.role || 'ADMIN';
+  } else {
+    // Default retail POS credentials for local development & POS desktop mode
+    authHeaders['Authorization'] = 'Bearer hisabflow_dev_token_admin';
+    authHeaders['X-User-Id'] = 'usr_admin';
+    authHeaders['X-User-Name'] = 'admin';
+    authHeaders['X-User-Role'] = 'ADMIN';
+  }
+
   const headers: Record<string, string> = {
     ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    ...authHeaders,
     ...(options?.headers as Record<string, string>),
   };
 
@@ -51,7 +70,7 @@ async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKe
       ...options,
       headers,
     });
-  } catch (err: unknown) {
+  } catch {
     throw new Error(
       `Cannot connect to HisabFlow API server. Make sure ASP.NET Core backend is running at ${apiBase || 'http://localhost:5200'}.`
     );
@@ -89,6 +108,30 @@ async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKe
 
   return res.json();
 }
+
+// ---------- Auth API ----------
+
+export interface ApiLoginResponse {
+  user: AuthUser;
+  token: string;
+  expiresAt: string;
+}
+
+export const authApi = {
+  login: (username: string, password: string) =>
+    apiFetch<ApiLoginResponse>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    }),
+
+  verifyUnlock: (password: string) =>
+    apiFetch<{ verified: boolean }>('/api/v1/auth/verify-unlock', {
+      method: 'POST',
+      body: JSON.stringify({ password }),
+    }),
+
+  me: () => apiFetch<AuthUser>('/api/v1/auth/me'),
+};
 
 // ---------- Customer DTOs ----------
 
@@ -216,10 +259,10 @@ export const productsApi = {
       body: JSON.stringify(data),
     }),
 
-  adjustStock: (id: string, quantityChange: number) =>
+  adjustStock: (id: string, quantityChange: number, notes?: string) =>
     apiFetch<void>(`/api/v1/products/${id}/adjust-stock`, {
       method: 'POST',
-      body: JSON.stringify({ quantityChange }),
+      body: JSON.stringify({ quantityChange, notes }),
     }),
 
   delete: (id: string) =>
@@ -360,6 +403,7 @@ export const salesApi = {
     return apiFetch<SalesSummary>(`/api/v1/sales/summary${params}`);
   },
 };
+
 export interface ApiAuditLog {
   id: string;
   entityName: string;

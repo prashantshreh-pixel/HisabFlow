@@ -3,8 +3,8 @@ using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Interfaces;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
+using HisabFlow.Infrastructure.Services;
 using Microsoft.Data.SqlClient;
-using System.Data;
 
 namespace HisabFlow.Infrastructure.Repositories;
 
@@ -13,15 +13,21 @@ public class SaleRepository : ISaleRepository
     private readonly IDbConnectionFactory _db;
     private readonly IReportRepository _reportRepository;
     private readonly IAuditRepository _auditRepository;
+    private readonly ICurrentUserService _currentUser;
 
     private readonly record struct CustomerLockRecord(string Name, string Phone, decimal CurrentBalance, decimal CreditLimit, bool IsActive);
     private readonly record struct ProductLockRecord(Guid Id, string Name, string Unit, decimal SellingPrice, decimal CostPrice, decimal StockQuantity, bool IsActive);
 
-    public SaleRepository(IDbConnectionFactory db, IReportRepository reportRepository, IAuditRepository auditRepository)
+    public SaleRepository(
+        IDbConnectionFactory db,
+        IReportRepository reportRepository,
+        IAuditRepository auditRepository,
+        ICurrentUserService? currentUser = null)
     {
         _db = db;
         _reportRepository = reportRepository;
         _auditRepository = auditRepository;
+        _currentUser = currentUser ?? new CurrentUserService(new Microsoft.AspNetCore.Http.HttpContextAccessor());
     }
 
     public async Task<SaleDto> CreateSaleAsync(CreateSaleRequest request, CancellationToken cancellationToken = default)
@@ -70,33 +76,49 @@ public class SaleRepository : ISaleRepository
                 customerRecord = customer;
             }
 
-            // 2. Fetch authoritative Product Prices & Validate Stock Quantities
-            var itemDtos = new List<SaleItemDto>();
-            var insertItemParams = new List<object>();
-            var deductStockParams = new List<object>();
-            var stockMovementParams = new List<object>();
-            decimal computedSubtotal = 0m;
-
+            // 2. Lock Products in Deterministic Order (prevents deadlocks across concurrent POS checkouts)
+            //    and track running stock across duplicate product entries in the cart
             const string lockProductSql = @"
                 SELECT id AS Id, name AS Name, unit AS Unit, selling_price AS SellingPrice, cost_price AS CostPrice, stock_quantity AS StockQuantity, is_active AS IsActive
                 FROM products WITH (UPDLOCK, ROWLOCK)
                 WHERE id = @ProductId;";
 
-            foreach (var item in request.Items)
+            var lockedProducts = new Dictionary<Guid, ProductLockRecord>();
+            var runningStockByProduct = new Dictionary<Guid, decimal>();
+
+            foreach (var productId in request.Items.Select(i => i.ProductId).Distinct().OrderBy(id => id))
             {
                 var dbProduct = await conn.QuerySingleOrDefaultAsync<ProductLockRecord>(
-                    new CommandDefinition(lockProductSql, new { item.ProductId }, tx, cancellationToken: cancellationToken));
+                    new CommandDefinition(lockProductSql, new { ProductId = productId }, tx, cancellationToken: cancellationToken));
 
                 if (dbProduct.Equals(default(ProductLockRecord)) || !dbProduct.IsActive)
                 {
-                    throw new InvalidOperationException($"Product with ID '{item.ProductId}' does not exist or is inactive.");
+                    throw new InvalidOperationException($"Product with ID '{productId}' does not exist or is inactive.");
                 }
 
-                if (dbProduct.StockQuantity < item.Quantity)
+                lockedProducts[productId] = dbProduct;
+                runningStockByProduct[productId] = dbProduct.StockQuantity;
+            }
+
+            var itemDtos = new List<SaleItemDto>(request.Items.Count);
+            var insertItemParams = new List<object>(request.Items.Count);
+            var deductStockParams = new List<object>(request.Items.Count);
+            var stockMovementParams = new List<object>(request.Items.Count);
+            decimal computedSubtotal = 0m;
+
+            foreach (var item in request.Items)
+            {
+                var dbProduct = lockedProducts[item.ProductId];
+                var availableStock = runningStockByProduct[item.ProductId];
+
+                if (availableStock < item.Quantity)
                 {
                     throw new InvalidOperationException(
-                        $"Insufficient stock for product '{dbProduct.Name}'. Available stock: {dbProduct.StockQuantity} {dbProduct.Unit}, Requested: {item.Quantity} {dbProduct.Unit}.");
+                        $"Insufficient stock for product '{dbProduct.Name}'. Available stock: {availableStock} {dbProduct.Unit}, Requested: {item.Quantity} {dbProduct.Unit}.");
                 }
+
+                var newStock = availableStock - item.Quantity;
+                runningStockByProduct[item.ProductId] = newStock;
 
                 var itemId = Guid.NewGuid();
                 decimal unitPrice = dbProduct.SellingPrice;
@@ -125,7 +147,6 @@ public class SaleRepository : ISaleRepository
                     item.ProductId
                 });
 
-                decimal newStock = dbProduct.StockQuantity - item.Quantity;
                 stockMovementParams.Add(new
                 {
                     Id = Guid.NewGuid(),
@@ -264,7 +285,7 @@ public class SaleRepository : ISaleRepository
                 saleId.ToString(),
                 "CREATE",
                 System.Text.Json.JsonSerializer.Serialize(new { InvoiceNumber = invoiceNumber, TotalAmount = totalAmount, PaymentMethod = request.PaymentMethod }),
-                "System"
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepository.InvalidateCache();
@@ -524,12 +545,8 @@ public class SaleRepository : ISaleRepository
                 sale_date AS SaleDate,
                 created_at AS CreatedAt
             FROM sales
-            WHERE id = @Id;";
+            WHERE id = @Id;
 
-        var s = await conn.QuerySingleOrDefaultAsync<SaleHeaderRecord>(new CommandDefinition(saleSql, new { Id = id }, cancellationToken: cancellationToken));
-        if (s == null) return null;
-
-        const string itemsSql = @"
             SELECT 
                 id AS Id,
                 sale_id AS SaleId,
@@ -542,9 +559,13 @@ public class SaleRepository : ISaleRepository
                 subtotal AS Subtotal,
                 created_at AS CreatedAt
             FROM sale_items
-            WHERE sale_id = @SaleId;";
+            WHERE sale_id = @Id;";
 
-        var items = (await conn.QueryAsync<SaleItemDto>(new CommandDefinition(itemsSql, new { SaleId = id }, cancellationToken: cancellationToken))).ToList();
+        using var multi = await conn.QueryMultipleAsync(new CommandDefinition(saleSql, new { Id = id }, cancellationToken: cancellationToken));
+        var s = await multi.ReadSingleOrDefaultAsync<SaleHeaderRecord>();
+        if (s == null) return null;
+
+        var items = (await multi.ReadAsync<SaleItemDto>()).ToList();
 
         return new SaleDto(
             s.Id,
@@ -658,19 +679,17 @@ public class SaleRepository : ISaleRepository
                 COUNT(*) AS TotalBillsCount,
                 COALESCE(SUM(cash_paid), 0) AS CashSalesAmount,
                 COALESCE(SUM(digital_paid), 0) AS DigitalSalesAmount,
-                COALESCE(SUM(credit_paid), 0) AS CreditSalesAmount
+                COALESCE(SUM(credit_paid), 0) AS CreditSalesAmount,
+                (
+                    SELECT COALESCE(SUM(si.quantity), 0)
+                    FROM sale_items si
+                    INNER JOIN sales s2 ON si.sale_id = s2.id
+                    WHERE s2.sale_date >= @StartOfDay AND s2.sale_date < @NextDay AND s2.is_refunded = 0
+                ) AS TotalItemsSold
             FROM sales
             WHERE sale_date >= @StartOfDay AND sale_date < @NextDay AND is_refunded = 0;";
 
         var summary = await conn.QueryFirstOrDefaultAsync<dynamic>(new CommandDefinition(summarySql, new { StartOfDay = startOfDay, NextDay = nextDay }, cancellationToken: cancellationToken));
-
-        const string itemsCountSql = @"
-            SELECT COALESCE(SUM(si.quantity), 0)
-            FROM sale_items si
-            INNER JOIN sales s ON si.sale_id = s.id
-            WHERE s.sale_date >= @StartOfDay AND s.sale_date < @NextDay AND s.is_refunded = 0;";
-
-        int totalItemsSold = (int)(await conn.ExecuteScalarAsync<decimal?>(new CommandDefinition(itemsCountSql, new { StartOfDay = startOfDay, NextDay = nextDay }, cancellationToken: cancellationToken)) ?? 0);
 
         return new SalesSummaryDto(
             targetDate,
@@ -679,7 +698,7 @@ public class SaleRepository : ISaleRepository
             summary?.CashSalesAmount != null ? (decimal)summary.CashSalesAmount : 0,
             summary?.DigitalSalesAmount != null ? (decimal)summary.DigitalSalesAmount : 0,
             summary?.CreditSalesAmount != null ? (decimal)summary.CreditSalesAmount : 0,
-            totalItemsSold
+            summary?.TotalItemsSold != null ? (int)(decimal)summary.TotalItemsSold : 0
         );
     }
 
@@ -690,34 +709,64 @@ public class SaleRepository : ISaleRepository
 
         try
         {
-            // Atomically Lock Sale Record WITH (UPDLOCK, ROWLOCK) inside active transaction
+            // Atomically Lock Sale Record WITH (UPDLOCK, ROWLOCK) and fetch items inside the SAME active transaction
             const string lockSaleSql = @"
-                SELECT id AS Id, invoice_number AS InvoiceNumber, customer_id AS CustomerId, credit_paid AS CreditPaid, is_refunded AS IsRefunded, notes AS Notes
+                SELECT 
+                    id AS Id,
+                    invoice_number AS InvoiceNumber,
+                    customer_id AS CustomerId,
+                    customer_name AS CustomerName,
+                    customer_phone AS CustomerPhone,
+                    subtotal AS Subtotal,
+                    discount_amount AS DiscountAmount,
+                    tax_amount AS TaxAmount,
+                    total_amount AS TotalAmount,
+                    paid_amount AS PaidAmount,
+                    change_amount AS ChangeAmount,
+                    payment_method AS PaymentMethod,
+                    cash_paid AS CashPaid,
+                    digital_paid AS DigitalPaid,
+                    credit_paid AS CreditPaid,
+                    notes AS Notes,
+                    is_refunded AS IsRefunded,
+                    refunded_at AS RefundedAt,
+                    sale_date AS SaleDate,
+                    created_at AS CreatedAt
                 FROM sales WITH (UPDLOCK, ROWLOCK)
-                WHERE id = @SaleId;";
+                WHERE id = @SaleId;
 
-            var lockedSale = await conn.QuerySingleOrDefaultAsync<dynamic>(new CommandDefinition(lockSaleSql, new { SaleId = saleId }, tx, cancellationToken: cancellationToken));
+                SELECT 
+                    id AS Id,
+                    sale_id AS SaleId,
+                    product_id AS ProductId,
+                    product_name AS ProductName,
+                    unit AS Unit,
+                    unit_price AS UnitPrice,
+                    cost_price AS CostPrice,
+                    quantity AS Quantity,
+                    subtotal AS Subtotal,
+                    created_at AS CreatedAt
+                FROM sale_items
+                WHERE sale_id = @SaleId;";
+
+            using var multi = await conn.QueryMultipleAsync(new CommandDefinition(lockSaleSql, new { SaleId = saleId }, tx, cancellationToken: cancellationToken));
+            var lockedSale = await multi.ReadSingleOrDefaultAsync<SaleHeaderRecord>();
             if (lockedSale == null)
             {
                 throw new KeyNotFoundException($"Sale with ID '{saleId}' was not found.");
             }
 
-            if ((bool)lockedSale.IsRefunded)
+            if (lockedSale.IsRefunded)
             {
                 throw new InvalidOperationException($"Sale '{lockedSale.InvoiceNumber}' has already been refunded.");
             }
 
-            var existingSale = await GetSaleByIdAsync(saleId, cancellationToken);
-            if (existingSale == null)
-            {
-                throw new KeyNotFoundException($"Sale with ID '{saleId}' was not found.");
-            }
+            var items = (await multi.ReadAsync<SaleItemDto>()).ToList();
 
             var now = DateTime.UtcNow;
-            var existingNotes = (string?)lockedSale.Notes;
-            var updatedNotes = string.IsNullOrWhiteSpace(existingNotes)
+            var updatedNotes = string.IsNullOrWhiteSpace(lockedSale.Notes)
                 ? $"[REFUNDED] Reason: {reason}"
-                : $"{existingNotes} | [REFUNDED] Reason: {reason}";
+                : $"{lockedSale.Notes} | [REFUNDED] Reason: {reason}";
 
             const string updateSaleSql = @"
                 UPDATE sales
@@ -729,15 +778,14 @@ public class SaleRepository : ISaleRepository
 
             await conn.ExecuteAsync(new CommandDefinition(updateSaleSql, new { SaleId = saleId, Notes = updatedNotes, Now = now }, tx, cancellationToken: cancellationToken));
 
-            // Restore Product Inventory Stock & Record Stock Movements
-            foreach (var item in existingSale.Items)
+            // Restore Product Inventory Stock & Record Stock Movements in deterministic ProductId order
+            foreach (var item in items.OrderBy(i => i.ProductId))
             {
                 const string updateStockSql = @"
                     UPDATE products
                     SET stock_quantity = stock_quantity + @Quantity, updated_at = @Now
-                    WHERE id = @ProductId;
-
-                    SELECT stock_quantity FROM products WHERE id = @ProductId;";
+                    OUTPUT INSERTED.stock_quantity
+                    WHERE id = @ProductId;";
 
                 var newStock = await conn.ExecuteScalarAsync<decimal>(
                     new CommandDefinition(updateStockSql, new { ProductId = item.ProductId, Quantity = item.Quantity, Now = now }, tx, cancellationToken: cancellationToken));
@@ -752,23 +800,21 @@ public class SaleRepository : ISaleRepository
                     item.ProductId,
                     QuantityChange = item.Quantity,
                     StockAfter = newStock,
-                    ReferenceId = existingSale.InvoiceNumber,
+                    ReferenceId = lockedSale.InvoiceNumber,
                     Notes = $"Sale Refund: {reason}",
                     CreatedAt = now
                 }, tx, cancellationToken: cancellationToken));
             }
 
             // If Credit was used, reverse customer balance
-            decimal creditPaid = (decimal)lockedSale.CreditPaid;
-            Guid? customerId = (Guid?)lockedSale.CustomerId;
-            if (creditPaid > 0 && customerId.HasValue)
+            if (lockedSale.CreditPaid > 0 && lockedSale.CustomerId.HasValue)
             {
                 const string getCustSql = "SELECT current_balance FROM customers WITH (UPDLOCK, ROWLOCK) WHERE id = @CustomerId;";
-                var currentBalance = await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(getCustSql, new { CustomerId = customerId.Value }, tx, cancellationToken: cancellationToken));
-                var newBalance = Math.Max(0, currentBalance - creditPaid);
+                var currentBalance = await conn.ExecuteScalarAsync<decimal>(new CommandDefinition(getCustSql, new { CustomerId = lockedSale.CustomerId.Value }, tx, cancellationToken: cancellationToken));
+                var newBalance = Math.Max(0, currentBalance - lockedSale.CreditPaid);
 
                 const string updateCustSql = "UPDATE customers SET current_balance = @NewBalance, updated_at = @Now WHERE id = @CustomerId;";
-                await conn.ExecuteAsync(new CommandDefinition(updateCustSql, new { NewBalance = newBalance, Now = now, CustomerId = customerId.Value }, tx, cancellationToken: cancellationToken));
+                await conn.ExecuteAsync(new CommandDefinition(updateCustSql, new { NewBalance = newBalance, Now = now, CustomerId = lockedSale.CustomerId.Value }, tx, cancellationToken: cancellationToken));
 
                 const string ledgerSql = @"
                     INSERT INTO customer_ledger_entries (id, customer_id, type, amount, balance_after, payment_method, particulars, bill_number, transaction_date, created_at)
@@ -777,11 +823,11 @@ public class SaleRepository : ISaleRepository
                 await conn.ExecuteAsync(new CommandDefinition(ledgerSql, new
                 {
                     Id = Guid.NewGuid(),
-                    CustomerId = customerId.Value,
-                    Amount = creditPaid,
+                    CustomerId = lockedSale.CustomerId.Value,
+                    Amount = lockedSale.CreditPaid,
                     BalanceAfter = newBalance,
-                    Particulars = $"Refund Adjustment - {existingSale.InvoiceNumber}",
-                    BillNumber = existingSale.InvoiceNumber,
+                    Particulars = $"Refund Adjustment - {lockedSale.InvoiceNumber}",
+                    BillNumber = lockedSale.InvoiceNumber,
                     TransactionDate = now,
                     CreatedAt = now
                 }, tx, cancellationToken: cancellationToken));
@@ -793,13 +839,35 @@ public class SaleRepository : ISaleRepository
                 "Sale",
                 saleId.ToString(),
                 "REFUND",
-                System.Text.Json.JsonSerializer.Serialize(new { InvoiceNumber = existingSale.InvoiceNumber, Reason = reason }),
-                "System"
+                System.Text.Json.JsonSerializer.Serialize(new { InvoiceNumber = lockedSale.InvoiceNumber, Reason = reason }),
+                _currentUser.Username
             ), cancellationToken);
 
             _reportRepository.InvalidateCache();
 
-            return (await GetSaleByIdAsync(saleId, cancellationToken))!;
+            return new SaleDto(
+                lockedSale.Id,
+                lockedSale.InvoiceNumber,
+                lockedSale.CustomerId,
+                lockedSale.CustomerName,
+                lockedSale.CustomerPhone,
+                lockedSale.Subtotal,
+                lockedSale.DiscountAmount,
+                lockedSale.TaxAmount,
+                lockedSale.TotalAmount,
+                lockedSale.PaidAmount,
+                lockedSale.ChangeAmount,
+                lockedSale.PaymentMethod,
+                lockedSale.CashPaid,
+                lockedSale.DigitalPaid,
+                lockedSale.CreditPaid,
+                updatedNotes,
+                true,
+                now,
+                lockedSale.SaleDate,
+                lockedSale.CreatedAt,
+                items
+            );
         }
         catch
         {

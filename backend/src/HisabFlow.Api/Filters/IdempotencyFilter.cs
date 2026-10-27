@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace HisabFlow.Api.Filters;
 
@@ -13,6 +14,11 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
 {
     private const string IdempotencyHeaderName = "Idempotency-Key";
     private const string AlternateHeaderName = "X-Idempotency-Key";
+
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new JsonStringEnumConverter() }
+    };
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -87,7 +93,7 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
             }
             else if (executedContext.Result is ObjectResult objectResult && objectResult.StatusCode >= 200 && objectResult.StatusCode < 300)
             {
-                var responseJson = JsonSerializer.Serialize(objectResult.Value);
+                var responseJson = JsonSerializer.Serialize(objectResult.Value, WebJsonOptions);
                 var statusCode = objectResult.StatusCode ?? 200;
                 await idempotencyService.CompleteReservationAsync(
                     idempotencyKey,

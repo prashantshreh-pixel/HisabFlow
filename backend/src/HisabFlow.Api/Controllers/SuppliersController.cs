@@ -2,6 +2,7 @@ using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -11,6 +12,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "ADMIN,MANAGER")]
 public class SuppliersController : ControllerBase
 {
     private readonly ISupplierRepository _supplierRepo;
@@ -88,7 +90,7 @@ public class SuppliersController : ControllerBase
         [FromQuery] DateTime? expectedUpdatedAt = null,
         CancellationToken cancellationToken = default)
     {
-        var updated = await _supplierRepo.UpdateAsync(id, request.Name, request.Phone, request.CompanyName, request.Address, expectedUpdatedAt, cancellationToken);
+        var updated = await _supplierRepo.UpdateAsync(id, request.Name.Trim(), request.Phone.Trim(), request.CompanyName?.Trim(), request.Address?.Trim(), expectedUpdatedAt, cancellationToken);
         if (updated == null) throw new KeyNotFoundException($"Supplier '{id}' was not found or was modified by another user.");
         return Ok(MapToDto(updated));
     }
@@ -147,19 +149,3 @@ public class SuppliersController : ControllerBase
         return Ok(summary);
     }
 }
-
-public record CreateSupplierApiRequest(
-    string Name,
-    string Phone,
-    string? CompanyName,
-    string? Address,
-    decimal InitialBalance = 0,
-    string? InitialNote = null
-);
-
-public record UpdateSupplierApiRequest(
-    string Name,
-    string Phone,
-    string? CompanyName,
-    string? Address
-);

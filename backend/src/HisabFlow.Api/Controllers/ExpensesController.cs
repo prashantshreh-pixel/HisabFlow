@@ -1,5 +1,7 @@
+using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -9,6 +11,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/[controller]")]
+[Authorize(Roles = "ADMIN,MANAGER")]
 public class ExpensesController : ControllerBase
 {
     private readonly IExpenseRepository _expenseRepo;
@@ -66,9 +69,10 @@ public class ExpensesController : ControllerBase
     }
 
     /// <summary>
-    /// Records a new store expense transaction.
+    /// Records a new store expense transaction with idempotency protection.
     /// </summary>
     [HttpPost]
+    [Idempotent]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<ExpenseDto>> Create(

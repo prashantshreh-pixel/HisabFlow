@@ -2,6 +2,7 @@ using HisabFlow.Api.Filters;
 using HisabFlow.Application.Abstractions.Repositories;
 using HisabFlow.Application.Common.Models;
 using HisabFlow.Application.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace HisabFlow.Api.Controllers;
@@ -11,6 +12,7 @@ namespace HisabFlow.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/v1/customers")]
+[Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
 public class CustomersController : ControllerBase
 {
     private readonly ICustomerRepository _customerRepository;
@@ -72,6 +74,7 @@ public class CustomersController : ControllerBase
     /// Creates a new customer record in the database atomically within a transaction.
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CustomerDto>> Create([FromBody] CreateCustomerRequest request, CancellationToken cancellationToken = default)
@@ -129,6 +132,7 @@ public class CustomersController : ControllerBase
     /// Updates an existing customer's profile information with optimistic concurrency control.
     /// </summary>
     [HttpPut("{id:guid}")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -147,6 +151,7 @@ public class CustomersController : ControllerBase
     /// Soft deletes a customer profile preserving audit trail and FK integrity.
     /// </summary>
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "ADMIN,MANAGER")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(Guid id, CancellationToken cancellationToken = default)
