@@ -1,0 +1,36 @@
+{
+  "name": "HisabFlow — Retail POS & Digital Khata",
+  "short_name": "HisabFlow",
+  "description": "Fast, offline-resilient digital khata credit ledger, inventory tracking, and point of sale terminal.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "POS Billing",
+      "short_name": "POS",
+      "description": "Open Point of Sale Terminal",
+      "url": "/?tab=POS",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Customer Khata",
+      "short_name": "Khata",
+      "description": "Manage Customer Credit Ledger",
+      "url": "/?tab=KHATA",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}

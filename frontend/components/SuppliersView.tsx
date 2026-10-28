@@ -151,8 +151,86 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         </span>
       </div>
 
-      {/* Supplier Grid / Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      {/* Mobile Supplier Cards */}
+      <div className="md:hidden space-y-3">
+        {filteredSuppliers.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
+            <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-300">No wholesalers found</p>
+          </div>
+        ) : (
+          filteredSuppliers.map((supplier) => (
+            <div
+              key={supplier.id}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => onSelectSupplier(supplier.id)}
+                  className="flex items-center gap-3 text-left min-w-0"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center font-black text-sm shrink-0">
+                    {supplier.name.substring(0, 1).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-slate-100 truncate">
+                      {supplier.name}
+                    </div>
+                    <div className="text-xs text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                      <Phone className="w-3 h-3 text-slate-500" />
+                      <span>{supplier.phone}</span>
+                    </div>
+                  </div>
+                </button>
+
+                <div className="text-right shrink-0">
+                  <span
+                    className={`text-sm font-bold font-mono block ${
+                      supplier.currentBalance > 0 ? 'text-rose-400' : 'text-slate-400'
+                    }`}
+                  >
+                    Rs. {supplier.currentBalance.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-slate-500">Payable</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                <button
+                  type="button"
+                  onClick={() => onOpenRecordTransaction(supplier.id, 'STOCK_PURCHASE')}
+                  className="flex-1 py-2 px-2.5 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 font-semibold text-xs border border-rose-800/80 rounded-xl flex items-center justify-center gap-1"
+                >
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <span>Purchase</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onOpenRecordTransaction(supplier.id, 'PAYMENT_GIVEN')}
+                  className="flex-1 py-2 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 font-semibold text-xs border border-emerald-800/80 rounded-xl flex items-center justify-center gap-1"
+                >
+                  <ArrowDownLeft className="w-3.5 h-3.5" />
+                  <span>Pay</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onSelectSupplier(supplier.id)}
+                  className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 rounded-xl flex items-center justify-center gap-1"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Ledger</span>
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Supplier Table */}
+      <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">

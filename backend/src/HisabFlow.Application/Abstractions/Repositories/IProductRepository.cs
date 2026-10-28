@@ -8,6 +8,7 @@ public interface IProductRepository
     Task<PagedResult<Product>> GetPagedAsync(int page, int pageSize, string? category, string? search, CancellationToken cancellationToken);
     Task<IEnumerable<Product>> GetAllAsync(CancellationToken cancellationToken);
     Task<Product?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+    Task<Product?> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default);
     Task<Product> CreateAsync(Product product, CancellationToken cancellationToken);
     Task<bool> UpdateAsync(Product product, DateTime? expectedUpdatedAt, CancellationToken cancellationToken);
     Task<bool> AdjustStockAsync(Guid id, decimal quantityChange, string? notes = null, CancellationToken cancellationToken = default);

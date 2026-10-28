@@ -1,6 +1,7 @@
 // CSV & Data Export Utility for HisabFlow
 
 import { CreditLedgerEntry, SupplierLedgerEntry } from '../types';
+import { parseApiDate } from './utils';
 
 /**
  * Sanitizes a CSV cell string against spreadsheet formula injection (CSV Injection)
@@ -66,7 +67,7 @@ export function exportCustomerStatementCSV(customerName: string, ledger: CreditL
   const rows = ledger.map((entry) => {
     const isPurchase = entry.type === 'CREDIT_PURCHASE';
     return [
-      new Date(entry.date).toLocaleString(),
+      parseApiDate(entry.date).toLocaleString(),
       entry.billNumber || '-',
       isPurchase ? 'Udhaar Purchase' : 'Repayment',
       entry.paymentMethod || '-',
@@ -89,7 +90,7 @@ export function exportSupplierStatementCSV(supplierName: string, ledger: Supplie
   const rows = ledger.map((entry) => {
     const isPurchase = entry.type === 'STOCK_PURCHASE';
     return [
-      new Date(entry.date).toLocaleString(),
+      parseApiDate(entry.date).toLocaleString(),
       entry.invoiceNumber || '-',
       isPurchase ? 'Stock Purchase' : 'Payment Given',
       entry.paymentMethod || '-',

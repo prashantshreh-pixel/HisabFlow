@@ -37,6 +37,8 @@ export function useProductDomain({ showToast, onMutationSuccess }: UseProductDom
         minStockAlert: data.minStockAlert,
         barcode: data.barcode || undefined,
         imageUrl: data.imageUrl || undefined,
+        brand: data.brand || undefined,
+        description: data.description || undefined,
       });
 
       const newProduct = mapApiProductToUI(created);
@@ -64,6 +66,8 @@ export function useProductDomain({ showToast, onMutationSuccess }: UseProductDom
         minStockAlert: updates.minStockAlert ?? existing.minStockAlert,
         barcode: updates.barcode ?? existing.barcode,
         imageUrl: updates.imageUrl ?? existing.imageUrl,
+        brand: updates.brand ?? existing.brand,
+        description: updates.description ?? existing.description,
       });
 
       setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p)));

@@ -71,6 +71,8 @@ public class ProductRepository : IProductRepository
                 min_stock_alert AS MinStockAlert,
                 barcode AS Barcode,
                 image_url AS ImageUrl,
+                brand AS Brand,
+                description AS Description,
                 is_active AS IsActive,
                 created_at AS CreatedAt,
                 updated_at AS UpdatedAt
@@ -102,6 +104,8 @@ public class ProductRepository : IProductRepository
                 min_stock_alert AS MinStockAlert,
                 barcode AS Barcode,
                 image_url AS ImageUrl,
+                brand AS Brand,
+                description AS Description,
                 is_active AS IsActive,
                 created_at AS CreatedAt,
                 updated_at AS UpdatedAt
@@ -127,6 +131,8 @@ public class ProductRepository : IProductRepository
                 min_stock_alert AS MinStockAlert,
                 barcode AS Barcode,
                 image_url AS ImageUrl,
+                brand AS Brand,
+                description AS Description,
                 is_active AS IsActive,
                 created_at AS CreatedAt,
                 updated_at AS UpdatedAt
@@ -134,6 +140,34 @@ public class ProductRepository : IProductRepository
             WHERE id = @Id AND is_active = 1;";
 
         return await conn.QuerySingleOrDefaultAsync<Product>(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+    }
+
+    public async Task<Product?> GetByBarcodeAsync(string barcode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(barcode)) return null;
+
+        using var conn = await _db.CreateConnectionAsync(cancellationToken);
+        const string sql = @"
+            SELECT 
+                id AS Id,
+                name AS Name,
+                category AS Category,
+                unit AS Unit,
+                cost_price AS CostPrice,
+                selling_price AS SellingPrice,
+                stock_quantity AS StockQuantity,
+                min_stock_alert AS MinStockAlert,
+                barcode AS Barcode,
+                image_url AS ImageUrl,
+                brand AS Brand,
+                description AS Description,
+                is_active AS IsActive,
+                created_at AS CreatedAt,
+                updated_at AS UpdatedAt
+            FROM products
+            WHERE barcode = @Barcode AND is_active = 1;";
+
+        return await conn.QueryFirstOrDefaultAsync<Product>(new CommandDefinition(sql, new { Barcode = barcode.Trim() }, cancellationToken: cancellationToken));
     }
 
     public async Task<Product> CreateAsync(Product product, CancellationToken cancellationToken = default)
@@ -149,10 +183,10 @@ public class ProductRepository : IProductRepository
         const string sql = @"
             INSERT INTO products (
                 id, name, category, unit, cost_price, selling_price,
-                stock_quantity, min_stock_alert, barcode, image_url, is_active, created_at, updated_at
+                stock_quantity, min_stock_alert, barcode, image_url, brand, description, is_active, created_at, updated_at
             ) VALUES (
                 @Id, @Name, @Category, @Unit, @CostPrice, @SellingPrice,
-                @StockQuantity, @MinStockAlert, @Barcode, @ImageUrl, @IsActive, @CreatedAt, @UpdatedAt
+                @StockQuantity, @MinStockAlert, @Barcode, @ImageUrl, @Brand, @Description, @IsActive, @CreatedAt, @UpdatedAt
             );";
 
         await conn.ExecuteAsync(new CommandDefinition(sql, product, cancellationToken: cancellationToken));
@@ -184,6 +218,8 @@ public class ProductRepository : IProductRepository
                 min_stock_alert = @MinStockAlert,
                 barcode = @Barcode,
                 image_url = @ImageUrl,
+                brand = @Brand,
+                description = @Description,
                 updated_at = @UpdatedAt
             WHERE id = @Id 
               AND is_active = 1
@@ -201,6 +237,8 @@ public class ProductRepository : IProductRepository
             product.MinStockAlert,
             product.Barcode,
             product.ImageUrl,
+            product.Brand,
+            product.Description,
             product.UpdatedAt,
             ExpectedUpdatedAt = expectedUpdatedAt
         }, cancellationToken: cancellationToken));

@@ -5,6 +5,7 @@ import { useKhata } from '@/context/KhataContext';
 import { SupplierLedgerEntry } from '@/types';
 import { X, Truck, Phone, MapPin, Building, ArrowUpRight, ArrowDownLeft, Calendar, FileText, Printer } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
+import { formatLocalDate } from '@/lib/utils';
 
 interface SupplierStatementModalProps {
   supplierId: string | null;
@@ -131,11 +132,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             ) : (
               <div className="space-y-3">
                 {entries.map((entry) => {
-                  const entryDate = new Date(entry.date).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  });
+                  const entryDate = formatLocalDate(entry.date);
 
                   return (
                     <div

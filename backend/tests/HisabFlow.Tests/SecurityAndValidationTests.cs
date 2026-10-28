@@ -81,6 +81,28 @@ public class SecurityAndValidationTests
         validator.Validate(valid).IsValid.Should().BeTrue();
     }
 
+    [Fact]
+    public void CreateProductRequestValidator_ShouldAcceptBrandAndDescription()
+    {
+        var validator = new CreateProductRequestValidator();
+        var product = new CreateProductRequest(
+            "Pringles Cheesy Cheese 42g",
+            "Packaged Foods & Snacks",
+            "pcs",
+            100m,
+            135m,
+            24,
+            5,
+            "8886467105814",
+            "https://example.com/pringles.jpg",
+            "Pringles",
+            "Potato crisps with cheese flavor"
+        );
+
+        var result = validator.Validate(product);
+        result.IsValid.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData(0, false)]
     [InlineData(2_000_000, false)]

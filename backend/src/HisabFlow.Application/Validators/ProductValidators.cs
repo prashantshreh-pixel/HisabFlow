@@ -38,6 +38,14 @@ public class CreateProductRequestValidator : AbstractValidator<CreateProductRequ
         RuleFor(x => x.ImageUrl)
             .MaximumLength(500).WithMessage("Image URL cannot exceed 500 characters.")
             .When(x => !string.IsNullOrEmpty(x.ImageUrl));
+
+        RuleFor(x => x.Brand)
+            .MaximumLength(100).WithMessage("Brand cannot exceed 100 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Brand));
+
+        RuleFor(x => x.Description)
+            .MaximumLength(500).WithMessage("Description cannot exceed 500 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Description));
     }
 }
 
@@ -76,6 +84,14 @@ public class UpdateProductRequestValidator : AbstractValidator<UpdateProductRequ
         RuleFor(x => x.ImageUrl)
             .MaximumLength(500).WithMessage("Image URL cannot exceed 500 characters.")
             .When(x => !string.IsNullOrEmpty(x.ImageUrl));
+
+        RuleFor(x => x.Brand)
+            .MaximumLength(100).WithMessage("Brand cannot exceed 100 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Brand));
+
+        RuleFor(x => x.Description)
+            .MaximumLength(500).WithMessage("Description cannot exceed 500 characters.")
+            .When(x => !string.IsNullOrEmpty(x.Description));
     }
 }
 

@@ -22,6 +22,7 @@ import {
 import { CreditLedgerEntry } from '@/types';
 import { PageLoader } from '@/components/Loader';
 import { exportCustomerStatementCSV } from '@/lib/exportUtils';
+import { formatLocalDate, formatLocalTime } from '@/lib/utils';
 
 interface CustomerStatementModalProps {
   customerId: string | null;
@@ -348,16 +349,8 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     <tbody className="divide-y divide-slate-800/60">
                       {ledger.map((entry) => {
                         const isPurchase = entry.type === 'CREDIT_PURCHASE';
-                        const dateObj = new Date(entry.date);
-                        const formattedDate = dateObj.toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        });
-                        const formattedTime = dateObj.toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        });
+                        const formattedDate = formatLocalDate(entry.date);
+                        const formattedTime = formatLocalTime(entry.date);
 
                         return (
                           <tr key={entry.id} className="hover:bg-slate-800/40 transition-colors">
@@ -465,11 +458,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           <tbody>
             {ledger.map((entry) => {
               const isPurchase = entry.type === 'CREDIT_PURCHASE';
-              const formattedDate = new Date(entry.date).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              });
+              const formattedDate = formatLocalDate(entry.date);
 
               return (
                 <tr key={entry.id} style={{ borderBottom: '1px solid #e5e7eb' }}>

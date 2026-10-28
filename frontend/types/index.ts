@@ -50,6 +50,8 @@ export interface Product {
   minStockAlert: number;
   barcode?: string;
   imageUrl?: string;
+  brand?: string;
+  description?: string;
   updatedAt: string;
 }
 

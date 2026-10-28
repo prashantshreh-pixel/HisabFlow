@@ -13,7 +13,9 @@ public record ProductDto(
     string? ImageUrl,
     bool IsActive,
     DateTime CreatedAt,
-    DateTime UpdatedAt
+    DateTime UpdatedAt,
+    string? Brand = null,
+    string? Description = null
 );
 
 public record CreateProductRequest(
@@ -25,7 +27,9 @@ public record CreateProductRequest(
     decimal StockQuantity,
     decimal MinStockAlert,
     string? Barcode,
-    string? ImageUrl
+    string? ImageUrl,
+    string? Brand = null,
+    string? Description = null
 );
 
 public record UpdateProductRequest(
@@ -37,7 +41,28 @@ public record UpdateProductRequest(
     decimal StockQuantity,
     decimal MinStockAlert,
     string? Barcode,
-    string? ImageUrl
+    string? ImageUrl,
+    string? Brand = null,
+    string? Description = null
+);
+
+public record BarcodeEnrichmentData(
+    string? Name,
+    string? Brand,
+    string? Barcode,
+    string? Category,
+    string? Unit,
+    string? ImageUrl,
+    string? NetWeight,
+    string? Description
+);
+
+public record BarcodeLookupResponse(
+    bool Found,
+    string Source, // "LOCAL_INVENTORY" | "OPEN_CATALOG" | "NONE"
+    ProductDto? Product,
+    BarcodeEnrichmentData? Data,
+    string Message
 );
 
 public class StockAdjustmentPayload

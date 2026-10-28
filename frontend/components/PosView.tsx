@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
-import { salesApi } from '@/lib/api';
+import { salesApi, getImageUrl } from '@/lib/api';
+import { parseApiDate } from '@/lib/utils';
 import { Product, Customer, CartItem, Sale, SalesSummary } from '@/types';
 import {
   ScanBarcode,
@@ -31,6 +32,7 @@ import {
   AlertCircle,
   Keyboard,
   Store,
+  X,
 } from 'lucide-react';
 import { ButtonSpinner, PageLoader } from '@/components/Loader';
 import { ReceiptModal } from '@/components/Modals/ReceiptModal';
@@ -72,6 +74,7 @@ export const PosView: React.FC = () => {
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
   const [isReceiptOpen, setIsReceiptOpen] = useState<boolean>(false);
   const [isDynamicQrModalOpen, setIsDynamicQrModalOpen] = useState<boolean>(false);
+  const [isMobileCartOpen, setIsMobileCartOpen] = useState<boolean>(false);
   const [inlineQrUrl, setInlineQrUrl] = useState<string>('');
 
   // Invoices Tab State
@@ -432,6 +435,7 @@ export const PosView: React.FC = () => {
       setCompletedSale(created);
       setIsReceiptOpen(true);
       setIsDynamicQrModalOpen(false);
+      setIsMobileCartOpen(false);
       clearCart();
       showToast({ type: 'success', title: 'Sale Completed', message: `Invoice #${created.invoiceNumber} recorded successfully.` });
     } catch (err: any) {
@@ -495,88 +499,67 @@ export const PosView: React.FC = () => {
     );
   }, [recentSales, invoiceSearch]);
 
-  return (
-    <div className="space-y-4 pb-16">
-      {/* Top POS Sub-Navigation Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-            <ScanBarcode className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-base font-black text-slate-100 tracking-tight">
-                POS / Quick Billing
-              </h2>
-              {storeProfile?.storeName && (
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  {storeProfile.storeName}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400">
-              {storeProfile?.address ? `${storeProfile.address} · ` : ''}
-              {storeProfile?.phone ? `Tel: ${storeProfile.phone} · ` : ''}
-              {storeProfile?.panNumber ? `PAN: ${storeProfile.panNumber} · ` : ''}
-              Live stock deduction &amp; instant billing
-            </p>
-          </div>
-        </div>
+  const totalCartUnits = useMemo(
+    () => cart.reduce((sum, item) => sum + item.quantity, 0),
+    [cart]
+  );
 
-        {/* Tab Switcher */}
-        <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800">
+  return (
+    <div className="space-y-4">
+      {/* Clean Top POS Bar */}
+      <div className="flex items-center justify-between gap-3">
+        {/* Mode Switcher */}
+        <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
           <button
             type="button"
             onClick={() => setActiveSubTab('TERMINAL')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
               activeSubTab === 'TERMINAL'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span>POS Terminal (F2)</span>
+            <span>Billing Terminal</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('INVOICES')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
               activeSubTab === 'INVOICES'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Recent Invoices (F4)</span>
+            <span>Recent Invoices</span>
           </button>
         </div>
-      </div>
 
-      {/* Keyboard Shortcuts Quick Bar */}
-      <div className="px-4 py-2 bg-slate-950/80 border border-slate-800/80 rounded-xl flex items-center justify-between text-[11px] text-slate-400 overflow-x-auto gap-3">
-        <div className="flex items-center gap-1.5 shrink-0 text-amber-400 font-bold">
-          <Keyboard className="w-3.5 h-3.5" />
-          <span>Counter Shortcuts:</span>
-        </div>
-        <div className="flex items-center gap-4 shrink-0 font-mono">
-          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F3 / Ctrl+K</kbd> Search</span>
-          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F2</kbd> Terminal</span>
-          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-amber-300">F4</kbd> Invoices</span>
-          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-emerald-400">Ctrl+Enter / F9</kbd> Checkout</span>
-          <span><kbd className="px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-rose-300">Esc</kbd> Clear</span>
+        {/* Subtle Desktop Keyboard Shortcuts Hint */}
+        <div className="hidden xl:flex items-center gap-3 text-[11px] text-slate-400 font-mono">
+          <span>
+            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F3</kbd> Search
+          </span>
+          <span>
+            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F4</kbd> Invoices
+          </span>
+          <span>
+            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-emerald-400">F9</kbd> Checkout
+          </span>
         </div>
       </div>
 
       {activeSubTab === 'TERMINAL' ? (
         /* MAIN SPLIT POS TERMINAL */
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* LEFT 7 COLS: Product Catalog & Fast Scanner */}
-          <div className="lg:col-span-7 space-y-4">
+          <div className="lg:col-span-7 space-y-3.5">
             {/* Barcode & Search Bar */}
             <form
               onSubmit={handleSearchSubmit}
-              className="p-3 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex items-center gap-2"
+              className="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-2"
             >
               <div className="relative flex-1">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -585,15 +568,15 @@ export const PosView: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Scan Barcode or Search product name / SKU (Press Enter)..."
-                  className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="Scan barcode or search product name..."
+                  className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
               <button
                 type="submit"
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black rounded-xl transition-colors shrink-0 shadow-sm shadow-amber-500/20"
+                className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors shrink-0"
               >
-                Find & Add
+                Add
               </button>
             </form>
 
@@ -604,9 +587,9 @@ export const PosView: React.FC = () => {
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all ${
                     selectedCategory === cat
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                      ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
                       : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
                   }`}
                 >
@@ -617,18 +600,19 @@ export const PosView: React.FC = () => {
 
             {/* Products Grid */}
             {filteredProducts.length === 0 ? (
-              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-3">
-                <Boxes className="w-10 h-10 text-slate-600 mx-auto" />
-                <h4 className="text-sm font-bold text-slate-300">No matching products found</h4>
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-2">
+                <Boxes className="w-9 h-9 text-slate-600 mx-auto" />
+                <h4 className="text-sm font-semibold text-slate-300">No matching products found</h4>
                 <p className="text-xs text-slate-500">
                   Try adjusting your search query or select another category.
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 max-h-[620px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3 lg:max-h-[650px] lg:overflow-y-auto pr-0.5">
                 {filteredProducts.map((p) => {
                   const isOutOfStock = p.stockQuantity <= 0;
                   const isLowStock = p.stockQuantity > 0 && p.stockQuantity <= (p.minStockAlert || 5);
+                  const inCartItem = cart.find((item) => item.product.id === p.id);
 
                   return (
                     <button
@@ -636,42 +620,62 @@ export const PosView: React.FC = () => {
                       type="button"
                       onClick={() => addToCart(p)}
                       disabled={isOutOfStock}
-                      className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
+                      className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden active:scale-[0.98] ${
                         isOutOfStock
-                          ? 'bg-slate-950/40 border-slate-800/60 opacity-60 cursor-not-allowed'
-                          : 'bg-slate-900 border-slate-800 hover:border-amber-500/60 hover:shadow-lg hover:shadow-amber-500/5 cursor-pointer'
+                          ? 'bg-slate-950/40 border-slate-800/60 opacity-55 cursor-not-allowed'
+                          : inCartItem
+                          ? 'bg-slate-900 border-amber-500/60 ring-1 ring-amber-500/30 cursor-pointer'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 cursor-pointer'
                       }`}
                     >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate">
-                            {p.category}
-                          </span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold border ${
-                              isOutOfStock
-                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/30'
-                                : isLowStock
-                                ? 'bg-amber-500/10 text-amber-300 border-amber-500/30'
-                                : 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
-                            }`}
-                          >
-                            {p.stockQuantity} {p.unit}
-                          </span>
-                        </div>
+                      <div className="flex items-start gap-2.5">
+                        {p.imageUrl ? (
+                          <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-950 border border-slate-800 shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={getImageUrl(p.imageUrl)}
+                              alt={p.name}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-medium text-slate-400 truncate">
+                              {p.category}
+                            </span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold shrink-0 ${
+                                isOutOfStock
+                                  ? 'bg-rose-500/10 text-rose-400'
+                                  : isLowStock
+                                  ? 'bg-amber-500/10 text-amber-300'
+                                  : 'bg-slate-800 text-slate-300'
+                              }`}
+                            >
+                              {p.stockQuantity} {p.unit}
+                            </span>
+                          </div>
 
-                        <h4 className="text-xs font-bold text-slate-100 group-hover:text-amber-400 transition-colors line-clamp-2">
-                          {p.name}
-                        </h4>
+                          <h4 className="text-xs font-semibold text-slate-100 group-hover:text-amber-400 transition-colors line-clamp-2 leading-snug">
+                            {p.name}
+                          </h4>
+                        </div>
                       </div>
 
                       <div className="mt-3 pt-2 border-t border-slate-800/80 flex items-center justify-between">
-                        <span className="font-mono font-black text-sm text-emerald-400">
+                        <span className="font-mono font-bold text-sm text-emerald-400">
                           {cur} {p.sellingPrice.toLocaleString()}
                         </span>
-                        <div className="w-6 h-6 rounded-lg bg-slate-800 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-300 flex items-center justify-center transition-colors">
-                          <Plus className="w-3.5 h-3.5" />
-                        </div>
+                        {inCartItem ? (
+                          <span className="px-2 py-0.5 rounded-lg bg-amber-500 text-slate-950 font-mono font-black text-[11px]">
+                            {inCartItem.quantity}x
+                          </span>
+                        ) : (
+                          <div className="w-6 h-6 rounded-lg bg-slate-800 group-hover:bg-amber-500 group-hover:text-slate-950 text-slate-300 flex items-center justify-center transition-colors">
+                            <Plus className="w-3.5 h-3.5" />
+                          </div>
+                        )}
                       </div>
                     </button>
                   );
@@ -680,27 +684,30 @@ export const PosView: React.FC = () => {
             )}
           </div>
 
-          {/* RIGHT 5 COLS: Interactive Cart, Calculations & Checkout */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
-              {/* Active Billing Counter & Store Profile Banner */}
-              <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-                <div className="min-w-0">
-                  <span className="text-[11px] font-bold text-amber-400 tracking-wide flex items-center gap-1.5 truncate">
-                    <Store className="w-3.5 h-3.5 shrink-0" />
-                    <span>{storeProfile?.storeName || 'HisabFlow Store'}</span>
-                  </span>
-                  <p className="text-[10px] text-slate-400 truncate mt-0.5">
-                    {storeProfile?.address || 'Kathmandu, Nepal'}
-                    {storeProfile?.phone ? ` · Tel: ${storeProfile.phone}` : ''}
-                    {storeProfile?.panNumber ? ` · PAN: ${storeProfile.panNumber}` : ''}
-                  </p>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="px-2 py-0.5 rounded-full bg-slate-950 border border-slate-800 text-[10px] font-mono text-slate-300">
-                    Currency: <strong className="text-amber-400">{cur}</strong>
+          {/* RIGHT 5 COLS: Interactive Cart (Desktop Sticky Column + Mobile Slide-Up Sheet) */}
+          <div
+            className={`${
+              isMobileCartOpen
+                ? 'fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-sm flex flex-col justify-end lg:static lg:bg-transparent lg:backdrop-blur-none lg:block'
+                : 'hidden lg:block'
+            } lg:col-span-5`}
+          >
+            <div className="bg-slate-900 border-t lg:border border-slate-800 rounded-t-3xl lg:rounded-2xl p-4 sm:p-5 shadow-2xl space-y-4 max-h-[90vh] lg:max-h-none overflow-y-auto">
+              {/* Mobile Sheet Header */}
+              <div className="flex lg:hidden items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-amber-400" />
+                  <span className="text-sm font-bold text-slate-100">
+                    Current Bill ({totalCartUnits} items)
                   </span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => setIsMobileCartOpen(false)}
+                  className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
 
               {/* Customer Selector & Cart Controls */}
@@ -1116,6 +1123,30 @@ export const PosView: React.FC = () => {
               </button>
             </div>
           </div>
+
+          {/* Mobile Floating Cart Bar (Visible on phones/tablets when items are in cart) */}
+          {cart.length > 0 && !isMobileCartOpen && (
+            <div className="lg:hidden fixed bottom-19 inset-x-4 z-30">
+              <button
+                type="button"
+                onClick={() => setIsMobileCartOpen(true)}
+                className="w-full p-3.5 rounded-2xl bg-amber-500 text-slate-950 shadow-2xl shadow-amber-500/30 flex items-center justify-between font-bold text-xs active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="px-2 py-1 rounded-lg bg-slate-950 text-amber-400 font-mono font-black text-xs">
+                    {totalCartUnits} items
+                  </span>
+                  <span className="font-mono font-black text-sm">
+                    {cur} {grandTotal.toLocaleString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 font-black">
+                  <span>View Bill &amp; Pay</span>
+                  <ArrowRight className="w-4 h-4" />
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* RECENT INVOICES VIEW */
@@ -1209,7 +1240,7 @@ export const PosView: React.FC = () => {
                     {filteredInvoices.map((s) => (
                       <tr key={s.id} className="hover:bg-slate-800/40 transition-colors">
                         <td className="py-3 px-4 font-bold text-slate-100">{s.invoiceNumber}</td>
-                        <td className="py-3 px-4 text-slate-400">{new Date(s.saleDate).toLocaleString()}</td>
+                        <td className="py-3 px-4 text-slate-400">{parseApiDate(s.saleDate).toLocaleString()}</td>
                         <td className="py-3 px-4 text-slate-300 font-sans">
                           {s.customerName || 'Walk-in Customer'}
                         </td>

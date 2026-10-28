@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HisabFlow.Api.Converters;
 
 namespace HisabFlow.Api.Filters;
 
@@ -17,7 +18,7 @@ public class IdempotentAttribute : Attribute, IAsyncActionFilter
 
     private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web)
     {
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter(), new UtcDateTimeJsonConverter(), new NullableUtcDateTimeJsonConverter() }
     };
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
