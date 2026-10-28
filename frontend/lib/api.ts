@@ -4,18 +4,17 @@ import { getCurrentUser } from '@/lib/auth';
 
 export const getApiBase = (): string => {
   if (typeof window !== 'undefined') {
-    if (window.location.port === '5200') {
-      return '';
-    }
-    if (window.location.port === '3000') {
+    // When running standalone Next.js dev server (port 3000/3001), route to ASP.NET Core dev backend (5200)
+    if (window.location.port === '3000' || window.location.port === '3001') {
       return `http://${window.location.hostname || 'localhost'}:5200`;
     }
+    // In any other browser environment (IIS, ASP.NET Core Kestrel, production, IP access, domain access),
+    // the frontend is served from the same server as the API endpoints.
+    // Relative URL (empty string) ensures requests always go to current host and port (/api/v1/...).
+    return '';
   }
   if (process.env.NEXT_PUBLIC_API_BASE_URL) {
     return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
   }
   return '';
 };

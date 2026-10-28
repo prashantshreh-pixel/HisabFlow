@@ -1,4 +1,4 @@
-const CACHE_NAME = 'hisabflow-pwa-v2';
+const CACHE_NAME = 'hisabflow-pwa-v3';
 const PRECACHE_URLS = ['/', '/icon.svg', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
