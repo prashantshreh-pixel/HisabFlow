@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using HisabFlow.Api.Authentication;
+using HisabFlow.Api.Converters;
 using HisabFlow.Api.Filters;
 using HisabFlow.Api.Middleware;
 using HisabFlow.Application;
@@ -16,6 +17,13 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 
 // Add Health Checks
 builder.Services.AddHealthChecks();
+
+// Add HTTP Client Factory for Barcode Catalog Lookup
+builder.Services.AddHttpClient("ProductCatalog", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(10);
+    client.DefaultRequestHeaders.Add("User-Agent", "HisabFlow/1.0 (Inventory-App)");
+});
 
 // Add Rate Limiting Protection (Generous limit for local POS responsiveness)
 builder.Services.AddRateLimiter(options =>
@@ -57,6 +65,8 @@ builder.Services.AddControllers(options =>
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        options.JsonSerializerOptions.Converters.Add(new UtcDateTimeJsonConverter());
+        options.JsonSerializerOptions.Converters.Add(new NullableUtcDateTimeJsonConverter());
     });
 
 builder.Services.AddEndpointsApiExplorer();
@@ -90,7 +100,7 @@ app.Use(async (context, next) =>
     headers.TryAdd("X-Frame-Options", "SAMEORIGIN");
     headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
     headers.TryAdd("X-Permitted-Cross-Domain-Policies", "none");
-    headers.TryAdd("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    headers.TryAdd("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
 
     if (!app.Environment.IsDevelopment())
     {
@@ -124,10 +134,22 @@ app.UseRateLimiter();
 app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/ready");
 
+// Ensure wwwroot and uploads directories exist
+var rootDir = app.Environment.WebRootPath;
+if (string.IsNullOrEmpty(rootDir))
+{
+    rootDir = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+}
+var uploadsFolder = Path.Combine(rootDir, "uploads", "products");
+if (!Directory.Exists(uploadsFolder))
+{
+    Directory.CreateDirectory(uploadsFolder);
+}
+
 // 1. Enable default files (index.html)
 app.UseDefaultFiles();
 
-// 2. Enable static files from wwwroot with no-cache headers on HTML files
+// 2. Enable static files from wwwroot with no-cache headers on HTML files and caching on uploads
 app.UseStaticFiles(new StaticFileOptions
 {
     OnPrepareResponse = ctx =>
@@ -137,6 +159,10 @@ app.UseStaticFiles(new StaticFileOptions
             ctx.Context.Response.Headers.TryAdd("Cache-Control", "no-cache, no-store, must-revalidate");
             ctx.Context.Response.Headers.TryAdd("Pragma", "no-cache");
             ctx.Context.Response.Headers.TryAdd("Expires", "0");
+        }
+        else if (ctx.Context.Request.Path.StartsWithSegments("/uploads", StringComparison.OrdinalIgnoreCase))
+        {
+            ctx.Context.Response.Headers.TryAdd("Cache-Control", "public, max-age=2592000, immutable");
         }
     }
 });

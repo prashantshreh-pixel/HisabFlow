@@ -219,8 +219,87 @@ export const KhataView: React.FC<KhataViewProps> = ({
         </div>
       </div>
 
-      {/* Customer Directory Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      {/* Mobile Customer Cards (Visible on phones) */}
+      <div className="md:hidden space-y-3">
+        {filteredCustomers.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
+            <Users className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-300">No customers found</p>
+          </div>
+        ) : (
+          filteredCustomers.map((customer) => {
+            const hasDue = customer.currentBalance > 0;
+            const isOverLimit = customer.currentBalance > customer.creditLimit;
+            return (
+              <div
+                key={customer.id}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => onSelectCustomer(customer.id)}
+                    className="flex items-center gap-3 text-left min-w-0"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 font-bold text-sm shrink-0">
+                      {customer.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm text-slate-100 truncate">
+                        {customer.name}
+                      </div>
+                      <div className="text-xs text-slate-400 font-mono flex items-center gap-1.5 mt-0.5">
+                        <Phone className="w-3 h-3 text-slate-500" />
+                        <span>{customer.phone}</span>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className="text-right shrink-0">
+                    {hasDue ? (
+                      <div>
+                        <span className="text-sm font-bold font-mono text-rose-400 block">
+                          Rs. {customer.currentBalance.toLocaleString()}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {isOverLimit ? 'Over Limit' : 'Due'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg">
+                        Settled
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => onOpenRecordTransaction(customer.id, 'PAYMENT_RECEIVED')}
+                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5"
+                  >
+                    <Wallet className="w-3.5 h-3.5" />
+                    <span>Record Tx</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onSelectCustomer(customer.id)}
+                    className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Statement</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Customer Directory Table */}
+      <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
@@ -272,9 +351,11 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             >
                               {customer.name}
                             </button>
-                            <span className="block text-[10px] text-slate-500 font-mono">
-                              ID: {customer.id}
-                            </span>
+                            {customer.address && (
+                              <span className="block text-[11px] text-slate-400">
+                                {customer.address}
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>

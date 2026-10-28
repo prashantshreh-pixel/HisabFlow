@@ -1,5 +1,36 @@
 @import "tailwindcss";
 
+/* Zero-lag mobile touch & standalone PWA ergonomics */
+html, body {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+  background-color: #020617;
+}
+
+button, a, input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Safe area padding for iOS/Android standalone PWA */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Hide scrollbar for horizontal filter pills on mobile */
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 /* Minimal App-Themed Scrollbars (Dark Slate & Amber Accent) */
 ::-webkit-scrollbar {
   width: 6px;
@@ -54,4 +85,20 @@
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #334155 rgba(15, 23, 42, 0.4);
+}
+
+
+/* Payment success animation (QR blur + tick) */
+@keyframes hf-check-draw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes hf-pop-in {
+  0% { transform: scale(0.4); opacity: 0; }
+  70% { transform: scale(1.08); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.hf-check-circle { animation: hf-pop-in 450ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.hf-check-path { stroke-dasharray: 30; stroke-dashoffset: 30; animation: hf-check-draw 420ms ease-out 250ms forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .hf-check-circle, .hf-check-path { animation-duration: 1ms; animation-delay: 0ms; }
 }

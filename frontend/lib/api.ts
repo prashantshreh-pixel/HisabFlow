@@ -3,17 +3,18 @@ import type { AuthUser } from '@/types/auth';
 import { getCurrentUser } from '@/lib/auth';
 
 export const getApiBase = (): string => {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
-  }
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
   if (typeof window !== 'undefined') {
-    if (window.location.port === '3000') {
+    // When running standalone Next.js dev server (port 3000/3001), route to ASP.NET Core dev backend (5200)
+    if (window.location.port === '3000' || window.location.port === '3001') {
       return `http://${window.location.hostname || 'localhost'}:5200`;
     }
+    // In any other browser environment (IIS, ASP.NET Core Kestrel, production, IP access, domain access),
+    // the frontend is served from the same server as the API endpoints.
+    // Relative URL (empty string) ensures requests always go to current host and port (/api/v1/...).
     return '';
+  }
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
   }
   return '';
 };
@@ -152,10 +153,10 @@ export interface ApiLedgerEntry {
   customerId: string;
   customerName?: string | null;
   customerPhone?: string | null;
-  type: number;        // 1=Debit (credit sale), 2=Credit (payment received)
+  type: number | string;        // 1/Debit (credit sale), 2/Credit (payment received)
   amount: number;
   balanceAfter: number;
-  paymentMethod: number; // 1=Cash 2=QR 3=BankTransfer 4=CreditNote
+  paymentMethod: number | string; // 1/Cash 2/QR 3/BankTransfer 4/CreditNote
   particulars: string | null;
   billNumber: string | null;
   transactionDate: string;
@@ -237,9 +238,28 @@ export interface ApiProduct {
   minStockAlert: number;
   barcode?: string | null;
   imageUrl?: string | null;
+  brand?: string | null;
+  description?: string | null;
   isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface BarcodeLookupResponse {
+  found: boolean;
+  source: 'LOCAL_INVENTORY' | 'OPEN_CATALOG' | 'NONE';
+  product?: ApiProduct | null;
+  data?: {
+    name?: string | null;
+    brand?: string | null;
+    barcode?: string | null;
+    category?: string | null;
+    unit?: string | null;
+    imageUrl?: string | null;
+    netWeight?: string | null;
+    description?: string | null;
+  } | null;
+  message?: string;
 }
 
 export const productsApi = {
@@ -247,13 +267,43 @@ export const productsApi = {
 
   getById: (id: string) => apiFetch<ApiProduct>(`/api/v1/products/${id}`),
 
-  create: (data: { name: string; category: string; unit: string; costPrice: number; sellingPrice: number; stockQuantity: number; minStockAlert: number; barcode?: string; imageUrl?: string }) =>
+  lookupBarcode: (barcode: string) =>
+    apiFetch<BarcodeLookupResponse>(`/api/v1/products/lookup-barcode/${encodeURIComponent(barcode)}`),
+
+  create: (data: {
+    name: string;
+    category: string;
+    unit: string;
+    costPrice: number;
+    sellingPrice: number;
+    stockQuantity: number;
+    minStockAlert: number;
+    barcode?: string | null;
+    imageUrl?: string | null;
+    brand?: string | null;
+    description?: string | null;
+  }) =>
     apiFetch<ApiProduct>('/api/v1/products', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
 
-  update: (id: string, data: { name: string; category: string; unit: string; costPrice: number; sellingPrice: number; stockQuantity: number; minStockAlert: number; barcode?: string; imageUrl?: string }) =>
+  update: (
+    id: string,
+    data: {
+      name: string;
+      category: string;
+      unit: string;
+      costPrice: number;
+      sellingPrice: number;
+      stockQuantity: number;
+      minStockAlert: number;
+      barcode?: string | null;
+      imageUrl?: string | null;
+      brand?: string | null;
+      description?: string | null;
+    }
+  ) =>
     apiFetch<void>(`/api/v1/products/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -314,10 +364,10 @@ export interface ApiSupplierLedgerEntry {
   supplierName?: string;
   supplierPhone?: string;
   transactionDate: string;
-  type: number; // 1: Stock Purchase, 2: Payment Given
+  type: number | string; // 1/Debit (Stock Purchase), 2/Credit (Payment Given)
   amount: number;
   balanceAfter: number;
-  paymentMethod: number;
+  paymentMethod: number | string;
   particulars?: string | null;
   invoiceNumber?: string | null;
   createdAt: string;
@@ -421,4 +471,38 @@ export const auditApi = {
     params.append('limit', limit.toString());
     return apiFetch<ApiAuditLog[]>(`/api/v1/audit?${params.toString()}`);
   },
+};
+
+
+// ---------- Customer-facing QR payment sessions ----------
+
+export type PaymentSessionStatus = 'Pending' | 'Paid' | 'Expired' | 'Cancelled';
+export type PaymentProvider = 'FONEPAY' | 'KHALTI' | 'ESEWA';
+
+export interface ApiPaymentSession {
+  id: string;
+  prn: string;
+  provider: PaymentProvider;
+  invoiceRef: string | null;
+  amount: number;
+  status: PaymentSessionStatus;
+  paidVia: string | null;
+  createdAt: string;
+  expiresAt: string;
+  paidAt: string | null;
+}
+
+export const paymentsApi = {
+  createSession: (data: { amount: number; invoiceRef?: string; provider?: PaymentProvider }) =>
+    apiFetch<ApiPaymentSession>('/api/v1/payments/sessions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  getSession: (id: string) => apiFetch<ApiPaymentSession>(`/api/v1/payments/sessions/${id}`),
+  confirmManual: (id: string) =>
+    apiFetch<ApiPaymentSession>(`/api/v1/payments/sessions/${id}/confirm-manual`, { method: 'POST' }),
+  cancel: (id: string) =>
+    apiFetch<void>(`/api/v1/payments/sessions/${id}/cancel`, { method: 'POST' }),
+  simulate: (id: string) =>
+    apiFetch<ApiPaymentSession>(`/api/v1/payments/sessions/${id}/simulate`, { method: 'POST' }),
 };

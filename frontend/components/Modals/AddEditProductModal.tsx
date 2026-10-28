@@ -8,12 +8,14 @@ import { productsApi, getImageUrl } from '@/lib/api';
 import { compressImageFile } from '@/lib/utils';
 import { ImageViewerModal } from '@/components/Modals/ImageViewerModal';
 import { ButtonSpinner } from '@/components/Loader';
-import { X, PackagePlus, Edit, BarChart3, Tag, Layers, Boxes, AlertCircle, Image as ImageIcon, Upload, CheckCircle2, Link as LinkIcon, Maximize2 } from 'lucide-react';
+import { X, PackagePlus, Edit, BarChart3, Tag, Layers, Boxes, AlertCircle, Image as ImageIcon, Upload, CheckCircle2, Link as LinkIcon, Maximize2, ScanLine } from 'lucide-react';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
   onClose: () => void;
   productToEdit?: Product | null;
+  initialData?: Partial<Product> | null;
+  onOpenScanner?: () => void;
 }
 
 const AVAILABLE_UNITS: { label: string; value: ProductUnit }[] = [
@@ -31,28 +33,78 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
   isOpen,
   onClose,
   productToEdit,
+  initialData,
+  onOpenScanner,
 }) => {
   const { addProduct, updateProduct } = useKhata();
 
   const isEdit = !!productToEdit;
 
-  const [name, setName] = useState(() => productToEdit?.name || '');
-  const [category, setCategory] = useState(() => productToEdit?.category || PRODUCT_CATEGORIES[1] || 'Grains & Rice');
-  const [unit, setUnit] = useState<ProductUnit>(() => productToEdit?.unit || 'pkt');
-  const [costPrice, setCostPrice] = useState(() => productToEdit?.costPrice?.toString() || '');
-  const [sellingPrice, setSellingPrice] = useState(() => productToEdit?.sellingPrice?.toString() || '');
-  const [stockQuantity, setStockQuantity] = useState(() => productToEdit?.stockQuantity?.toString() || '');
-  const [minStockAlert, setMinStockAlert] = useState(() => productToEdit?.minStockAlert?.toString() || '5');
-  const [barcode, setBarcode] = useState(() => productToEdit?.barcode || '');
-  const [imageUrl, setImageUrl] = useState(() => productToEdit?.imageUrl || '');
+  const [name, setName] = useState(() => productToEdit?.name || initialData?.name || '');
+  const [brand, setBrand] = useState(() => productToEdit?.brand || initialData?.brand || '');
+  const [description, setDescription] = useState(() => productToEdit?.description || initialData?.description || '');
+  const [category, setCategory] = useState(() => productToEdit?.category || initialData?.category || PRODUCT_CATEGORIES[1] || 'Grains & Rice');
+  const [unit, setUnit] = useState<ProductUnit>(() => (productToEdit?.unit || initialData?.unit || 'pcs') as ProductUnit);
+  const [costPrice, setCostPrice] = useState(() => productToEdit?.costPrice?.toString() || initialData?.costPrice?.toString() || '');
+  const [sellingPrice, setSellingPrice] = useState(() => productToEdit?.sellingPrice?.toString() || initialData?.sellingPrice?.toString() || '');
+  const [stockQuantity, setStockQuantity] = useState(() => productToEdit?.stockQuantity?.toString() || initialData?.stockQuantity?.toString() || '1');
+  const [minStockAlert, setMinStockAlert] = useState(() => productToEdit?.minStockAlert?.toString() || initialData?.minStockAlert?.toString() || '5');
+  const [barcode, setBarcode] = useState(() => productToEdit?.barcode || initialData?.barcode || '');
+  const [imageUrl, setImageUrl] = useState(() => productToEdit?.imageUrl || initialData?.imageUrl || '');
   const [imageSourceMode, setImageSourceMode] = useState<'FILE' | 'URL'>(() => {
-    const url = productToEdit?.imageUrl || '';
+    const url = productToEdit?.imageUrl || initialData?.imageUrl || '';
     return url.startsWith('http://') || url.startsWith('https://') ? 'URL' : 'FILE';
   });
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+
+  // Synchronize state when modal is opened or props change
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (productToEdit) {
+      setName(productToEdit.name || '');
+      setBrand(productToEdit.brand || '');
+      setDescription(productToEdit.description || '');
+      setCategory(productToEdit.category || PRODUCT_CATEGORIES[1] || 'Grains & Rice');
+      setUnit((productToEdit.unit || 'pcs') as ProductUnit);
+      setCostPrice(productToEdit.costPrice?.toString() || '');
+      setSellingPrice(productToEdit.sellingPrice?.toString() || '');
+      setStockQuantity(productToEdit.stockQuantity?.toString() || '');
+      setMinStockAlert(productToEdit.minStockAlert?.toString() || '5');
+      setBarcode(productToEdit.barcode || '');
+      setImageUrl(productToEdit.imageUrl || '');
+      setImageSourceMode(productToEdit.imageUrl?.startsWith('http') ? 'URL' : 'FILE');
+    } else if (initialData) {
+      setName(initialData.name || '');
+      setBrand(initialData.brand || '');
+      setDescription(initialData.description || '');
+      setCategory(initialData.category || 'Packaged Foods & Snacks');
+      setUnit((initialData.unit || 'pcs') as ProductUnit);
+      setCostPrice(initialData.costPrice?.toString() || '');
+      setSellingPrice(initialData.sellingPrice?.toString() || '');
+      setStockQuantity(initialData.stockQuantity?.toString() || '1');
+      setMinStockAlert(initialData.minStockAlert?.toString() || '5');
+      setBarcode(initialData.barcode || '');
+      setImageUrl(initialData.imageUrl || '');
+      setImageSourceMode(initialData.imageUrl?.startsWith('http') ? 'URL' : 'FILE');
+    } else {
+      setName('');
+      setBrand('');
+      setDescription('');
+      setCategory(PRODUCT_CATEGORIES[1] || 'Grains & Rice');
+      setUnit('pcs');
+      setCostPrice('');
+      setSellingPrice('');
+      setStockQuantity('');
+      setMinStockAlert('5');
+      setBarcode('');
+      setImageUrl('');
+      setImageSourceMode('FILE');
+    }
+    setErrors({});
+  }, [isOpen, productToEdit, initialData]);
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -118,6 +170,8 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           minStockAlert: minStockNum,
           barcode: barcode.trim() || undefined,
           imageUrl: imageUrl.trim() || undefined,
+          brand: brand.trim() || undefined,
+          description: description.trim() || undefined,
         });
       } else {
         await addProduct({
@@ -130,6 +184,8 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
           minStockAlert: minStockNum,
           barcode: barcode.trim() || undefined,
           imageUrl: imageUrl.trim() || undefined,
+          brand: brand.trim() || undefined,
+          description: description.trim() || undefined,
         });
       }
       onClose();
@@ -342,18 +398,47 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
               </div>
             </div>
 
+            {/* Brand / Manufacturer */}
+            <div>
+              <label htmlFor="prod-brand-input" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-amber-400" />
+                Brand / Manufacturer (Optional)
+              </label>
+              <input
+                id="prod-brand-input"
+                type="text"
+                placeholder="e.g. Pringles, Kellogg's, Wai Wai, Haldiram's"
+                value={brand}
+                onChange={(e) => setBrand(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-sm focus:ring-2 focus:ring-amber-500/50"
+              />
+            </div>
+
             {/* Barcode / SKU */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Barcode / SKU Number (Optional)
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-amber-400" />
+                  Barcode / SKU Number (Optional)
+                </label>
+                {onOpenScanner && (
+                  <button
+                    type="button"
+                    onClick={onOpenScanner}
+                    className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all cursor-pointer"
+                  >
+                    <ScanLine className="w-3 h-3" />
+                    <span>Scan / Auto-fill</span>
+                  </button>
+                )}
+              </div>
               <input
                 id="prod-barcode-input"
                 type="text"
-                placeholder="e.g. 8901030383321"
+                placeholder="e.g. 8886467105814"
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-sm focus:ring-2 focus:ring-amber-500/50"
+                className="w-full px-3.5 py-2.5 bg-slate-950 border border-slate-700 rounded-xl text-slate-100 text-sm focus:ring-2 focus:ring-amber-500/50 font-mono"
               />
             </div>
 

@@ -20,17 +20,20 @@ import {
   TrendingUp,
   Tag,
   Maximize2,
+  ScanLine,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
 
 interface ProductsViewProps {
   onOpenAddProduct: () => void;
+  onOpenScanner?: () => void;
   onEditProduct: (product: Product) => void;
   onQuickStockAdjust: (product: Product) => void;
 }
 
 export const ProductsView: React.FC<ProductsViewProps> = ({
   onOpenAddProduct,
+  onOpenScanner,
   onEditProduct,
   onQuickStockAdjust,
 }) => {
@@ -95,6 +98,41 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
   return (
     <div className="space-y-6 pb-12">
+      {/* Top Header & Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-black text-slate-100 tracking-tight flex items-center gap-2">
+            Product Inventory & Stock
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            Manage your catalog, prices, real-time stock levels, and barcodes
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {onOpenScanner && (
+            <button
+              id="product-scan-btn"
+              type="button"
+              onClick={onOpenScanner}
+              className="px-3.5 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              title="Scan barcode with camera or upload packaging image"
+            >
+              <ScanLine className="w-4 h-4" />
+              <span>Scan / Upload Barcode</span>
+            </button>
+          )}
+          <button
+            id="product-add-new-btn"
+            type="button"
+            onClick={onOpenAddProduct}
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <PackagePlus className="w-4 h-4" />
+            <span>+ Add Product</span>
+          </button>
+        </div>
+      </div>
+
       {/* Inventory Valuation Header Strip */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Stock Cost Value */}
@@ -145,7 +183,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
         </div>
 
-        {/* Low Stock count + CTA */}
+        {/* Low Stock Alert */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -156,15 +194,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             </div>
             <span className="text-[11px] text-slate-500">{stats.outOfStockCount} zero stock items</span>
           </div>
-          <button
-            id="product-add-new-btn"
-            type="button"
-            onClick={onOpenAddProduct}
-            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5"
-          >
-            <PackagePlus className="w-4 h-4" />
-            + Product
-          </button>
+          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            <AlertTriangle className="w-5 h-5" />
+          </div>
         </div>
       </div>
 
@@ -273,8 +305,121 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       </div>
 
-      {/* Product Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      {/* Mobile Product Cards (Visible on phones) */}
+      <div className="md:hidden space-y-3">
+        {filteredProducts.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
+            <Boxes className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-300">No products match your criteria</p>
+          </div>
+        ) : (
+          filteredProducts.map((product) => {
+            const isOutOfStock = product.stockQuantity === 0;
+            const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= product.minStockAlert;
+            return (
+              <div
+                key={product.id}
+                className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    {product.imageUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedImage({ url: product.imageUrl!, title: product.name })}
+                        className="w-11 h-11 rounded-xl overflow-hidden border border-slate-700 shrink-0 bg-slate-950 cursor-pointer"
+                        title="Click to expand"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={getImageUrl(product.imageUrl)}
+                          alt={product.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
+                    ) : (
+                      <div className="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 font-bold shrink-0">
+                        <Boxes className="w-5 h-5" />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                          {product.category}
+                        </span>
+                        {product.barcode && (
+                          <span className="text-[10px] font-mono text-slate-500">
+                            #{product.barcode}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="text-sm font-bold text-slate-100 mt-0.5 truncate">
+                        {product.name}
+                      </h4>
+                    </div>
+                  </div>
+
+                  <span
+                    className={`px-2 py-0.5 rounded-lg text-xs font-mono font-bold shrink-0 ${
+                      isOutOfStock
+                        ? 'bg-rose-500/15 text-rose-400 border border-rose-500/25'
+                        : isLowStock
+                        ? 'bg-amber-500/15 text-amber-300 border border-amber-500/25'
+                        : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
+                    }`}
+                  >
+                    {product.stockQuantity} {product.unit}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Cost Price</span>
+                    <span className="font-mono font-semibold text-slate-300">
+                      Rs. {product.costPrice.toLocaleString()}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-slate-500 block">Selling Price</span>
+                    <span className="font-mono font-bold text-emerald-400">
+                      Rs. {product.sellingPrice.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => onQuickStockAdjust(product)}
+                    className="flex-1 py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Adjust Stock</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onEditProduct(product)}
+                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteProduct(product.id)}
+                    className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Product Table */}
+      <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
@@ -339,9 +484,11 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             <div className="font-bold text-slate-100 text-sm">
                               {product.name}
                             </div>
-                            <div className="text-[10px] text-slate-500 font-mono mt-0.5">
-                              ID: {product.id}
-                            </div>
+                            {product.barcode && (
+                              <div className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                SKU: {product.barcode}
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>

@@ -558,6 +558,27 @@ export const SettingsView: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Mobile App (PWA) Card */}
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                <Smartphone className="w-4 h-4 text-amber-400" />
+                Mobile App (PWA)
+              </h3>
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-full">
+                Ready
+              </span>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              HisabFlow includes a zero-lag Mobile App shell with Bottom Navigation, touch POS cart sheet, and Service Worker caching.
+            </p>
+            <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 text-[11px] text-slate-300 space-y-1">
+              <div className="font-semibold text-amber-400">How to install on Phone:</div>
+              <div>1. Open HisabFlow in Chrome (Android) or Safari (iOS).</div>
+              <div>2. Tap <strong>Install App</strong> or <strong>Add to Home Screen</strong>.</div>
+            </div>
+          </div>
         </div>
       </div>
 

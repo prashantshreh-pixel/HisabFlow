@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Sale, DEFAULT_STORE_PROFILE } from '@/types';
 import { useKhata } from '@/context/KhataContext';
+import { parseApiDate } from '@/lib/utils';
 import { X, Printer, Store, CheckCircle, Sun, Moon, FileText } from 'lucide-react';
 
 interface ReceiptModalProps {
@@ -187,7 +188,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                       </span>
                       <p className="text-lg font-mono font-bold mt-1">{sale.invoiceNumber}</p>
                       <p className="text-xs opacity-80">
-                        Date: {new Date(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} {new Date(sale.saleDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        Date: {parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} {parseApiDate(sale.saleDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                       </p>
                       <p className="text-xs opacity-80">Payment Mode: <strong>{getPaymentLabel(sale.paymentMethod)}</strong></p>
                     </div>
@@ -334,7 +335,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                   <div className="space-y-0.5 text-[9px] pb-1.5 border-b border-dashed border-current">
                     <div className="flex justify-between">
                       <span>DATE:</span>
-                      <span>{new Date(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
+                      <span>{parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>BILL:</span>
@@ -484,7 +485,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                   <div className="space-y-0.5 text-[11px] pb-2">
                     <div className="flex">
                       <span className="w-20">Bill Date</span>
-                      <span>: {new Date(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
+                      <span>: {parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
                     </div>
                     <div className="flex">
                       <span className="w-20">Bill No</span>

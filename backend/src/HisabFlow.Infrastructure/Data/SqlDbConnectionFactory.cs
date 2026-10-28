@@ -104,6 +104,8 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                             stock_quantity DECIMAL(12, 2) NOT NULL DEFAULT 0.00,
                             min_stock_alert DECIMAL(12, 2) NOT NULL DEFAULT 5.00,
                             image_url NVARCHAR(500) NULL,
+                            brand NVARCHAR(100) NULL,
+                            description NVARCHAR(500) NULL,
                             is_active BIT NOT NULL DEFAULT 1,
                             created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
                             updated_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
@@ -377,7 +379,39 @@ public class SqlDbConnectionFactory : IDbConnectionFactory
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_audit_logs_entity_created')
                         CREATE INDEX idx_audit_logs_entity_created ON audit_logs(entity_name, created_at DESC);
                     IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = N'idx_stock_movements_product_created')
-                        CREATE INDEX idx_stock_movements_product_created ON stock_movements(product_id, created_at DESC);")
+                        CREATE INDEX idx_stock_movements_product_created ON stock_movements(product_id, created_at DESC);"),
+
+                ("007_AddProductBrandAndDescription", @"
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'products') AND name = N'brand')
+                    BEGIN
+                        ALTER TABLE products ADD brand NVARCHAR(100) NULL;
+                    END
+
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'products') AND name = N'description')
+                    BEGIN
+                        ALTER TABLE products ADD description NVARCHAR(500) NULL;
+                    END"),
+
+                ("008_AddPaymentSessions", @"
+                    IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = N'payment_sessions')
+                    BEGIN
+                        CREATE TABLE payment_sessions (
+                            id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                            prn NVARCHAR(40) NOT NULL,
+                            provider NVARCHAR(20) NOT NULL,
+                            invoice_ref NVARCHAR(50) NULL,
+                            amount DECIMAL(18,2) NOT NULL,
+                            status INT NOT NULL DEFAULT 0,
+                            provider_txn_id NVARCHAR(100) NULL,
+                            paid_via NVARCHAR(20) NULL,
+                            created_by NVARCHAR(100) NOT NULL,
+                            created_at DATETIME2 NOT NULL,
+                            expires_at DATETIME2 NOT NULL,
+                            paid_at DATETIME2 NULL
+                        );
+                        CREATE UNIQUE INDEX ux_payment_sessions_prn ON payment_sessions(prn);
+                        CREATE INDEX idx_payment_sessions_status_expiry ON payment_sessions(status, expires_at);
+                    END")
             };
 
             foreach (var (id, sqlScript) in migrations)

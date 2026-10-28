@@ -13,7 +13,14 @@ export const mapApiCustomerToUI = (api: ApiCustomer): Customer => ({
 });
 
 export const mapApiLedgerEntryToUI = (api: ApiLedgerEntry): CreditLedgerEntry => {
-  const mapPaymentMethod = (method: number): 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE' => {
+  const mapPaymentMethod = (method: number | string): 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' | 'CREDIT_NOTE' => {
+    if (typeof method === 'string') {
+      const lower = method.toLowerCase();
+      if (lower.includes('qr')) return 'QR_PAYMENT';
+      if (lower.includes('bank')) return 'BANK_TRANSFER';
+      if (lower.includes('note')) return 'CREDIT_NOTE';
+      return 'CASH';
+    }
     switch (method) {
       case 2: return 'QR_PAYMENT';
       case 3: return 'BANK_TRANSFER';
@@ -23,7 +30,14 @@ export const mapApiLedgerEntryToUI = (api: ApiLedgerEntry): CreditLedgerEntry =>
     }
   };
 
-  const mapType = (t: number): LedgerTransactionType => {
+  const mapType = (t: number | string): LedgerTransactionType => {
+    if (typeof t === 'string') {
+      const lower = t.toLowerCase();
+      if (lower === 'debit' || lower === 'credit_purchase' || lower === '1') {
+        return 'CREDIT_PURCHASE';
+      }
+      return 'PAYMENT_RECEIVED';
+    }
     return t === 1 ? 'CREDIT_PURCHASE' : 'PAYMENT_RECEIVED';
   };
 
@@ -53,6 +67,8 @@ export const mapApiProductToUI = (api: ApiProduct): Product => ({
   minStockAlert: api.minStockAlert,
   barcode: api.barcode || undefined,
   imageUrl: api.imageUrl || undefined,
+  brand: api.brand || undefined,
+  description: api.description || undefined,
   updatedAt: api.updatedAt || new Date().toISOString(),
 });
 
@@ -68,7 +84,13 @@ export const mapApiSupplierToUI = (api: ApiSupplier): Supplier => ({
 });
 
 export const mapApiSupplierLedgerEntryToUI = (api: ApiSupplierLedgerEntry): SupplierLedgerEntry => {
-  const mapPaymentMethod = (method: number): 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' => {
+  const mapPaymentMethod = (method: number | string): 'CASH' | 'QR_PAYMENT' | 'BANK_TRANSFER' => {
+    if (typeof method === 'string') {
+      const lower = method.toLowerCase();
+      if (lower.includes('qr')) return 'QR_PAYMENT';
+      if (lower.includes('bank')) return 'BANK_TRANSFER';
+      return 'CASH';
+    }
     switch (method) {
       case 2: return 'QR_PAYMENT';
       case 3: return 'BANK_TRANSFER';
@@ -77,7 +99,14 @@ export const mapApiSupplierLedgerEntryToUI = (api: ApiSupplierLedgerEntry): Supp
     }
   };
 
-  const mapType = (t: number): SupplierTransactionType => {
+  const mapType = (t: number | string): SupplierTransactionType => {
+    if (typeof t === 'string') {
+      const lower = t.toLowerCase();
+      if (lower === 'debit' || lower === 'stock_purchase' || lower === '1') {
+        return 'STOCK_PURCHASE';
+      }
+      return 'PAYMENT_GIVEN';
+    }
     return t === 1 ? 'STOCK_PURCHASE' : 'PAYMENT_GIVEN';
   };
 

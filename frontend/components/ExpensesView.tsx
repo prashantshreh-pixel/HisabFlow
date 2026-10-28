@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
+import { formatLocalDate } from '@/lib/utils';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -37,7 +38,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) => {
-  const { expenses, expensesSummary, stats, deleteExpense, isLoading } = useKhata();
+  const { expenses, expensesSummary, stats, deleteExpense, isLoading, formatDate } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -202,8 +203,60 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
         </div>
       </div>
 
-      {/* Expenses Table */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
+      {/* Mobile Expense Cards */}
+      <div className="md:hidden space-y-3">
+        {filteredExpenses.length === 0 ? (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
+            <Receipt className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
+            <p className="text-sm font-semibold text-slate-300">No store expenses logged yet</p>
+          </div>
+        ) : (
+          filteredExpenses.map((expense) => (
+            <div
+              key={expense.id}
+              className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-rose-300 text-[10px] font-semibold border border-slate-700">
+                    {expense.category}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {formatDate(expense.expenseDate)}
+                  </span>
+                </div>
+                <div className="text-sm font-bold text-slate-100 truncate">
+                  {expense.title}
+                </div>
+                {expense.particulars && (
+                  <p className="text-xs text-slate-400 truncate">{expense.particulars}</p>
+                )}
+              </div>
+
+              <div className="text-right shrink-0 flex items-center gap-2.5">
+                <div>
+                  <span className="text-sm font-bold font-mono text-rose-400 block">
+                    Rs. {expense.amount.toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-slate-500 uppercase">
+                    {expense.paymentMethod === 'QR_PAYMENT' ? 'QR Pay' : 'Cash'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteExpense(expense.id)}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Expenses Table */}
+      <div className="hidden md:block bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
@@ -228,11 +281,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 </tr>
               ) : (
                 filteredExpenses.map((expense) => {
-                  const expDate = new Date(expense.expenseDate).toLocaleDateString('en-US', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric',
-                  });
+                  const expDate = formatLocalDate(expense.expenseDate);
 
                   return (
                     <tr key={expense.id} className="hover:bg-slate-800/40 transition-colors group">

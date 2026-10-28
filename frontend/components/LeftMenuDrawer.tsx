@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React from 'react';
 import { useKhata } from '@/context/KhataContext';
@@ -16,9 +16,7 @@ import {
   Settings,
   X,
   LogOut,
-  Wallet,
-  UserPlus,
-  PackagePlus,
+  Calculator,
   User,
 } from 'lucide-react';
 
@@ -27,9 +25,10 @@ interface LeftMenuDrawerProps {
   onClose: () => void;
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
-  onOpenAddCustomer: () => void;
-  onOpenAddProduct: () => void;
-  onOpenRecordTx: () => void;
+  onOpenAddCustomer?: () => void;
+  onOpenAddProduct?: () => void;
+  onOpenRecordTx?: () => void;
+  onOpenCashReconciliation?: () => void;
   onLogout?: () => void;
 }
 
@@ -38,12 +37,10 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
   onClose,
   currentTab,
   onSelectTab,
-  onOpenAddCustomer,
-  onOpenAddProduct,
-  onOpenRecordTx,
+  onOpenCashReconciliation,
   onLogout,
 }) => {
-  const { stats, t } = useKhata();
+  const { stats, storeProfile, t } = useKhata();
   const currentUser = getCurrentUser();
   const perms = getUserPermissions(currentUser?.role);
 
@@ -54,15 +51,23 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
     onClose();
   };
 
-  const allNavItems: { id: NavTab; label: string; icon: React.ComponentType<{ className?: string }>; badge?: string; visible: boolean }[] = [
+  const stockAlerts = stats.lowStockCount + stats.outOfStockCount;
+
+  const allNavItems: {
+    id: NavTab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: string;
+    visible: boolean;
+  }[] = [
     { id: 'DASHBOARD', label: t('dashboard'), icon: LayoutDashboard, visible: true },
     { id: 'POS', label: t('pos'), icon: ScanBarcode, visible: perms.canAccessPOS },
     { id: 'KHATA', label: t('khata'), icon: BookOpen, visible: perms.canManageKhata || perms.canReceivePayments },
-    { 
-      id: 'PRODUCTS', 
-      label: t('products'), 
+    {
+      id: 'PRODUCTS',
+      label: t('products'),
       icon: Boxes,
-      badge: stats.lowStockCount + stats.outOfStockCount > 0 ? `${stats.lowStockCount + stats.outOfStockCount} Low` : undefined,
+      badge: stockAlerts > 0 ? `${stockAlerts}` : undefined,
       visible: perms.canManageProducts,
     },
     { id: 'EXPENSES', label: t('expenses'), icon: Receipt, visible: perms.canManageExpenses },
@@ -76,87 +81,38 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-50 lg:hidden flex">
       {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity" 
-        onClick={onClose} 
+      <div
+        className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
       />
 
       {/* Drawer Panel */}
-      <div className="relative flex flex-col justify-between w-72 max-w-[80vw] bg-slate-900 border-r border-slate-800 h-full p-4 select-none z-10">
+      <div className="relative flex flex-col justify-between w-72 max-w-[82vw] bg-slate-950 border-r border-slate-800 h-full p-4 select-none z-10 overflow-y-auto">
         <div>
           {/* Header */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold">
-                <Store className="w-4 h-4" />
+          <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Store className="w-4.5 h-4.5" />
               </div>
-              <span className="font-bold text-base text-slate-100">
-                Hisab<span className="text-amber-400">Flow</span>
-              </span>
+              <div className="min-w-0">
+                <span className="font-bold text-sm text-slate-100 block truncate">
+                  {storeProfile?.storeName || 'HisabFlow'}
+                </span>
+                <span className="text-[11px] text-slate-400 block truncate">Retail POS &amp; Ledger</span>
+              </div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-900 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Operator Profile Badge */}
-          <div className="py-2.5 px-2 border-b border-slate-800/80 flex items-center justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <div className="min-w-0">
-                <span className="text-xs font-semibold text-slate-200 truncate block">
-                  {currentUser?.displayName || 'Operator'}
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">@{currentUser?.username || 'user'}</span>
-              </div>
-            </div>
-            <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono font-bold uppercase ${
-              currentUser?.role === 'ADMIN'
-                ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                : currentUser?.role === 'MANAGER'
-                ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
-                : 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-            }`}>
-              {currentUser?.role || 'CASHIER'}
-            </span>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="py-3 border-b border-slate-800/80 space-y-2">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block px-1">
-              Actions
-            </span>
-            <div className="grid grid-cols-2 gap-1.5">
-              <button
-                type="button"
-                onClick={() => { onOpenRecordTx(); onClose(); }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 rounded-md text-xs font-medium"
-              >
-                <Wallet className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Payment</span>
-              </button>
-              {perms.canManageKhata && (
-                <button
-                  type="button"
-                  onClick={() => { onOpenAddCustomer(); onClose(); }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-200 border border-slate-750 rounded-md text-xs font-medium"
-                >
-                  <UserPlus className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Customer</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Navigation Links */}
-          <div className="py-3 space-y-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-1.5 px-2">
-              Navigation
-            </span>
+          {/* Navigation Menu */}
+          <div className="py-4 space-y-1">
             {visibleNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = currentTab === item.id;
@@ -165,18 +121,18 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleTabClick(item.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs transition-colors ${
                     isActive
-                      ? 'bg-slate-800 text-amber-400 font-semibold border-l-2 border-amber-400'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/60'
+                      ? 'bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/25'
+                      : 'text-slate-300 hover:text-white hover:bg-slate-900 font-medium border border-transparent'
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <Icon className={`w-4 h-4 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
+                  <div className="flex items-center gap-3">
+                    <Icon className={`w-4.5 h-4.5 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />
                     <span>{item.label}</span>
                   </div>
                   {item.badge && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/25">
                       {item.badge}
                     </span>
                   )}
@@ -187,15 +143,45 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="pt-3 border-t border-slate-800 space-y-2">
-          <button
-            type="button"
-            onClick={() => logoutUser(onLogout)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-white rounded-md text-xs font-medium transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Sign Out</span>
-          </button>
+        <div className="pt-4 border-t border-slate-800/80 space-y-2.5 pb-safe">
+          {onOpenCashReconciliation && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenCashReconciliation();
+                onClose();
+              }}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-xs font-medium transition-colors"
+            >
+              <Calculator className="w-4 h-4 text-amber-400" />
+              <span>Shift Cash Closure</span>
+            </button>
+          )}
+
+          <div className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-slate-900/70 border border-slate-800">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-300 shrink-0">
+                <User className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <span className="text-xs font-semibold text-slate-200 truncate block">
+                  {currentUser?.displayName || 'Operator'}
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono uppercase">
+                  {currentUser?.role || 'ADMIN'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => logoutUser(onLogout)}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 text-xs font-medium flex items-center gap-1.5 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Exit</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

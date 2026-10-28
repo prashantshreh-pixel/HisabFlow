@@ -1,4 +1,4 @@
-﻿import { clsx, type ClassValue } from "clsx";
+import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 export function cn(...inputs: ClassValue[]) {
@@ -117,3 +117,49 @@ export function compressImageFile(
     reader.readAsDataURL(file);
   });
 }
+
+/**
+ * Safely parses any API date string into a local Date object.
+ * When the server returns UTC dates without a trailing 'Z' (e.g. from SQL Server),
+ * this appends 'Z' so the browser accurately converts it to the user's local timezone.
+ */
+export function parseApiDate(dateVal: string | Date | undefined | null): Date {
+  if (!dateVal) return new Date();
+  if (dateVal instanceof Date) return isNaN(dateVal.getTime()) ? new Date() : dateVal;
+  if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
+    if (!trimmed) return new Date();
+    // If it doesn't already have Z or a timezone offset like +05:45, append Z
+    if (!trimmed.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+      const parsed = new Date(`${trimmed}Z`);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    const standard = new Date(trimmed);
+    return isNaN(standard.getTime()) ? new Date() : standard;
+  }
+  return new Date();
+}
+
+/**
+ * Formats a date into localized date string (e.g. "Oct 28, 2026")
+ */
+export function formatLocalDate(dateVal: string | Date | undefined | null, options?: Intl.DateTimeFormatOptions): string {
+  const d = parseApiDate(dateVal);
+  return d.toLocaleDateString('en-US', options || {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+/**
+ * Formats a date into localized time string (e.g. "02:03 PM")
+ */
+export function formatLocalTime(dateVal: string | Date | undefined | null): string {
+  const d = parseApiDate(dateVal);
+  return d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+

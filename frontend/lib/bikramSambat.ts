@@ -1,3 +1,5 @@
+import { parseApiDate } from './utils';
+
 // Bikram Sambat (B.S.) Nepali Calendar Utility
 
 const MONTHS_EN = [
@@ -25,7 +27,7 @@ export function toNepaliNumerals(num: number | string): string {
  * Converts AD Gregorian date to Bikram Sambat (BS) date
  */
 export function adToBs(dateInput: Date | string, inNepaliScript = false): { year: number; month: number; day: number; formatted: string } {
-  const d = new Date(dateInput);
+  const d = parseApiDate(dateInput);
   if (isNaN(d.getTime())) {
     return { year: 2083, month: 1, day: 1, formatted: inNepaliScript ? '२०८३ बैशाख १' : '2083 Baishakh 1' };
   }
@@ -73,7 +75,7 @@ export function adToBs(dateInput: Date | string, inNepaliScript = false): { year
 
 export function formatSmartDate(dateInput: Date | string, useBs = true, isNepaliLang = false): string {
   if (!useBs) {
-    const d = new Date(dateInput);
+    const d = parseApiDate(dateInput);
     if (isNaN(d.getTime())) return String(dateInput);
     return d.toLocaleDateString(isNepaliLang ? 'ne-NP' : 'en-US', {
       month: 'short',

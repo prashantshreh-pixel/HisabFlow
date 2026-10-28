@@ -18,14 +18,20 @@ public class ProductsController : ControllerBase
     private readonly IProductRepository _productRepo;
     private readonly IStockMovementRepository _stockMovementRepo;
     private readonly IWebHostEnvironment _env;
+    private readonly IHttpClientFactory _httpClientFactory;
 
     private const long MaxImageFileSizeBytes = 5 * 1024 * 1024; // 5 MB ceiling
 
-    public ProductsController(IProductRepository productRepo, IStockMovementRepository stockMovementRepo, IWebHostEnvironment env)
+    public ProductsController(
+        IProductRepository productRepo,
+        IStockMovementRepository stockMovementRepo,
+        IWebHostEnvironment env,
+        IHttpClientFactory httpClientFactory)
     {
         _productRepo = productRepo;
         _stockMovementRepo = stockMovementRepo;
         _env = env;
+        _httpClientFactory = httpClientFactory;
     }
 
     private ProductDto MapToDto(Product p)
@@ -44,7 +50,9 @@ public class ProductsController : ControllerBase
             p.ImageUrl,
             p.IsActive,
             p.CreatedAt,
-            p.UpdatedAt
+            p.UpdatedAt,
+            p.Brand,
+            p.Description
         );
     }
 
@@ -123,6 +131,148 @@ public class ProductsController : ControllerBase
     }
 
     /// <summary>
+    /// Looks up a product by barcode in local store inventory first; if not found, queries open international catalogs (OpenFoodFacts) to auto-fill metadata.
+    /// </summary>
+    [HttpGet("lookup-barcode/{barcode}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<BarcodeLookupResponse>> LookupBarcode(string barcode, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(barcode))
+        {
+            return BadRequest(new { message = "Barcode cannot be empty." });
+        }
+
+        var cleanBarcode = barcode.Trim();
+
+        // 1. Check local store database
+        var localProduct = await _productRepo.GetByBarcodeAsync(cleanBarcode, cancellationToken);
+        if (localProduct != null)
+        {
+            return Ok(new BarcodeLookupResponse(
+                Found: true,
+                Source: "LOCAL_INVENTORY",
+                Product: MapToDto(localProduct),
+                Data: null,
+                Message: $"Product '{localProduct.Name}' is already registered in your inventory."
+            ));
+        }
+
+        // 2. Query open catalog (OpenFoodFacts)
+        try
+        {
+            var client = _httpClientFactory.CreateClient("ProductCatalog");
+            var response = await client.GetAsync($"https://world.openfoodfacts.org/api/v2/product/{Uri.EscapeDataString(cleanBarcode)}.json", cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                using var doc = await System.Text.Json.JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
+                var root = doc.RootElement;
+                if (root.TryGetProperty("status", out var statusProp) && statusProp.GetInt32() == 1 && root.TryGetProperty("product", out var prodObj))
+                {
+                    string name = "";
+                    if (prodObj.TryGetProperty("product_name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+                        name = nameProp.GetString()!;
+                    else if (prodObj.TryGetProperty("product_name_en", out var nameEnProp) && !string.IsNullOrWhiteSpace(nameEnProp.GetString()))
+                        name = nameEnProp.GetString()!;
+
+                    string brand = "";
+                    if (prodObj.TryGetProperty("brands", out var brandProp) && !string.IsNullOrWhiteSpace(brandProp.GetString()))
+                    {
+                        brand = brandProp.GetString()!.Split(',')[0].Trim();
+                    }
+
+                    string quantity = "";
+                    if (prodObj.TryGetProperty("quantity", out var qtyProp) && !string.IsNullOrWhiteSpace(qtyProp.GetString()))
+                    {
+                        quantity = qtyProp.GetString()!.Trim();
+                    }
+
+                    string imageUrl = "";
+                    if (prodObj.TryGetProperty("image_front_url", out var imgFront) && !string.IsNullOrWhiteSpace(imgFront.GetString()))
+                        imageUrl = imgFront.GetString()!;
+                    else if (prodObj.TryGetProperty("image_url", out var imgUrl) && !string.IsNullOrWhiteSpace(imgUrl.GetString()))
+                        imageUrl = imgUrl.GetString()!;
+
+                    string categories = "";
+                    if (prodObj.TryGetProperty("categories", out var catProp) && !string.IsNullOrWhiteSpace(catProp.GetString()))
+                        categories = catProp.GetString()!;
+
+                    string description = "";
+                    if (prodObj.TryGetProperty("ingredients_text", out var ingProp) && !string.IsNullOrWhiteSpace(ingProp.GetString()))
+                        description = ingProp.GetString()!;
+
+                    // Capitalize / format name cleanly
+                    if (!string.IsNullOrWhiteSpace(name))
+                    {
+                        name = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(name.ToLowerInvariant());
+                    }
+                    else if (!string.IsNullOrWhiteSpace(brand))
+                    {
+                        name = $"{brand} Item {quantity}".Trim();
+                    }
+
+                    // Map category to standard HisabFlow categories
+                    var catLower = (categories + " " + name).ToLowerInvariant();
+                    string mappedCategory = "Packaged Foods & Snacks";
+                    if (catLower.Contains("rice") || catLower.Contains("grain") || catLower.Contains("wheat") || catLower.Contains("flour") || catLower.Contains("dal") || catLower.Contains("pulse") || catLower.Contains("bean"))
+                        mappedCategory = "Grains & Rice";
+                    else if (catLower.Contains("oil") || catLower.Contains("ghee") || catLower.Contains("mustard"))
+                        mappedCategory = "Oils & Ghee";
+                    else if (catLower.Contains("spice") || catLower.Contains("masala") || catLower.Contains("salt") || catLower.Contains("sugar") || catLower.Contains("staple"))
+                        mappedCategory = "Staples & Spices";
+                    else if (catLower.Contains("milk") || catLower.Contains("cheese") || catLower.Contains("butter") || catLower.Contains("yogurt") || catLower.Contains("paneer") || catLower.Contains("dairy"))
+                        mappedCategory = "Dairy";
+                    else if (catLower.Contains("beverage") || catLower.Contains("drink") || catLower.Contains("juice") || catLower.Contains("soda") || catLower.Contains("tea") || catLower.Contains("coffee") || catLower.Contains("water"))
+                        mappedCategory = "Beverages";
+                    else if (catLower.Contains("clean") || catLower.Contains("soap") || catLower.Contains("detergent") || catLower.Contains("shampoo") || catLower.Contains("wash") || catLower.Contains("tissue"))
+                        mappedCategory = "Household & Cleaning";
+
+                    var enrichment = new BarcodeEnrichmentData(
+                        Name: name,
+                        Brand: string.IsNullOrWhiteSpace(brand) ? null : brand,
+                        Barcode: cleanBarcode,
+                        Category: mappedCategory,
+                        Unit: "pcs",
+                        ImageUrl: string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl,
+                        NetWeight: string.IsNullOrWhiteSpace(quantity) ? null : quantity,
+                        Description: string.IsNullOrWhiteSpace(description) ? null : description
+                    );
+
+                    return Ok(new BarcodeLookupResponse(
+                        Found: true,
+                        Source: "OPEN_CATALOG",
+                        Product: null,
+                        Data: enrichment,
+                        Message: "Product recognized from global database."
+                    ));
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // If internet lookup fails or times out, proceed to empty state gracefully
+        }
+
+        // 3. Fallback: Unrecognized barcode
+        return Ok(new BarcodeLookupResponse(
+            Found: false,
+            Source: "NONE",
+            Product: null,
+            Data: new BarcodeEnrichmentData(
+                Name: null,
+                Brand: null,
+                Barcode: cleanBarcode,
+                Category: "Packaged Foods & Snacks",
+                Unit: "pcs",
+                ImageUrl: null,
+                NetWeight: null,
+                Description: null
+            ),
+            Message: "Barcode scanned. Enter product details to save."
+        ));
+    }
+
+    /// <summary>
     /// Retrieves stock movement audit trail ledger entries for a product.
     /// </summary>
     [HttpGet("{id:guid}/stock-movements")]
@@ -155,6 +305,8 @@ public class ProductsController : ControllerBase
             MinStockAlert = request.MinStockAlert,
             Barcode = request.Barcode?.Trim(),
             ImageUrl = request.ImageUrl?.Trim(),
+            Brand = request.Brand?.Trim(),
+            Description = request.Description?.Trim(),
         };
 
         var created = await _productRepo.CreateAsync(productEntity, cancellationToken);
@@ -279,6 +431,8 @@ public class ProductsController : ControllerBase
             MinStockAlert = request.MinStockAlert,
             Barcode = request.Barcode?.Trim(),
             ImageUrl = request.ImageUrl?.Trim(),
+            Brand = request.Brand?.Trim(),
+            Description = request.Description?.Trim(),
         };
 
         var success = await _productRepo.UpdateAsync(productEntity, expectedUpdatedAt, cancellationToken);
