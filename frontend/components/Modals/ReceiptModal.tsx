@@ -3,13 +3,15 @@
 import React, { useState } from 'react';
 import { Sale, DEFAULT_STORE_PROFILE } from '@/types';
 import { useKhata } from '@/context/KhataContext';
-import { parseApiDate } from '@/lib/utils';
-import { X, Printer, Store, CheckCircle, Sun, Moon, FileText } from 'lucide-react';
+import { formatLocalTime } from '@/lib/utils';
+import { X, Printer, Store, CheckCircle, Sun, Moon, RotateCcw, MessageCircle, Send } from 'lucide-react';
 
 interface ReceiptModalProps {
   sale: Sale | null;
   isOpen: boolean;
   onClose: () => void;
+  onRefundSale?: (sale: Sale) => void;
+  canRefund?: boolean;
 }
 
 const numToWords = (num: number, cur: string): string => {
@@ -27,15 +29,25 @@ const numToWords = (num: number, cur: string): string => {
   return `${cur} ${convert(Math.floor(num))} Only`;
 };
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClose }) => {
-  const { storeProfile } = useKhata();
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({
+  sale,
+  isOpen,
+  onClose,
+  onRefundSale,
+  canRefund = false,
+}) => {
+  const { storeProfile, formatDate, language, t, showToast } = useKhata();
   const [paperSize, setPaperSize] = useState<'58mm' | '80mm' | 'A4'>('80mm');
   const [receiptTheme, setReceiptTheme] = useState<'light' | 'dark'>('light');
+  const [showWaPhoneBar, setShowWaPhoneBar] = useState<boolean>(false);
+  const [customWaPhone, setCustomWaPhone] = useState<string>('');
   const profile = storeProfile || DEFAULT_STORE_PROFILE;
 
   if (!isOpen || !sale) return null;
 
   const cur = profile.currencySymbol || 'Rs.';
+  const formattedBillDate = formatDate(sale.saleDate);
+  const formattedBillTime = formatLocalTime(sale.saleDate);
 
   const handlePrint = () => {
     window.print();
@@ -44,15 +56,63 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
   const getPaymentLabel = (method: number) => {
     switch (method) {
       case 1:
-        return 'Cash';
+        return language === 'np' ? 'नगद (Cash)' : 'Cash';
       case 2:
-        return 'QR Pay (Fonepay/eSewa)';
+        return language === 'np' ? 'QR पे (Fonepay/eSewa)' : 'QR Pay (Fonepay/eSewa)';
       case 3:
-        return 'Customer Khata (Credit)';
+        return language === 'np' ? 'ग्राहक खाता (उधारो)' : 'Customer Khata (Credit)';
       case 4:
-        return 'Split Payment';
+        return language === 'np' ? 'मिश्रित भुक्तानी (Split)' : 'Split Payment';
       default:
-        return 'Cash';
+        return language === 'np' ? 'नगद (Cash)' : 'Cash';
+    }
+  };
+
+  const sendWhatsAppReceipt = (rawPhone: string) => {
+    const cleanPhone = rawPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 7) {
+      showToast({
+        type: 'warning',
+        title: language === 'np' ? 'मोबाइल नम्बर आवश्यक' : 'Phone Number Required',
+        message:
+          language === 'np'
+            ? 'कृपया ग्राहकको सही १० अंकको मोबाइल नम्बर राख्नुहोस्।'
+            : 'Please enter a valid customer mobile number to share the bill on WhatsApp.',
+      });
+      setShowWaPhoneBar(true);
+      return;
+    }
+    const targetPhone = cleanPhone.length === 10 ? `977${cleanPhone}` : cleanPhone;
+
+    const itemLines = sale.items
+      .map(
+        (item, idx) =>
+          `${idx + 1}. ${item.productName} (${item.quantity} x ${cur}${item.unitPrice}) = *${cur}${item.subtotal.toLocaleString()}*`
+      )
+      .join('\n');
+
+    const statusLine = sale.isRefunded
+      ? language === 'np'
+        ? '\n⚠️ *स्थिति: फिर्ता गरिएको बिल (REFUNDED)*\n'
+        : '\n⚠️ *STATUS: REFUNDED / RETURNED*\n'
+      : '';
+
+    const message =
+      language === 'np'
+        ? `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}🧾 *बिल नं:* ${sale.invoiceNumber}\n📅 *मिति:* ${formattedBillDate} (${formattedBillTime})\n👤 *ग्राहक:* ${sale.customerName || 'Walk-in Customer'}\n────────────────\n${itemLines}\n────────────────\n${sale.discountAmount > 0 ? `छुट: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `भ्याट (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}💰 *जम्मा रकम: ${cur} ${sale.totalAmount.toLocaleString()}*\n💳 *भुक्तानी माध्यम:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n📒 *खाता बाँकी (उधारो): ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'हामीलाई सम्झनुभएकोमा धन्यवाद!'}_`
+        : `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}🧾 *Bill No:* ${sale.invoiceNumber}\n📅 *Date:* ${formattedBillDate} (${formattedBillTime})\n👤 *Customer:* ${sale.customerName || 'Walk-in Customer'}\n────────────────\n${itemLines}\n────────────────\n${sale.discountAmount > 0 ? `Discount: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `VAT (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}💰 *Grand Total: ${cur} ${sale.totalAmount.toLocaleString()}*\n💳 *Payment Mode:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n📒 *Khata Due: ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'Thank you for shopping with us!'}_`;
+
+    window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+    setShowWaPhoneBar(false);
+  };
+
+  const handleWhatsAppButtonClick = () => {
+    const initialPhone = (customWaPhone || sale.customerPhone || '').trim();
+    if (initialPhone && !showWaPhoneBar) {
+      sendWhatsAppReceipt(initialPhone);
+    } else {
+      setCustomWaPhone(sale.customerPhone || '');
+      setShowWaPhoneBar((prev) => !prev);
     }
   };
 
@@ -119,21 +179,45 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
         
           {/* Header - Screen only */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/60 print:hidden shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <CheckCircle className="w-4 h-4" />
+            <div className="flex items-center gap-2.5">
+              <div className={`p-2 rounded-xl border ${
+                sale.isRefunded
+                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+              }`}>
+                {sale.isRefunded ? <RotateCcw className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
               </div>
               <div>
-                <h3 className="text-sm font-black text-slate-100 tracking-tight">
-                  Sale Completed
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-black text-slate-100 tracking-tight">
+                    {sale.isRefunded
+                      ? language === 'np' ? 'फिर्ता गरिएको बिल (Refunded)' : 'Sale Refunded / Returned'
+                      : language === 'np' ? 'बिक्री सम्पन्न भयो' : 'Sale Completed'}
+                  </h3>
+                  {sale.isRefunded && (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-black uppercase">
+                      {t('refunded')}
+                    </span>
+                  )}
+                </div>
                 <p className="text-[11px] text-slate-400 font-mono">
-                  {sale.invoiceNumber}
+                  {sale.invoiceNumber} • {formattedBillDate}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
+              {!sale.isRefunded && canRefund && onRefundSale && (
+                <button
+                  type="button"
+                  onClick={() => onRefundSale(sale)}
+                  className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/25 text-xs font-bold flex items-center gap-1.5 transition-colors"
+                  title={language === 'np' ? 'यो बिल फिर्ता गर्नुहोस्' : 'Refund & Return this bill'}
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>{t('refund')}</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={onClose}
@@ -188,7 +272,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                       </span>
                       <p className="text-lg font-mono font-bold mt-1">{sale.invoiceNumber}</p>
                       <p className="text-xs opacity-80">
-                        Date: {parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} {parseApiDate(sale.saleDate).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                        Date: {formattedBillDate} {formattedBillTime}
                       </p>
                       <p className="text-xs opacity-80">Payment Mode: <strong>{getPaymentLabel(sale.paymentMethod)}</strong></p>
                     </div>
@@ -205,7 +289,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
                     </div>
                     <div className="sm:text-right">
                       <span className="font-bold uppercase tracking-wider text-[10px] opacity-70">Settlement Status:</span>
-                      <p className="text-sm font-bold text-emerald-500 print:text-black mt-0.5">COMPLETED & SETTLED</p>
+                      <p className={`text-sm font-bold print:text-black mt-0.5 ${sale.isRefunded ? 'text-rose-500' : 'text-emerald-500'}`}>
+                        {sale.isRefunded ? 'REFUNDED & RETURNED' : 'COMPLETED & SETTLED'}
+                      </p>
                       <p className="opacity-80">Mode: {getPaymentLabel(sale.paymentMethod)}</p>
                     </div>
                   </div>
@@ -333,9 +419,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
 
                   {/* Meta */}
                   <div className="space-y-0.5 text-[9px] pb-1.5 border-b border-dashed border-current">
+                    {sale.isRefunded && (
+                      <div className="text-center font-black py-0.5 border border-current mb-1">
+                        *** REFUNDED / RETURNED ***
+                      </div>
+                    )}
                     <div className="flex justify-between">
                       <span>DATE:</span>
-                      <span>{parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
+                      <span>{formattedBillDate}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>BILL:</span>
@@ -483,9 +574,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
 
                   {/* Bill Meta Details */}
                   <div className="space-y-0.5 text-[11px] pb-2">
+                    {sale.isRefunded && (
+                      <div className="text-center font-black py-1 border border-current mb-1.5">
+                        *** REFUNDED / RETURNED BILL ***
+                      </div>
+                    )}
                     <div className="flex">
                       <span className="w-20">Bill Date</span>
-                      <span>: {parseApiDate(sale.saleDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '/')}</span>
+                      <span>: {formattedBillDate} ({formattedBillTime})</span>
                     </div>
                     <div className="flex">
                       <span className="w-20">Bill No</span>
@@ -671,24 +767,91 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ sale, isOpen, onClos
               </div>
             </div>
 
-            <div className="flex items-center justify-between gap-3">
+            {/* Optional Inline WhatsApp Phone Input Bar (for Walk-in Customers or editing phone) */}
+            {showWaPhoneBar && (
+              <div className="p-2.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center gap-2 animate-in fade-in duration-150">
+                <MessageCircle className="w-4 h-4 text-emerald-400 shrink-0 ml-1" />
+                <input
+                  id="wa-receipt-phone-input"
+                  type="tel"
+                  value={customWaPhone}
+                  onChange={(e) => setCustomWaPhone(e.target.value)}
+                  placeholder={
+                    language === 'np'
+                      ? 'ग्राहकको मोबाइल नं (98XXXXXXXX)...'
+                      : 'Customer WhatsApp No (98XXXXXXXX)...'
+                  }
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      sendWhatsAppReceipt(customWaPhone);
+                    }
+                  }}
+                />
+                <button
+                  id="wa-receipt-send-btn"
+                  type="button"
+                  onClick={() => sendWhatsAppReceipt(customWaPhone)}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs flex items-center gap-1.5 transition-colors shrink-0"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>{language === 'np' ? 'पठाउनुहोस्' : 'Send'}</span>
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5">
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                className="py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
               >
-                Close
+                {language === 'np' ? 'बन्द गर्नुहोस्' : 'Close'}
               </button>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
-              >
-                <Printer className="w-4 h-4" />
-                <span>
-                  Print {paperSize === 'A4' ? 'A4 Invoice' : `${paperSize} Receipt`} ({isDark ? 'Dark' : 'Light'})
-                </span>
-              </button>
+
+              <div className="flex items-center gap-1.5 flex-1 justify-end">
+                <button
+                  id="wa-receipt-share-btn"
+                  type="button"
+                  onClick={handleWhatsAppButtonClick}
+                  className="py-2.5 px-3.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 transition-all flex items-center justify-center gap-1.5"
+                  title={
+                    sale.customerPhone
+                      ? `Send WhatsApp Bill to ${sale.customerPhone}`
+                      : 'Send itemized receipt via WhatsApp'
+                  }
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{t('whatsappBill')}</span>
+                </button>
+
+                {sale.customerPhone && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomWaPhone(sale.customerPhone || '');
+                      setShowWaPhoneBar((prev) => !prev);
+                    }}
+                    className="py-2.5 px-2.5 rounded-xl text-[11px] font-mono bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-emerald-300 border border-slate-800 transition-colors"
+                    title="Change WhatsApp number"
+                  >
+                    #
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>
+                    {t('print')} {paperSize === 'A4' ? 'A4' : paperSize}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
 

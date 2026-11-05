@@ -37,7 +37,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onEditProduct,
   onQuickStockAdjust,
 }) => {
-  const { products, stats, deleteProduct, isLoading } = useKhata();
+  const { products, stats, deleteProduct, isLoading, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -102,10 +102,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-black text-slate-100 tracking-tight flex items-center gap-2">
-            Product Inventory & Stock
+            {t('productInventoryStock')}
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Manage your catalog, prices, real-time stock levels, and barcodes
+            {t('productsSubtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -118,7 +118,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               title="Scan barcode with camera or upload packaging image"
             >
               <ScanLine className="w-4 h-4" />
-              <span>Scan / Upload Barcode</span>
+              <span>{t('scanUploadBarcode')}</span>
             </button>
           )}
           <button
@@ -128,7 +128,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
           >
             <PackagePlus className="w-4 h-4" />
-            <span>+ Add Product</span>
+            <span>{t('addProduct')}</span>
           </button>
         </div>
       </div>
@@ -139,12 +139,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Total Stock Cost
+              {t('totalStockCost')}
             </span>
             <div className="text-2xl font-black text-slate-100 mt-1">
               Rs. {stats.totalInventoryCostValue.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-500">{products.length} registered SKUs</span>
+            <span className="text-[11px] text-slate-500">{products.length} {t('registeredSkus')}</span>
           </div>
           <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Coins className="w-5 h-5" />
@@ -155,13 +155,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Stock Retail Worth
+              {t('stockRetailWorth')}
             </span>
             <div className="text-2xl font-black text-emerald-400 mt-1">
               Rs. {stats.totalInventorySalesValue.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-400">
-              Potential Profit: Rs. {(stats.totalInventorySalesValue - stats.totalInventoryCostValue).toLocaleString()}
+              {t('potentialProfit')}: Rs. {(stats.totalInventorySalesValue - stats.totalInventoryCostValue).toLocaleString()}
             </span>
           </div>
           <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -173,10 +173,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Avg Profit Margin
+              {t('avgProfitMargin')}
             </span>
             <div className="text-2xl font-black text-slate-100 mt-1">{avgMargin}%</div>
-            <span className="text-[11px] text-slate-500">Markup across store items</span>
+            <span className="text-[11px] text-slate-500">{t('markupAcrossStore')}</span>
           </div>
           <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
             <Percent className="w-5 h-5" />
@@ -187,12 +187,12 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Stock Reorder Alert
+              {t('stockReorderAlert')}
             </span>
             <div className="text-2xl font-black text-amber-400 mt-1">
-              {stats.lowStockCount + stats.outOfStockCount} Low/Empty
+              {stats.lowStockCount + stats.outOfStockCount} {t('lowEmpty')}
             </div>
-            <span className="text-[11px] text-slate-500">{stats.outOfStockCount} zero stock items</span>
+            <span className="text-[11px] text-slate-500">{stats.outOfStockCount} {t('zeroStockItems')}</span>
           </div>
           <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
             <AlertTriangle className="w-5 h-5" />
@@ -209,7 +209,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <input
               id="product-search-input"
               type="text"
-              placeholder="Search product by name, barcode, or category..."
+              placeholder={t('searchProductPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
@@ -220,7 +220,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-200"
               >
-                Clear
+                {t('clear')}
               </button>
             )}
           </div>
@@ -247,7 +247,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               onChange={(e) => setSortBy(e.target.value as any)}
               className="px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-amber-500"
             >
-              <option value="NAME">Sort by Name (A-Z)</option>
+              <option value="NAME">{t('nameAZ')}</option>
               <option value="STOCK_ASC">Lowest Stock First</option>
               <option value="MARGIN_DESC">Highest Margin %</option>
               <option value="VALUATION_DESC">Highest Valuation</option>
@@ -257,7 +257,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
         {/* Quick Filter Pills */}
         <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80 flex-wrap">
-          <span className="text-[11px] text-slate-500 font-medium">Stock Status:</span>
+          <span className="text-[11px] text-slate-500 font-medium">{t('stockStatus')}:</span>
           <button
             type="button"
             onClick={() => setStockFilter('ALL')}
@@ -267,7 +267,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            All Stock ({products.length})
+            {t('allStock')} ({products.length})
           </button>
           <button
             type="button"
@@ -278,7 +278,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            Low Stock ({stats.lowStockCount})
+            {t('lowStock')} ({stats.lowStockCount})
           </button>
           <button
             type="button"
@@ -289,7 +289,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            Out of Stock ({stats.outOfStockCount})
+            {t('outOfStock')} ({stats.outOfStockCount})
           </button>
           <button
             type="button"
@@ -300,7 +300,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            In Stock Healthy ({products.filter((p) => p.stockQuantity > p.minStockAlert).length})
+            {t('inStockHealthy')} ({products.filter((p) => p.stockQuantity > p.minStockAlert).length})
           </button>
         </div>
       </div>
@@ -374,13 +374,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
 
                 <div className="grid grid-cols-2 gap-2 p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-500 block">Cost Price</span>
+                    <span className="text-[10px] text-slate-500 block">{t('costPrice')}</span>
                     <span className="font-mono font-semibold text-slate-300">
                       Rs. {product.costPrice.toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 block">Selling Price</span>
+                    <span className="text-[10px] text-slate-500 block">{t('sellingPrice')}</span>
                     <span className="font-mono font-bold text-emerald-400">
                       Rs. {product.sellingPrice.toLocaleString()}
                     </span>
@@ -394,7 +394,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     className="flex-1 py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
-                    <span>Adjust Stock</span>
+                    <span>{t('adjustStock')}</span>
                   </button>
                   <button
                     type="button"
@@ -402,7 +402,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                     className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
                   >
                     <Edit className="w-3.5 h-3.5" />
-                    <span>Edit</span>
+                    <span>{t('edit')}</span>
                   </button>
                   <button
                     type="button"
@@ -424,14 +424,14 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
               <tr>
-                <th className="py-3.5 px-5 min-w-[220px]">Product Item</th>
+                <th className="py-3.5 px-5 min-w-[220px]">{t('products')}</th>
                 <th className="py-3.5 px-5 min-w-[210px]">Category & Unit</th>
-                <th className="py-3.5 px-5 text-right min-w-[130px]">Cost Price (Rs.)</th>
-                <th className="py-3.5 px-5 text-right min-w-[140px]">Selling Price (Rs.)</th>
-                <th className="py-3.5 px-5 text-center min-w-[110px]">Margin %</th>
-                <th className="py-3.5 px-5 text-center min-w-[130px]">Stock Level</th>
-                <th className="py-3.5 px-5 text-center min-w-[150px]">Quick Stock Adjust</th>
-                <th className="py-3.5 px-5 text-center min-w-[100px]">Actions</th>
+                <th className="py-3.5 px-5 text-right min-w-[130px]">{t('costPrice')} (Rs.)</th>
+                <th className="py-3.5 px-5 text-right min-w-[140px]">{t('sellingPrice')} (Rs.)</th>
+                <th className="py-3.5 px-5 text-center min-w-[110px]">{t('margin')}</th>
+                <th className="py-3.5 px-5 text-center min-w-[130px]">{t('stockLevel')}</th>
+                <th className="py-3.5 px-5 text-center min-w-[150px]">{t('quickStockAdjust')}</th>
+                <th className="py-3.5 px-5 text-center min-w-[100px]">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -568,10 +568,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           type="button"
                           onClick={() => onQuickStockAdjust(product)}
                           className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-bold rounded-lg border border-slate-700 hover:border-amber-500/40 transition-all inline-flex items-center gap-1.5 shadow-sm"
-                          title="Quick Stock Adjust"
+                          title={t('quickStockAdjust')}
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
-                          Stock Adjust
+                          {t('adjustStock')}
                         </button>
                       </td>
 

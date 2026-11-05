@@ -25,22 +25,22 @@ interface NavbarProps {
   onLogout?: () => void;
 }
 
-const TAB_TITLES: Record<NavTab, string> = {
-  DASHBOARD: 'Store Overview',
-  POS: 'Point of Sale Terminal',
-  KHATA: 'Customer Khata Ledger',
-  PRODUCTS: 'Product Inventory',
-  EXPENSES: 'Store Expenses',
-  SUPPLIERS: 'Supplier Ledgers',
-  REPORTS: 'Financial Reports',
-  SETTINGS: 'System Settings',
+const TAB_TITLE_KEYS: Record<NavTab, 'titleDashboard' | 'titlePos' | 'titleKhata' | 'titleProducts' | 'titleExpenses' | 'titleSuppliers' | 'titleReports' | 'titleSettings'> = {
+  DASHBOARD: 'titleDashboard',
+  POS: 'titlePos',
+  KHATA: 'titleKhata',
+  PRODUCTS: 'titleProducts',
+  EXPENSES: 'titleExpenses',
+  SUPPLIERS: 'titleSuppliers',
+  REPORTS: 'titleReports',
+  SETTINGS: 'titleSettings',
 };
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentTab,
   onTabChange,
 }) => {
-  const { language, calendarMode, toggleLanguage, toggleCalendarMode, storeProfile } = useKhata();
+  const { language, calendarMode, toggleLanguage, toggleCalendarMode, storeProfile, t } = useKhata();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
   useEffect(() => {
@@ -76,18 +76,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                   {storeProfile?.storeName || 'HisabFlow'}
                 </span>
                 <span className="text-[10px] text-slate-400 block truncate">
-                  {TAB_TITLES[currentTab]}
+                  {t(TAB_TITLE_KEYS[currentTab])}
                 </span>
               </div>
             </div>
 
             <div className="hidden lg:flex items-center gap-3">
               <h2 className="text-sm font-semibold text-slate-100 tracking-tight">
-                {TAB_TITLES[currentTab]}
+                {t(TAB_TITLE_KEYS[currentTab])}
               </h2>
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Live
+                {t('live')}
               </span>
             </div>
           </div>
@@ -102,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title="Install HisabFlow App on your device"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Install App</span>
+                <span className="hidden sm:inline">{t('installApp')}</span>
               </button>
             )}
 
@@ -113,7 +113,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="hidden lg:flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors shadow-sm"
               >
                 <ScanBarcode className="w-3.5 h-3.5" />
-                <span>POS Billing</span>
+                <span>{t('pos')}</span>
               </button>
             )}
 
@@ -126,7 +126,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5"
             >
               <CalendarDays className="w-3.5 h-3.5 text-slate-400" />
-              <span className="font-mono font-semibold text-slate-200">{calendarMode}</span>
+              <span className="font-mono font-semibold text-slate-200">
+                {calendarMode === 'BS' ? (language === 'np' ? 'वि.सं.' : 'B.S.') : 'A.D.'}
+              </span>
             </button>
 
             {/* Language Toggle */}

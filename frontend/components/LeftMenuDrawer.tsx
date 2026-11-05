@@ -99,7 +99,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
                 <span className="font-bold text-sm text-slate-100 block truncate">
                   {storeProfile?.storeName || 'HisabFlow'}
                 </span>
-                <span className="text-[11px] text-slate-400 block truncate">Retail POS &amp; Ledger</span>
+                <span className="text-[11px] text-slate-400 block truncate">{t('retailPosLedger')}</span>
               </div>
             </div>
             <button
@@ -154,7 +154,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 rounded-xl text-xs font-medium transition-colors"
             >
               <Calculator className="w-4 h-4 text-amber-400" />
-              <span>Shift Cash Closure</span>
+              <span>{t('shiftCashClosure')}</span>
             </button>
           )}
 
@@ -179,7 +179,7 @@ export const LeftMenuDrawer: React.FC<LeftMenuDrawerProps> = ({
               className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 text-xs font-medium flex items-center gap-1.5 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
-              <span>Exit</span>
+              <span>{t('exit')}</span>
             </button>
           </div>
         </div>

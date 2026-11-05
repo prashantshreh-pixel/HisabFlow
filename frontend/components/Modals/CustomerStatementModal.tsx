@@ -22,7 +22,7 @@ import {
 import { CreditLedgerEntry } from '@/types';
 import { PageLoader } from '@/components/Loader';
 import { exportCustomerStatementCSV } from '@/lib/exportUtils';
-import { formatLocalDate, formatLocalTime } from '@/lib/utils';
+import { formatLocalTime } from '@/lib/utils';
 
 interface CustomerStatementModalProps {
   customerId: string | null;
@@ -40,6 +40,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     getCustomerLedger,
     showToast,
     storeProfile,
+    formatDate,
+    language,
+    t,
   } = useKhata();
 
   const cur = storeProfile?.currencySymbol || 'Rs.';
@@ -75,7 +78,10 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     return digits;
   };
 
-  const reminderMessage = `Namaste ${customer.name}, your total outstanding balance at ${storeProfile?.storeName || 'HisabFlow'} is ${cur} ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
+  const reminderMessage =
+    language === 'np'
+      ? `नमस्ते ${customer.name} ज्यू, ${storeProfile?.storeName || 'HisabFlow'} मा यहाँको खातामा जम्मा बाँकी रकम ${cur} ${customer.currentBalance.toLocaleString()} छ। कृपया समयमै भुक्तानी गरिदिनुहुन अनुरोध छ। धन्यवाद!`
+      : `Namaste ${customer.name}, your total outstanding balance at ${storeProfile?.storeName || 'HisabFlow'} is ${cur} ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
 
   const handleOpenWhatsApp = () => {
     const cleanPhone = getCleanPhone(customer.phone);
@@ -109,13 +115,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     window.print();
   };
 
-  const printDate = new Date().toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
+  const printDate = `${formatDate(new Date())} ${formatLocalTime(new Date())}`;
 
   return (
     <>
@@ -349,7 +349,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                     <tbody className="divide-y divide-slate-800/60">
                       {ledger.map((entry) => {
                         const isPurchase = entry.type === 'CREDIT_PURCHASE';
-                        const formattedDate = formatLocalDate(entry.date);
+                        const formattedDate = formatDate(entry.date);
                         const formattedTime = formatLocalTime(entry.date);
 
                         return (
@@ -458,7 +458,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           <tbody>
             {ledger.map((entry) => {
               const isPurchase = entry.type === 'CREDIT_PURCHASE';
-              const formattedDate = formatLocalDate(entry.date);
+              const formattedDate = formatDate(entry.date);
 
               return (
                 <tr key={entry.id} style={{ borderBottom: '1px solid #e5e7eb' }}>

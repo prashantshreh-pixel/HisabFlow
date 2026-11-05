@@ -113,7 +113,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <Menu className="w-5 h-5" />
-          <span className="text-[10px] font-semibold tracking-tight">More</span>
+          <span className="text-[10px] font-semibold tracking-tight">{t('more')}</span>
         </button>
       </div>
     </nav>

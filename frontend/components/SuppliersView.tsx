@@ -31,7 +31,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   onOpenRecordTransaction,
   onSelectSupplier,
 }) => {
-  const { suppliers, suppliersSummary, stats, deleteSupplier, isLoading } = useKhata();
+  const { suppliers, suppliersSummary, stats, deleteSupplier, isLoading, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -61,7 +61,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Total Supplier Payables
+              {t('totalSupplierPayables')}
             </span>
             <div className="text-2xl font-black text-rose-400 mt-1">
               Rs. {stats.totalOutstandingPayable.toLocaleString()}
@@ -77,7 +77,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Today&apos;s Purchases
+              {t('todaysPurchases')}
             </span>
             <div className="text-2xl font-black text-amber-400 mt-1">
               Rs. {stats.todaySupplierPurchases.toLocaleString()}
@@ -93,7 +93,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Today&apos;s Payments Given
+              {t('todaysPaymentsGiven')}
             </span>
             <div className="text-2xl font-black text-emerald-400 mt-1">
               Rs. {stats.todaySupplierPayments.toLocaleString()}
@@ -108,7 +108,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         {/* Action Button Card */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between gap-2">
           <div className="flex justify-between items-center text-xs text-slate-400 font-bold">
-            <span>Wholesalers Directory</span>
+            <span>{t('wholesalersDirectory')}</span>
             <span className="text-amber-400">{suppliers.length} Registered</span>
           </div>
           <button
@@ -118,7 +118,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
             className="w-full mt-2 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Add Supplier</span>
+            <span>{t('addSupplier')}</span>
           </button>
         </div>
       </div>
@@ -203,7 +203,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   className="flex-1 py-2 px-2.5 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 font-semibold text-xs border border-rose-800/80 rounded-xl flex items-center justify-center gap-1"
                 >
                   <ArrowUpRight className="w-3.5 h-3.5" />
-                  <span>Purchase</span>
+                  <span>{t('purchase')}</span>
                 </button>
 
                 <button
@@ -212,7 +212,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   className="flex-1 py-2 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 font-semibold text-xs border border-emerald-800/80 rounded-xl flex items-center justify-center gap-1"
                 >
                   <ArrowDownLeft className="w-3.5 h-3.5" />
-                  <span>Pay</span>
+                  <span>{t('pay')}</span>
                 </button>
 
                 <button
@@ -221,7 +221,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 rounded-xl flex items-center justify-center gap-1"
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  <span>Ledger</span>
+                  <span>{t('ledger')}</span>
                 </button>
               </div>
             </div>
@@ -313,7 +313,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           title="Record Purchase from Wholesaler"
                         >
                           <ArrowUpRight className="w-3 h-3" />
-                          <span>Purchase</span>
+                          <span>{t('purchase')}</span>
                         </button>
 
                         <button
@@ -323,7 +323,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           title="Give Payment to Wholesaler"
                         >
                           <ArrowDownLeft className="w-3 h-3" />
-                          <span>Pay</span>
+                          <span>{t('pay')}</span>
                         </button>
 
                         <button
@@ -333,7 +333,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           title="View Statement Ledger"
                         >
                           <FileText className="w-3 h-3" />
-                          <span>Ledger</span>
+                          <span>{t('ledger')}</span>
                         </button>
 
                         <button

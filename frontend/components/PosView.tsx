@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { salesApi, getImageUrl } from '@/lib/api';
-import { parseApiDate } from '@/lib/utils';
+import { formatLocalTime, playPosSound } from '@/lib/utils';
+import { getCurrentUser } from '@/lib/auth';
 import { Product, Customer, CartItem, Sale, SalesSummary } from '@/types';
 import {
   ScanBarcode,
@@ -40,8 +41,10 @@ import { DynamicQrModal } from '@/components/Modals/DynamicQrModal';
 import { generateDynamicQrPayload, generateQrDataUrl } from '@/lib/qrUtils';
 
 export const PosView: React.FC = () => {
-  const { products, customers, refreshData, showToast, storeProfile } = useKhata();
+  const { products, customers, refreshData, showToast, storeProfile, t, formatDate, language } = useKhata();
   const cur = storeProfile?.currencySymbol || 'Rs.';
+  const currentUser = getCurrentUser();
+  const canRefund = !currentUser || currentUser.role === 'ADMIN' || currentUser.role === 'MANAGER';
 
   // Mode: POS Terminal vs. Recent Invoices
   const [activeSubTab, setActiveSubTab] = useState<'TERMINAL' | 'INVOICES'>('TERMINAL');
@@ -50,6 +53,15 @@ export const PosView: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Barcode Audio & Visual Flash Feedback State
+  const [scanFlash, setScanFlash] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const scanFlashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sale Refund & Return Modal State
+  const [saleToRefund, setSaleToRefund] = useState<Sale | null>(null);
+  const [refundReason, setRefundReason] = useState<string>('Customer Return');
+  const [isRefunding, setIsRefunding] = useState<boolean>(false);
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -231,8 +243,34 @@ export const PosView: React.FC = () => {
     }
   }, [activeSubTab]);
 
+  // Trigger audio beep/buzz + visual flash on barcode scan or item addition
+  const triggerScanFeedback = useCallback((type: 'success' | 'error', message: string) => {
+    playPosSound(type === 'success' ? 'beep' : 'error');
+    if (scanFlashTimerRef.current) {
+      clearTimeout(scanFlashTimerRef.current);
+    }
+    setScanFlash({ type, message });
+    scanFlashTimerRef.current = setTimeout(() => {
+      setScanFlash(null);
+    }, 1100);
+  }, []);
+
   // Cart Operations
-  const addToCart = (product: Product) => {
+  const addToCart = (product: Product, fromBarcodeScan = false) => {
+    if (product.stockQuantity <= 0) {
+      triggerScanFeedback('error', `${t('outOfStock')}: ${product.name}`);
+      showToast({
+        type: 'warning',
+        title: language === 'np' ? 'स्टक सकिएको छ' : 'Out of Stock',
+        message: `${product.name} has 0 stock remaining.`,
+      });
+      return;
+    }
+
+    if (!fromBarcodeScan) {
+      playPosSound('beep');
+    }
+
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
       if (existing) {
@@ -295,27 +333,61 @@ export const PosView: React.FC = () => {
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
 
-  // Barcode / Search form submit: if exact match or single product, add directly!
+  // Barcode / Search form submit: if exact match or single product, add directly with audio beep & flash!
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!searchQuery.trim()) return;
+    const trimmed = searchQuery.trim();
+    if (!trimmed) return;
 
     // Check exact barcode match first
     const exactBarcode = products.find(
-      (p) => p.barcode && p.barcode.toLowerCase() === searchQuery.toLowerCase().trim()
+      (p) => p.barcode && p.barcode.toLowerCase() === trimmed.toLowerCase()
     );
     if (exactBarcode) {
-      addToCart(exactBarcode);
+      if (exactBarcode.stockQuantity <= 0) {
+        triggerScanFeedback('error', `${t('outOfStock')}: ${exactBarcode.name}`);
+        showToast({
+          type: 'warning',
+          title: language === 'np' ? 'स्टक सकिएको छ' : 'Out of Stock',
+          message: `${exactBarcode.name} is currently out of stock.`,
+        });
+        setSearchQuery('');
+        return;
+      }
+      addToCart(exactBarcode, true);
+      triggerScanFeedback('success', `✓ ${exactBarcode.name} (${cur} ${exactBarcode.sellingPrice})`);
       setSearchQuery('');
-      showToast({ type: 'success', title: 'Product Added', message: `Added ${exactBarcode.name} to cart.` });
+      showToast({ type: 'success', title: 'Barcode Scanned', message: `Added ${exactBarcode.name} to cart.` });
       return;
     }
 
     // Check if only 1 matching product
     if (filteredProducts.length === 1) {
-      addToCart(filteredProducts[0]);
+      const match = filteredProducts[0];
+      if (match.stockQuantity <= 0) {
+        triggerScanFeedback('error', `${t('outOfStock')}: ${match.name}`);
+        showToast({
+          type: 'warning',
+          title: language === 'np' ? 'स्टक सकिएको छ' : 'Out of Stock',
+          message: `${match.name} is currently out of stock.`,
+        });
+        return;
+      }
+      addToCart(match, true);
+      triggerScanFeedback('success', `✓ ${match.name} (${cur} ${match.sellingPrice})`);
       setSearchQuery('');
-      showToast({ type: 'success', title: 'Product Added', message: `Added ${filteredProducts[0].name} to cart.` });
+      showToast({ type: 'success', title: 'Product Added', message: `Added ${match.name} to cart.` });
+      return;
+    }
+
+    // If no products matched at all, buzz & flash red
+    if (filteredProducts.length === 0) {
+      triggerScanFeedback('error', `${language === 'np' ? 'भेटिएन' : 'Not found'}: "${trimmed}"`);
+      showToast({
+        type: 'error',
+        title: language === 'np' ? 'बारकोड भेटिएन' : 'Barcode Not Found',
+        message: `No product matched "${trimmed}".`,
+      });
     }
   };
 
@@ -430,6 +502,7 @@ export const PosView: React.FC = () => {
       };
 
       const created = await salesApi.createSale(saleRequest);
+      playPosSound('checkout');
       await refreshData();
 
       setCompletedSale(created);
@@ -440,11 +513,49 @@ export const PosView: React.FC = () => {
       showToast({ type: 'success', title: 'Sale Completed', message: `Invoice #${created.invoiceNumber} recorded successfully.` });
     } catch (err: any) {
       console.error('Checkout error:', err);
+      playPosSound('error');
       showToast({ type: 'error', title: 'Checkout Failed', message: err.message || 'Failed to complete sale.' });
     } finally {
       setIsProcessing(false);
     }
   }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData, clearCart]);
+
+  // Process POS Sale Refund & Return
+  const handleConfirmRefund = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!saleToRefund || isRefunding) return;
+    try {
+      setIsRefunding(true);
+      const updatedSale = await salesApi.refundSale(
+        saleToRefund.id,
+        refundReason.trim() || 'Customer Return'
+      );
+      playPosSound('beep');
+      await Promise.all([fetchInvoices(), refreshData()]);
+      if (completedSale?.id === updatedSale.id) {
+        setCompletedSale(updatedSale);
+      }
+      showToast({
+        type: 'success',
+        title: language === 'np' ? 'बिल फिर्ता सम्पन्न भयो' : 'Sale Refunded & Stock Restored',
+        message:
+          language === 'np'
+            ? `बिल #${updatedSale.invoiceNumber} फिर्ता गरियो र स्टक अद्यावधिक गरियो।`
+            : `Invoice #${updatedSale.invoiceNumber} refunded. Stock & Khata balance restored.`,
+      });
+      setSaleToRefund(null);
+      setRefundReason('Customer Return');
+    } catch (err: any) {
+      playPosSound('error');
+      showToast({
+        type: 'error',
+        title: language === 'np' ? 'बिल फिर्ता असफल' : 'Refund Failed',
+        message: err.message || 'Failed to process refund.',
+      });
+    } finally {
+      setIsRefunding(false);
+    }
+  };
 
   // Global POS Keyboard Shortcuts Engine
   useEffect(() => {
@@ -520,7 +631,7 @@ export const PosView: React.FC = () => {
             }`}
           >
             <ShoppingCart className="w-3.5 h-3.5" />
-            <span>Billing Terminal</span>
+            <span>{t('billingTerminal')}</span>
           </button>
 
           <button
@@ -533,7 +644,7 @@ export const PosView: React.FC = () => {
             }`}
           >
             <History className="w-3.5 h-3.5" />
-            <span>Recent Invoices</span>
+            <span>{t('recentInvoices')}</span>
           </button>
         </div>
 
@@ -543,10 +654,10 @@ export const PosView: React.FC = () => {
             <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F3</kbd> Search
           </span>
           <span>
-            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F4</kbd> Invoices
+            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F4</kbd> {t('invoices')}
           </span>
           <span>
-            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-emerald-400">F9</kbd> Checkout
+            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-emerald-400">F9</kbd> {t('checkout')}
           </span>
         </div>
       </div>
@@ -556,27 +667,52 @@ export const PosView: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* LEFT 7 COLS: Product Catalog & Fast Scanner */}
           <div className="lg:col-span-7 space-y-3.5">
-            {/* Barcode & Search Bar */}
+            {/* Barcode & Search Bar with Audio + Visual Flash Feedback */}
             <form
               onSubmit={handleSearchSubmit}
-              className="p-2.5 bg-slate-900 border border-slate-800 rounded-2xl flex items-center gap-2"
+              className={`p-2.5 border rounded-2xl flex items-center gap-2 transition-all duration-200 relative ${
+                scanFlash?.type === 'success'
+                  ? 'bg-emerald-950/70 border-emerald-400 ring-2 ring-emerald-400/50 shadow-lg shadow-emerald-500/20'
+                  : scanFlash?.type === 'error'
+                  ? 'bg-rose-950/70 border-rose-500 ring-2 ring-rose-500/50 shadow-lg shadow-rose-500/20'
+                  : 'bg-slate-900 border-slate-800'
+              }`}
             >
               <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <ScanBarcode
+                  className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+                    scanFlash?.type === 'success'
+                      ? 'text-emerald-400'
+                      : scanFlash?.type === 'error'
+                      ? 'text-rose-400'
+                      : 'text-slate-400'
+                  }`}
+                />
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Scan barcode or search product name..."
+                  placeholder={t('searchBarcodePlaceholder')}
                   className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
+              {scanFlash && (
+                <span
+                  className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold animate-in fade-in zoom-in-95 duration-150 shrink-0 ${
+                    scanFlash.type === 'success'
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                      : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                  }`}
+                >
+                  {scanFlash.message}
+                </span>
+              )}
               <button
                 type="submit"
                 className="px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-colors shrink-0"
               >
-                Add
+                {t('add')}
               </button>
             </form>
 
@@ -602,7 +738,7 @@ export const PosView: React.FC = () => {
             {filteredProducts.length === 0 ? (
               <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center space-y-2">
                 <Boxes className="w-9 h-9 text-slate-600 mx-auto" />
-                <h4 className="text-sm font-semibold text-slate-300">No matching products found</h4>
+                <h4 className="text-sm font-semibold text-slate-300">{t('noMatchingProducts')}</h4>
                 <p className="text-xs text-slate-500">
                   Try adjusting your search query or select another category.
                 </p>
@@ -698,7 +834,7 @@ export const PosView: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <ShoppingCart className="w-4 h-4 text-amber-400" />
                   <span className="text-sm font-bold text-slate-100">
-                    Current Bill ({totalCartUnits} items)
+                    {t('currentBill')} ({totalCartUnits} {t('items')})
                   </span>
                 </div>
                 <button
@@ -718,10 +854,10 @@ export const PosView: React.FC = () => {
                     onChange={(e) => setSelectedCustomerId(e.target.value)}
                     className="w-full px-3 py-1.5 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
                   >
-                    <option value="">Walk-in Customer (Cash / Direct)</option>
+                    <option value="">{t('walkInCustomer')}</option>
                     {customers.map((c) => (
                       <option key={c.id} value={c.id}>
-                        {c.name} ({c.phone}) - Due: {cur} {c.currentBalance.toLocaleString()}
+                        {c.name} ({c.phone}) - {t('due')}: {cur} {c.currentBalance.toLocaleString()}
                       </option>
                     ))}
                   </select>
@@ -733,7 +869,7 @@ export const PosView: React.FC = () => {
                       <button
                         type="button"
                         onClick={handleHoldCart}
-                        title="Hold/Park Cart"
+                        title={t('holdCart')}
                         className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-xl transition-colors border border-slate-700"
                       >
                         <PauseCircle className="w-4 h-4" />
@@ -741,7 +877,7 @@ export const PosView: React.FC = () => {
                       <button
                         type="button"
                         onClick={clearCart}
-                        title="Clear Cart"
+                        title={t('clearCart')}
                         className="p-2 bg-slate-800 hover:bg-slate-700 text-rose-400 rounded-xl transition-colors border border-slate-700"
                       >
                         <RotateCcw className="w-4 h-4" />
@@ -756,7 +892,7 @@ export const PosView: React.FC = () => {
                 <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between text-xs text-amber-300">
                   <div className="flex items-center gap-1.5">
                     <PauseCircle className="w-4 h-4" />
-                    <span>{heldCarts.length} Parked Cart(s)</span>
+                    <span>{heldCarts.length} {t('parkedCarts')}</span>
                   </div>
                   <div className="flex items-center gap-1">
                     {heldCarts.map((h, i) => (
@@ -766,7 +902,7 @@ export const PosView: React.FC = () => {
                         onClick={() => handleRecallCart(h.id)}
                         className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-bold text-[10px] hover:bg-amber-400 transition-colors"
                       >
-                        Recall #{i + 1} ({h.timestamp})
+                        {t('recall')} #{i + 1} ({h.timestamp})
                       </button>
                     ))}
                   </div>
@@ -777,9 +913,9 @@ export const PosView: React.FC = () => {
               {cart.length === 0 ? (
                 <div className="py-12 text-center space-y-2 border border-dashed border-slate-800 rounded-2xl">
                   <ShoppingCart className="w-8 h-8 text-slate-600 mx-auto" />
-                  <p className="text-xs font-bold text-slate-400">Cart is empty</p>
+                  <p className="text-xs font-bold text-slate-400">{t('cartEmpty')}</p>
                   <p className="text-[11px] text-slate-600">
-                    Scan a barcode or click products on the left to add items.
+                    {t('cartEmptyHint')}
                   </p>
                 </div>
               ) : (
@@ -843,14 +979,14 @@ export const PosView: React.FC = () => {
               {/* Calculations Block */}
               <div className="space-y-2 pt-2 border-t border-slate-800 text-xs text-slate-300">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Items Subtotal ({cart.length} items):</span>
+                  <span className="text-slate-400">{t('itemsSubtotal')} ({cart.length} {t('items')}):</span>
                   <span className="font-mono font-bold text-slate-200">{cur} {subtotal.toLocaleString()}</span>
                 </div>
 
                 {/* Discount and VAT toggles */}
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <div className="flex items-center gap-1 bg-slate-950 p-1.5 rounded-xl border border-slate-800">
-                    <span className="text-[10px] text-slate-400 uppercase font-bold">Disc:</span>
+                    <span className="text-[10px] text-slate-400 uppercase font-bold">{t('disc')}:</span>
                     <input
                       type="number"
                       min="0"
@@ -861,7 +997,7 @@ export const PosView: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => setDiscountType((t) => (t === 'FLAT' ? 'PERCENT' : 'FLAT'))}
+                      onClick={() => setDiscountType((dt) => (dt === 'FLAT' ? 'PERCENT' : 'FLAT'))}
                       className="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] font-bold text-amber-400"
                     >
                       {discountType === 'FLAT' ? cur : '%'}
@@ -869,7 +1005,7 @@ export const PosView: React.FC = () => {
                   </div>
 
                   <label className="flex items-center justify-between bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800 cursor-pointer">
-                    <span className="text-[11px] text-slate-300 font-medium">Add 13% VAT</span>
+                    <span className="text-[11px] text-slate-300 font-medium">{t('addVat')}</span>
                     <input
                       type="checkbox"
                       checked={applyTax}
@@ -883,7 +1019,7 @@ export const PosView: React.FC = () => {
                 <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-950 to-slate-950 border border-amber-500/30 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider block">
-                      Payable Grand Total
+                      {t('payableGrandTotal')}
                     </span>
                     <span className="text-xl font-mono font-black text-slate-100">
                       {cur} {grandTotal.toLocaleString()}
@@ -895,15 +1031,15 @@ export const PosView: React.FC = () => {
               {/* Payment Methods Selection */}
               <div className="space-y-2 pt-1">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                  Select Payment Method
+                  {t('selectPaymentMethod')}
                 </span>
 
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
-                    { id: 1, label: 'Cash', icon: DollarSign },
-                    { id: 2, label: 'QR Pay', icon: QrCode },
+                    { id: 1, label: t('cash'), icon: DollarSign },
+                    { id: 2, label: t('qrPay'), icon: QrCode },
                     { id: 3, label: 'Khata', icon: BookOpen },
-                    { id: 4, label: 'Split', icon: Split },
+                    { id: 4, label: t('split'), icon: Split },
                   ].map((m) => {
                     const Icon = m.icon;
                     return (
@@ -928,7 +1064,7 @@ export const PosView: React.FC = () => {
                 {paymentMethod === 1 && (
                   <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-2">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs text-slate-400">Cash Received:</span>
+                      <span className="text-xs text-slate-400">{t('cashReceived')}:</span>
                       <div className="flex items-center gap-1 bg-slate-900 px-3 py-1 rounded-xl border border-slate-700">
                         <span className="text-xs text-slate-500 font-mono">{cur}</span>
                         <input
@@ -950,13 +1086,13 @@ export const PosView: React.FC = () => {
                           onClick={() => setCashTendered(val)}
                           className="flex-1 py-1 bg-slate-800 hover:bg-slate-700 text-[10px] font-mono font-bold text-slate-300 rounded-lg border border-slate-700 transition-colors"
                         >
-                          {val === grandTotal ? 'Exact' : val}
+                          {val === grandTotal ? t('exact') : val}
                         </button>
                       ))}
                     </div>
 
                     <div className="flex items-center justify-between pt-1 border-t border-slate-800 text-xs">
-                      <span className="text-slate-400">Change Return Due:</span>
+                      <span className="text-slate-400">{t('changeReturnDue')}:</span>
                       <span className="font-mono font-black text-amber-400 text-sm">
                         {cur} {changeAmount.toLocaleString()}
                       </span>
@@ -974,7 +1110,7 @@ export const PosView: React.FC = () => {
                           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                         </span>
                         <span className="text-xs font-bold text-emerald-400">
-                          Dynamic QR Ready
+                          {t('dynamicQrReady')}
                         </span>
                       </div>
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold">
@@ -1024,7 +1160,7 @@ export const PosView: React.FC = () => {
                           className="mt-1 px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold rounded-lg border border-emerald-500/30 transition-colors flex items-center gap-1.5 shadow-sm"
                         >
                           <QrCode className="w-3 h-3" />
-                          <span>Show Fullscreen QR to Customer</span>
+                          <span>{t('showFullscreenQr')}</span>
                         </button>
                       </div>
                     </div>
@@ -1035,14 +1171,14 @@ export const PosView: React.FC = () => {
                 {paymentMethod === 3 && (
                   <div className="p-3 bg-slate-950 rounded-2xl border border-slate-800 space-y-1.5 text-xs">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-400">Customer Khata:</span>
+                      <span className="text-slate-400">{t('customerKhata')}:</span>
                       <span className="font-bold text-slate-200">
-                        {selectedCustomer ? selectedCustomer.name : 'No customer selected!'}
+                        {selectedCustomer ? selectedCustomer.name : t('noCustomerSelected')}
                       </span>
                     </div>
                     {selectedCustomer && (
                       <div className="flex justify-between items-center text-[11px] text-slate-400">
-                        <span>New Balance will be:</span>
+                        <span>{t('newBalanceWillBe')}:</span>
                         <span className="font-mono font-bold text-rose-400">
                           {cur} {(selectedCustomer.currentBalance + grandTotal).toLocaleString()}
                         </span>
@@ -1112,12 +1248,12 @@ export const PosView: React.FC = () => {
                 {isProcessing ? (
                   <>
                     <ButtonSpinner />
-                    <span>Processing Sale & Billing...</span>
+                    <span>{t('processingSale')}</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle className="w-5 h-5" />
-                    <span>Complete Sale & Bill ({cur} {grandTotal.toLocaleString()})</span>
+                    <span>{t('completeSaleAndBill')} ({cur} {grandTotal.toLocaleString()})</span>
                   </>
                 )}
               </button>
@@ -1134,14 +1270,14 @@ export const PosView: React.FC = () => {
               >
                 <div className="flex items-center gap-2.5">
                   <span className="px-2 py-1 rounded-lg bg-slate-950 text-amber-400 font-mono font-black text-xs">
-                    {totalCartUnits} items
+                    {totalCartUnits} {t('items')}
                   </span>
                   <span className="font-mono font-black text-sm">
                     {cur} {grandTotal.toLocaleString()}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 font-black">
-                  <span>View Bill &amp; Pay</span>
+                  <span>{t('viewBillAndPay')}</span>
                   <ArrowRight className="w-4 h-4" />
                 </div>
               </button>
@@ -1156,17 +1292,17 @@ export const PosView: React.FC = () => {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Today&apos;s POS Sales
+                  {t('todaysPosSales')}
                 </span>
                 <div className="text-xl font-black font-mono text-emerald-400 mt-1">
                   {cur} {salesSummary.totalSalesAmount.toLocaleString()}
                 </div>
-                <span className="text-[11px] text-slate-400">{salesSummary.totalBillsCount} Invoices</span>
+                <span className="text-[11px] text-slate-400">{salesSummary.totalBillsCount} {t('invoices')}</span>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Cash Collections
+                  {t('cashCollections')}
                 </span>
                 <div className="text-xl font-black font-mono text-slate-100 mt-1">
                   {cur} {salesSummary.cashSalesAmount.toLocaleString()}
@@ -1175,7 +1311,7 @@ export const PosView: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Digital / QR Sales
+                  {t('digitalQrSales')}
                 </span>
                 <div className="text-xl font-black font-mono text-cyan-400 mt-1">
                   {cur} {salesSummary.digitalSalesAmount.toLocaleString()}
@@ -1184,7 +1320,7 @@ export const PosView: React.FC = () => {
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                  Khata Credit Sales
+                  {t('khataCreditSales')}
                 </span>
                 <div className="text-xl font-black font-mono text-rose-400 mt-1">
                   {cur} {salesSummary.creditSalesAmount.toLocaleString()}
@@ -1202,7 +1338,7 @@ export const PosView: React.FC = () => {
                   type="text"
                   value={invoiceSearch}
                   onChange={(e) => setInvoiceSearch(e.target.value)}
-                  placeholder="Search invoice number or customer name..."
+                  placeholder={t('searchInvoicePlaceholder')}
                   className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
@@ -1212,7 +1348,7 @@ export const PosView: React.FC = () => {
                 onClick={fetchInvoices}
                 className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold border border-slate-700 transition-colors"
               >
-                Refresh List
+                {t('refreshList')}
               </button>
             </div>
 
@@ -1220,27 +1356,43 @@ export const PosView: React.FC = () => {
               <PageLoader text="Loading recent sales invoices..." />
             ) : filteredInvoices.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs">
-                No invoices recorded yet.
+                {t('noInvoicesYet')}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs text-slate-300">
                   <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3 px-4">Invoice #</th>
-                      <th className="py-3 px-4">Date & Time</th>
-                      <th className="py-3 px-4">Customer</th>
-                      <th className="py-3 px-4 text-center">Items</th>
-                      <th className="py-3 px-4">Payment</th>
-                      <th className="py-3 px-4 text-right">Total Amount</th>
-                      <th className="py-3 px-4 text-center">Action</th>
+                      <th className="py-3 px-4">{t('invoiceNo')}</th>
+                      <th className="py-3 px-4">{t('dateTime')}</th>
+                      <th className="py-3 px-4">{t('customer')}</th>
+                      <th className="py-3 px-4 text-center">{t('items')}</th>
+                      <th className="py-3 px-4">{t('payment')}</th>
+                      <th className="py-3 px-4 text-right">{t('totalAmount')}</th>
+                      <th className="py-3 px-4 text-center">{t('action')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
                     {filteredInvoices.map((s) => (
-                      <tr key={s.id} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 font-bold text-slate-100">{s.invoiceNumber}</td>
-                        <td className="py-3 px-4 text-slate-400">{parseApiDate(s.saleDate).toLocaleString()}</td>
+                      <tr
+                        key={s.id}
+                        className={`hover:bg-slate-800/40 transition-colors ${
+                          s.isRefunded ? 'opacity-75 bg-rose-950/10' : ''
+                        }`}
+                      >
+                        <td className="py-3 px-4 font-bold text-slate-100">
+                          <div className="flex items-center gap-2">
+                            <span>{s.invoiceNumber}</span>
+                            {s.isRefunded && (
+                              <span className="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[9px] font-sans font-black uppercase">
+                                {t('refunded')}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-slate-400">
+                          {formatDate(s.saleDate)} <span className="text-[10px] text-slate-500">{formatLocalTime(s.saleDate)}</span>
+                        </td>
                         <td className="py-3 px-4 text-slate-300 font-sans">
                           {s.customerName || 'Walk-in Customer'}
                         </td>
@@ -1257,24 +1409,44 @@ export const PosView: React.FC = () => {
                                 : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
                             }`}
                           >
-                            {s.paymentMethod === 1 ? 'Cash' : s.paymentMethod === 2 ? 'QR' : s.paymentMethod === 3 ? 'Khata' : 'Split'}
+                            {s.paymentMethod === 1 ? t('cash') : s.paymentMethod === 2 ? 'QR' : s.paymentMethod === 3 ? 'Khata' : t('split')}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right font-black text-emerald-400">
-                          {cur} {s.totalAmount.toLocaleString()}
+                        <td className="py-3 px-4 text-right font-black">
+                          <span className={s.isRefunded ? 'line-through text-slate-500' : 'text-emerald-400'}>
+                            {cur} {s.totalAmount.toLocaleString()}
+                          </span>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCompletedSale(s);
-                              setIsReceiptOpen(true);
-                            }}
-                            className="p-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 rounded-lg transition-colors inline-flex items-center gap-1 text-[11px] font-sans font-semibold"
-                          >
-                            <Printer className="w-3.5 h-3.5" />
-                            <span>Receipt</span>
-                          </button>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCompletedSale(s);
+                                setIsReceiptOpen(true);
+                              }}
+                              className="p-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-300 rounded-lg transition-colors inline-flex items-center gap-1 text-[11px] font-sans font-semibold"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>{t('receipt')}</span>
+                            </button>
+
+                            {!s.isRefunded && canRefund && (
+                              <button
+                                id={`refund-invoice-${s.id}`}
+                                type="button"
+                                onClick={() => {
+                                  setSaleToRefund(s);
+                                  setRefundReason('Customer Return');
+                                }}
+                                className="p-1.5 bg-rose-500/10 hover:bg-rose-500 hover:text-white text-rose-400 border border-rose-500/25 rounded-lg transition-colors inline-flex items-center gap-1 text-[11px] font-sans font-semibold"
+                                title={language === 'np' ? 'यो बिल फिर्ता गर्नुहोस् र स्टक जोड्नुहोस्' : 'Refund sale & restore inventory stock'}
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>{t('refund')}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1291,7 +1463,129 @@ export const PosView: React.FC = () => {
         sale={completedSale}
         isOpen={isReceiptOpen}
         onClose={() => setIsReceiptOpen(false)}
+        canRefund={canRefund}
+        onRefundSale={(sale) => {
+          setIsReceiptOpen(false);
+          setSaleToRefund(sale);
+          setRefundReason('Customer Return');
+        }}
       />
+
+      {/* POS Sale Refund & Return Confirmation Modal */}
+      {saleToRefund && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-100">
+                    {language === 'np' ? 'बिल फिर्ता र स्टक मिलान' : 'Refund & Return POS Sale'}
+                  </h3>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    {saleToRefund.invoiceNumber} • {cur} {saleToRefund.totalAmount.toLocaleString()}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaleToRefund(null)}
+                className="p-1.5 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleConfirmRefund} className="p-5 space-y-4">
+              <div className="p-3.5 rounded-2xl bg-slate-950 border border-slate-800 space-y-2 text-xs">
+                <div className="flex justify-between text-slate-400">
+                  <span>{t('customer')}:</span>
+                  <span className="font-bold text-slate-200">
+                    {saleToRefund.customerName || 'Walk-in Customer'}
+                  </span>
+                </div>
+                <div className="flex justify-between text-slate-400">
+                  <span>{t('items')}:</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    +{saleToRefund.items?.length || 0} SKU(s) restored to stock
+                  </span>
+                </div>
+                {saleToRefund.creditPaid > 0 && (
+                  <div className="flex justify-between text-slate-400">
+                    <span>Khata Reversal:</span>
+                    <span className="font-mono font-bold text-amber-400">
+                      -{cur} {saleToRefund.creditPaid.toLocaleString()} from customer due
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-300 uppercase tracking-wider block">
+                  {language === 'np' ? 'फिर्ता गर्नुको कारण (Refund Reason)' : 'Reason for Return / Refund'}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'Customer Return',
+                    'Defective / Damaged Item',
+                    'Wrong Item Billed',
+                    'Order Cancelled',
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setRefundReason(preset)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                        refundReason === preset
+                          ? 'bg-rose-500 text-white'
+                          : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700'
+                      }`}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  placeholder="Enter reason for refund..."
+                  className="w-full px-3.5 py-2 bg-slate-950 border border-slate-700 rounded-xl text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSaleToRefund(null)}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors"
+                >
+                  {language === 'np' ? 'रद्द गर्नुहोस्' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={isRefunding}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-rose-500 hover:bg-rose-400 text-white text-xs font-black flex items-center justify-center gap-1.5 shadow-lg shadow-rose-500/20 transition-all disabled:opacity-50"
+                >
+                  {isRefunding ? (
+                    <ButtonSpinner />
+                  ) : (
+                    <>
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>
+                        {language === 'np' ? 'बिल फिर्ता निश्चित गर्नुहोस्' : 'Confirm Refund & Return'}
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Dynamic Customer-Facing QR Payment Modal */}
       <DynamicQrModal
