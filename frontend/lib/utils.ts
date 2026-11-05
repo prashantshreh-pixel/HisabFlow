@@ -163,3 +163,73 @@ export function formatLocalTime(dateVal: string | Date | undefined | null): stri
   });
 }
 
+/**
+ * Plays synthesized POS audio feedback via Web Audio API (no external audio files needed).
+ * - 'beep': Crisp high-pitched supermarket laser barcode scan beep (1046Hz)
+ * - 'error': Double low-pitched warning buzz for out-of-stock or unrecognized barcode
+ * - 'checkout': Pleasant ascending two-tone register chime on sale completion
+ */
+export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const AudioCtx =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (type === 'beep') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1046.5, now); // C6 crisp scanner tone
+      gain.gain.setValueAtTime(0.22, now);
+      gain.gain.exponentialRampToValueAtTime(0.008, now + 0.11);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.11);
+      setTimeout(() => ctx.close().catch(() => {}), 200);
+      navigator.vibrate?.([40]);
+    } else if (type === 'error') {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      osc.frequency.setValueAtTime(180, now + 0.12);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.26);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+      setTimeout(() => ctx.close().catch(() => {}), 350);
+      navigator.vibrate?.([80, 40, 80]);
+    } else if (type === 'checkout') {
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(880, now); // A5
+      osc2.frequency.setValueAtTime(1318.5, now + 0.1); // E6
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.008, now + 0.28);
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.1);
+      osc2.start(now + 0.1);
+      osc2.stop(now + 0.28);
+      setTimeout(() => ctx.close().catch(() => {}), 400);
+      navigator.vibrate?.([50, 30, 60]);
+    }
+  } catch {
+    // Ignore if browser autoplay policy blocks audio before user interaction
+  }
+}
+
+

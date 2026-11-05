@@ -19,7 +19,6 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { PageLoader } from '@/components/Loader';
-import { formatLocalDate } from '@/lib/utils';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -38,7 +37,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) => {
-  const { expenses, expensesSummary, stats, deleteExpense, isLoading, formatDate } = useKhata();
+  const { expenses, expensesSummary, stats, deleteExpense, isLoading, formatDate, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -84,7 +83,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Total Expenses Spent
+              {t('totalExpensesSpent')}
             </span>
             <div className="text-2xl font-black text-rose-400 mt-1">
               Rs. {stats.totalExpenses.toLocaleString()}
@@ -100,7 +99,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Today&apos;s Store Expenses
+              {t('todaysStoreExpenses')}
             </span>
             <div className="text-2xl font-black text-amber-400 mt-1">
               Rs. {stats.todayExpenses.toLocaleString()}
@@ -116,7 +115,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              This Month Expenses
+              {t('thisMonthExpenses')}
             </span>
             <div className="text-2xl font-black text-slate-100 mt-1">
               Rs. {stats.monthExpenses.toLocaleString()}
@@ -132,7 +131,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Est. Net Store Profit
+              {t('estNetStoreProfit')}
             </span>
             <div
               className={`text-2xl font-black mt-1 ${
@@ -150,7 +149,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
             className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center gap-1.5 shrink-0"
           >
             <Plus className="w-4 h-4" />
-            + Expense
+            {t('addExpense')}
           </button>
         </div>
       </div>
@@ -281,7 +280,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 </tr>
               ) : (
                 filteredExpenses.map((expense) => {
-                  const expDate = formatLocalDate(expense.expenseDate);
+                  const expDate = formatDate(expense.expenseDate);
 
                   return (
                     <tr key={expense.id} className="hover:bg-slate-800/40 transition-colors group">

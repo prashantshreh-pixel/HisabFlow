@@ -452,6 +452,12 @@ export const salesApi = {
     const params = date ? `?date=${encodeURIComponent(date)}` : '';
     return apiFetch<SalesSummary>(`/api/v1/sales/summary${params}`);
   },
+  refundSale: (id: string, reason?: string) =>
+    apiFetch<Sale>(`/api/v1/sales/${id}/refund`, {
+      method: 'POST',
+      body: JSON.stringify({ reason: reason || 'Customer Return' }),
+      idempotencyKey: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : undefined,
+    }),
 };
 
 export interface ApiAuditLog {

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { productsApi, BarcodeLookupResponse } from '@/lib/api';
 import { Product } from '@/types';
-import { compressImageFile } from '@/lib/utils';
+import { compressImageFile, playPosSound } from '@/lib/utils';
 import {
   X,
   Camera,
@@ -243,24 +243,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
 
   // Play pleasant success chime via Web Audio API
   const playBeep = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.18);
-      navigator.vibrate?.([60]);
-    } catch {
-      // AudioContext unavailable or blocked by autoplay
-    }
+    playPosSound('beep');
   }, []);
 
   // Stop camera helper
@@ -435,6 +418,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
       if (decodedBarcode) {
         await handleBarcodeFound(decodedBarcode, savedImageUrl);
       } else {
+        playPosSound('error');
         // Fallback: If no barcode was decoded from image, prompt user with option to use image for manual product
         setScannerError(
           'Could not detect a clear barcode from this image. Ensure the barcode is sharp, well-lit, and not cropped.'
@@ -475,7 +459,15 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+      <div
+        className={`relative w-full max-w-lg bg-surface border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ${
+          lastScannedBarcode
+            ? 'border-emerald-400 ring-2 ring-emerald-400/50 shadow-emerald-500/20'
+            : scannerError
+            ? 'border-rose-500/70 ring-1 ring-rose-500/40'
+            : 'border-border'
+        }`}
+      >
         {/* Hidden container for file decoding */}
         <div id="hisabflow-hidden-file-scanner" className="hidden" />
 

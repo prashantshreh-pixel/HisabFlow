@@ -78,7 +78,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             <span className="font-bold text-sm tracking-tight text-slate-100 block truncate">
               {storeProfile?.storeName || 'HisabFlow'}
             </span>
-            <p className="text-[11px] text-slate-400 truncate">Retail POS &amp; Ledger</p>
+            <p className="text-[11px] text-slate-400 truncate">{t('retailPosLedger')}</p>
           </div>
         </div>
 
@@ -122,7 +122,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-slate-900 hover:bg-slate-800/80 border border-slate-800 text-slate-300 hover:text-white rounded-xl text-xs font-medium transition-colors"
           >
             <Calculator className="w-3.5 h-3.5 text-amber-400" />
-            <span>Shift Cash Closure</span>
+            <span>{t('shiftCashClosure')}</span>
           </button>
         )}
 
@@ -144,7 +144,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <button
             type="button"
             onClick={() => logoutUser(onLogout)}
-            title="Sign Out"
+            title={t('signOut')}
             className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-colors shrink-0"
           >
             <LogOut className="w-4 h-4" />

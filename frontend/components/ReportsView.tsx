@@ -25,7 +25,7 @@ import { useKhata } from '@/context/KhataContext';
 type PeriodPreset = 'today' | 'yesterday' | 'this_week' | 'this_month' | 'last_month' | 'this_year' | 'custom';
 
 export const ReportsView: React.FC = () => {
-  const { storeProfile } = useKhata();
+  const { storeProfile, t, formatDate } = useKhata();
   const cur = storeProfile?.currencySymbol || 'Rs.';
 
   const [period, setPeriod] = useState<PeriodPreset>('this_month');
@@ -76,7 +76,7 @@ export const ReportsView: React.FC = () => {
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-100 tracking-tight">
-                Profit & Loss (P&L) Reports
+                {t('profitLossReports')}
               </h2>
               <p className="text-xs text-slate-400">
                 Revenue, cost of goods sold, operating expenses, and net profit margins
@@ -94,7 +94,7 @@ export const ReportsView: React.FC = () => {
             title="Refresh Financial Report"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-amber-400' : ''}`} />
-            <span>Refresh</span>
+            <span>{t('refreshList')}</span>
           </button>
 
           <button
@@ -104,7 +104,7 @@ export const ReportsView: React.FC = () => {
             title="Print Financial Statement"
           >
             <Printer className="w-3.5 h-3.5" />
-            <span>Print Report</span>
+            <span>{t('print')}</span>
           </button>
         </div>
       </div>
@@ -118,13 +118,13 @@ export const ReportsView: React.FC = () => {
           </span>
 
           {[
-            { id: 'today', label: 'Today' },
-            { id: 'yesterday', label: 'Yesterday' },
-            { id: 'this_week', label: 'This Week' },
-            { id: 'this_month', label: 'This Month' },
-            { id: 'last_month', label: 'Last Month' },
-            { id: 'this_year', label: 'This Year' },
-            { id: 'custom', label: 'Custom Range' },
+            { id: 'today', label: t('today') },
+            { id: 'yesterday', label: t('yesterday') },
+            { id: 'this_week', label: t('thisWeek') },
+            { id: 'this_month', label: t('thisMonth') },
+            { id: 'last_month', label: t('lastMonth') },
+            { id: 'this_year', label: t('thisYear') },
+            { id: 'custom', label: t('customRange') },
           ].map((item) => (
             <button
               key={item.id}
@@ -171,7 +171,7 @@ export const ReportsView: React.FC = () => {
               </p>
             )}
             <p className="text-sm text-slate-600">
-              Reporting Period: <span className="font-bold">{report.period}</span> ({new Date(report.startDate).toLocaleDateString()} - {new Date(report.endDate).toLocaleDateString()})
+              Reporting Period: <span className="font-bold">{report.period}</span> ({formatDate(report.startDate)} - {formatDate(report.endDate)})
             </p>
           </div>
 
@@ -181,7 +181,7 @@ export const ReportsView: React.FC = () => {
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Gross Sales Revenue
+                  {t('grossSalesRevenue')}
                 </span>
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
                   <DollarSign className="w-4 h-4" />
@@ -201,7 +201,7 @@ export const ReportsView: React.FC = () => {
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Wholesale Stock (COGS)
+                  {t('wholesaleStockCogs')}
                 </span>
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
                   <Truck className="w-4 h-4" />
@@ -221,7 +221,7 @@ export const ReportsView: React.FC = () => {
             <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                  Operating Expenses
+                  {t('operatingExpenses')}
                 </span>
                 <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
                   <Receipt className="w-4 h-4" />
@@ -247,7 +247,7 @@ export const ReportsView: React.FC = () => {
             >
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">
-                  Net Profit / (Loss)
+                  {t('netProfitLoss')}
                 </span>
                 <span
                   className={`px-2 py-0.5 rounded-full text-[10px] font-black border flex items-center gap-1 ${
@@ -485,14 +485,14 @@ export const ReportsView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800/60 font-mono">
-                    {report.dailyTrends.map((t) => (
-                      <tr key={t.date} className="hover:bg-slate-800/40 transition-colors">
-                        <td className="py-3 px-4 text-slate-200 font-sans font-bold">{t.date}</td>
-                        <td className="py-3 px-4 text-right text-emerald-400">{cur} {t.salesRevenue.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right text-amber-400">{cur} {t.wholesaleCost.toLocaleString()}</td>
-                        <td className="py-3 px-4 text-right text-rose-400">{cur} {t.operatingExpense.toLocaleString()}</td>
-                        <td className={`py-3 px-4 text-right font-black ${t.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                          {cur} {t.netProfit.toLocaleString()}
+                    {report.dailyTrends.map((trend) => (
+                      <tr key={trend.date} className="hover:bg-slate-800/40 transition-colors">
+                        <td className="py-3 px-4 text-slate-200 font-sans font-bold">{formatDate(trend.date)}</td>
+                        <td className="py-3 px-4 text-right text-emerald-400">{cur} {trend.salesRevenue.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right text-amber-400">{cur} {trend.wholesaleCost.toLocaleString()}</td>
+                        <td className="py-3 px-4 text-right text-rose-400">{cur} {trend.operatingExpense.toLocaleString()}</td>
+                        <td className={`py-3 px-4 text-right font-black ${trend.netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          {cur} {trend.netProfit.toLocaleString()}
                         </td>
                       </tr>
                     ))}

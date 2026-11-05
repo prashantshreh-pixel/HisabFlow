@@ -202,6 +202,8 @@ export interface Sale {
   digitalPaid: number;
   creditPaid: number;
   notes?: string;
+  isRefunded?: boolean;
+  refundedAt?: string | null;
   saleDate: string;
   createdAt: string;
   items: SaleItem[];

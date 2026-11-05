@@ -32,18 +32,30 @@ export const KhataView: React.FC<KhataViewProps> = ({
   onOpenRecordTransaction,
   onSelectCustomer,
 }) => {
-  const { customers, stats, isLoading, formatDate } = useKhata();
+  const { customers, stats, isLoading, formatDate, t, language, storeProfile } = useKhata();
+  const cur = storeProfile?.currencySymbol || 'Rs.';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'DUE_ONLY' | 'SETTLED' | 'OVER_LIMIT'>('ALL');
   const [sortBy, setSortBy] = useState<'BALANCE_DESC' | 'NAME' | 'RECENT'>('BALANCE_DESC');
+
+  const handleSendWhatsAppReminder = (customer: { name: string; phone: string; currentBalance: number }) => {
+    const digits = customer.phone.replace(/\D/g, '');
+    const cleanPhone = digits.length === 10 ? `977${digits}` : digits;
+    const shopName = storeProfile?.storeName || 'HisabFlow';
+    const msg =
+      language === 'np'
+        ? `नमस्ते ${customer.name} ज्यू, ${shopName} मा तपाईंको कुल तिर्न बाँकी रकम (उदारो) ${cur} ${customer.currentBalance.toLocaleString()} छ। कृपया समयमै भुक्तानी गरिदिनुहुन अनुरोध गर्दछौं। धन्यवाद!`
+        : `Namaste ${customer.name}, your total outstanding balance at ${shopName} is ${cur} ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
+  };
 
   // Filter and sort customers
   const filteredCustomers = useMemo(() => {
     return customers
       .filter((c) => {
         const q = searchQuery.toLowerCase().trim();
-        if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q)) return false;
+        if (q && !c.name.toLowerCase().includes(q) && !c.phone.includes(q) && !(c.address && c.address.toLowerCase().includes(q))) return false;
 
         if (filterMode === 'DUE_ONLY' && c.currentBalance <= 0) return false;
         if (filterMode === 'SETTLED' && c.currentBalance > 0) return false;
@@ -76,12 +88,12 @@ export const KhataView: React.FC<KhataViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Total Khata Due (Udhaar)
+              {t('totalUdhaar')}
             </span>
             <div className="text-2xl font-black text-rose-400 mt-1">
-              Rs. {stats.totalOutstandingKhata.toLocaleString()}
+              {cur} {stats.totalOutstandingKhata.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-500">{stats.activeDebtorsCount} customers have active dues</span>
+            <span className="text-[11px] text-slate-500">{stats.activeDebtorsCount} {t('customersHaveDues')}</span>
           </div>
           <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
             <Wallet className="w-5 h-5" />
@@ -92,12 +104,12 @@ export const KhataView: React.FC<KhataViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Khata Customers
+              {t('khataCustomers')}
             </span>
             <div className="text-2xl font-black text-slate-100 mt-1">
-              {customers.length} Accounts
+              {customers.length} {t('accounts')}
             </div>
-            <span className="text-[11px] text-emerald-400">{settledCount} fully settled (Rs. 0)</span>
+            <span className="text-[11px] text-emerald-400">{settledCount} {t('fullySettled')}</span>
           </div>
           <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Users className="w-5 h-5" />
@@ -108,12 +120,12 @@ export const KhataView: React.FC<KhataViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Credit Limit Alerts
+              {t('creditLimitAlerts')}
             </span>
             <div className="text-2xl font-black text-amber-400 mt-1">
-              {overLimitCount} At Risk
+              {overLimitCount} {t('atRisk')}
             </div>
-            <span className="text-[11px] text-slate-400">Balances exceeding assigned limit</span>
+            <span className="text-[11px] text-slate-400">{t('exceedingLimit')}</span>
           </div>
           <button
             id="khata-add-customer-btn"
@@ -122,7 +134,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5"
           >
             <UserPlus className="w-4 h-4" />
-            + New Customer
+            {t('addCustomer')}
           </button>
         </div>
       </div>
@@ -135,7 +147,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
           <input
             id="khata-customer-search"
             type="text"
-            placeholder="Search customer by name, phone (98XXXXXXXX), or address..."
+            placeholder={t('searchCustomerPlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
@@ -146,7 +158,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
               onClick={() => setSearchQuery('')}
               className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-200"
             >
-              Clear
+              {t('clear')}
             </button>
           )}
         </div>
@@ -163,7 +175,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            All ({customers.length})
+            {t('all')} ({customers.length})
           </button>
           <button
             id="filter-due-only"
@@ -175,7 +187,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            With Due ({stats.activeDebtorsCount})
+            {t('withDue')} ({stats.activeDebtorsCount})
           </button>
           <button
             id="filter-over-limit"
@@ -187,7 +199,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            Over Limit ({overLimitCount})
+            {t('overLimit')} ({overLimitCount})
           </button>
           <button
             id="filter-settled"
@@ -199,22 +211,22 @@ export const KhataView: React.FC<KhataViewProps> = ({
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
             }`}
           >
-            Settled ({settledCount})
+            {t('settled')} ({settledCount})
           </button>
         </div>
 
         {/* Sort selector */}
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500 font-medium whitespace-nowrap">Sort:</span>
+          <span className="text-xs text-slate-500 font-medium whitespace-nowrap">{t('sort')}:</span>
           <select
             id="khata-sort-select"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
             className="px-2.5 py-1.5 bg-slate-950 border border-slate-700/80 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
           >
-            <option value="BALANCE_DESC">Highest Balance First</option>
-            <option value="NAME">Name (A-Z)</option>
-            <option value="RECENT">Recent Activity</option>
+            <option value="BALANCE_DESC">{t('highestBalanceFirst')}</option>
+            <option value="NAME">{t('nameAZ')}</option>
+            <option value="RECENT">{t('recentActivity')}</option>
           </select>
         </div>
       </div>
@@ -259,28 +271,41 @@ export const KhataView: React.FC<KhataViewProps> = ({
                     {hasDue ? (
                       <div>
                         <span className="text-sm font-bold font-mono text-rose-400 block">
-                          Rs. {customer.currentBalance.toLocaleString()}
+                          {cur} {customer.currentBalance.toLocaleString()}
                         </span>
                         <span className="text-[10px] text-slate-400">
-                          {isOverLimit ? 'Over Limit' : 'Due'}
+                          {isOverLimit ? t('overLimit') : t('due')}
                         </span>
                       </div>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg">
-                        Settled
+                        {t('settled')}
                       </span>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2 pt-2 border-t border-slate-800/80">
+                  {hasDue && (
+                    <button
+                      id={`wa-mobile-reminder-${customer.id}`}
+                      type="button"
+                      onClick={() => handleSendWhatsAppReminder(customer)}
+                      className="py-2 px-3 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0"
+                      title="Send WhatsApp Payment Reminder"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                      <span>{t('whatsapp')}</span>
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => onOpenRecordTransaction(customer.id, 'PAYMENT_RECEIVED')}
                     className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5"
                   >
                     <Wallet className="w-3.5 h-3.5" />
-                    <span>Record Tx</span>
+                    <span>{t('recordTx')}</span>
                   </button>
 
                   <button
@@ -289,7 +314,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                     className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5"
                   >
                     <FileText className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Statement</span>
+                    <span>{t('statement')}</span>
                   </button>
                 </div>
               </div>
@@ -304,12 +329,12 @@ export const KhataView: React.FC<KhataViewProps> = ({
           <table className="w-full text-left text-xs text-slate-300">
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <tr>
-                <th className="py-3.5 px-5">Customer Details</th>
-                <th className="py-3.5 px-5">Phone & Address</th>
-                <th className="py-3.5 px-5 text-right">Outstanding Balance (Udhaar)</th>
-                <th className="py-3.5 px-5">Credit Limit & Usage</th>
-                <th className="py-3.5 px-5">Last Transaction</th>
-                <th className="py-3.5 px-5 text-center">Actions</th>
+                <th className="py-3.5 px-5">{t('customerDetails')}</th>
+                <th className="py-3.5 px-5">{t('phoneAddress')}</th>
+                <th className="py-3.5 px-5 text-right">{t('outstandingBalance')}</th>
+                <th className="py-3.5 px-5">{t('creditLimitUsage')}</th>
+                <th className="py-3.5 px-5">{t('lastTransaction')}</th>
+                <th className="py-3.5 px-5 text-center">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/60">
@@ -381,17 +406,17 @@ export const KhataView: React.FC<KhataViewProps> = ({
                         {hasDue ? (
                           <div>
                             <span className="text-sm font-black text-rose-400 block">
-                              Rs. {customer.currentBalance.toLocaleString()}
+                              {cur} {customer.currentBalance.toLocaleString()}
                             </span>
                             {isOverLimit && (
                               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-300 mt-0.5">
-                                <ShieldAlert className="w-3 h-3" /> Exceeds Limit
+                                <ShieldAlert className="w-3 h-3" /> {t('overLimit')}
                               </span>
                             )}
                           </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 rounded-md">
-                            <CheckCircle2 className="w-3 h-3" /> All Settled (Rs. 0)
+                            <CheckCircle2 className="w-3 h-3" /> {t('settled')} ({cur} 0)
                           </span>
                         )}
                       </td>
@@ -400,7 +425,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                       <td className="py-4 px-5 min-w-[150px]">
                         <div>
                           <div className="flex justify-between text-[11px] font-semibold text-slate-400 mb-1">
-                            <span>Limit: Rs. {customer.creditLimit.toLocaleString()}</span>
+                            <span>Limit: {cur} {customer.creditLimit.toLocaleString()}</span>
                             <span>{percentUsed}%</span>
                           </div>
                           <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
@@ -430,17 +455,12 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             <button
                               id={`wa-reminder-${customer.id}`}
                               type="button"
-                              onClick={() => {
-                                const digits = customer.phone.replace(/\D/g, '');
-                                const cleanPhone = digits.length === 10 ? `977${digits}` : digits;
-                                const msg = `Namaste ${customer.name}, your total outstanding balance at HisabFlow is Rs. ${customer.currentBalance.toLocaleString()}. Please arrange payment at your earliest convenience. Thank you!`;
-                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener,noreferrer');
-                              }}
+                              onClick={() => handleSendWhatsAppReminder(customer)}
                               className="h-8 px-2.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1 whitespace-nowrap"
                               title="Send WhatsApp Payment Reminder"
                             >
                               <MessageSquare className="w-3.5 h-3.5 shrink-0 fill-current" />
-                              <span>WhatsApp</span>
+                              <span>{t('whatsapp')}</span>
                             </button>
                           )}
 
@@ -452,7 +472,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             title="Record Udhaar or Payment"
                           >
                             <Wallet className="w-3.5 h-3.5 shrink-0" />
-                            <span>Record Tx</span>
+                            <span>{t('recordTx')}</span>
                           </button>
 
                           <button
@@ -463,7 +483,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             title="View Statement"
                           >
                             <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            <span>Statement</span>
+                            <span>{t('statement')}</span>
                           </button>
                         </div>
                       </td>
