@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { ExpenseCategory } from '@/types';
 import { X, Receipt, Coins, QrCode, Tag, Calendar, FileText } from 'lucide-react';
 
@@ -66,15 +67,15 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
       setIsSubmitting(true);
       await addExpense({
         category,
-        title: title.trim(),
+        title: sanitizeInput(title, 200),
         amount: numAmount,
         paymentMethod: paymentMethod,
-        particulars: particulars.trim() || undefined,
+        particulars: sanitizeInput(particulars, 1000) || undefined,
         expenseDate: new Date(expenseDate).toISOString(),
       });
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Handled via toast notification
     } finally {
       setIsSubmitting(false);
     }
@@ -288,11 +289,11 @@ export const AddExpenseModal: React.FC<AddExpenseModalProps> = ({ isOpen, onClos
             type="submit"
             disabled={isSubmitting}
             form="expense-drawer-form"
-            className="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-sm rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center gap-2"
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-bold text-sm rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-2"
           >
             {isSubmitting ? (
               <>
-                <ButtonSpinner className="w-4 h-4 text-white" />
+                <ButtonSpinner className="w-4 h-4 text-slate-950" />
                 <span>Saving Expense...</span>
               </>
             ) : (

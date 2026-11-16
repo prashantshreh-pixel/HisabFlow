@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback } from 'react';
+﻿import { useEffect, useRef, useCallback } from 'react';
 
 interface UseIdleTimerOptions {
   timeoutMs: number;

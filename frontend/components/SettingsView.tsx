@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useKhata } from '@/context/KhataContext';
 import { downloadCSV } from '@/lib/exportUtils';
+import { sanitizeInput } from '@/lib/utils';
 import {
   Store,
   Database,
@@ -71,20 +73,20 @@ export const SettingsView: React.FC = () => {
     e.preventDefault();
     setIsSaving(true);
     updateStoreProfile({
-      storeName: storeName.trim(),
-      tagline: tagline.trim(),
-      ownerName: ownerName.trim(),
-      phone: phone.trim(),
-      address: address.trim(),
-      panNumber: panNumber.trim(),
-      currencySymbol: currencySymbol.trim() || 'Rs.',
-      defaultCreditLimit: defaultCreditLimit.trim(),
-      receiptFooter: receiptFooter.trim(),
-      qrAccountName: qrAccountName.trim(),
-      qrAccountNumber: qrAccountNumber.trim(),
-      qrBankName: qrBankName.trim(),
-      qrBankCode: qrBankCode.trim(),
-      qrBankCodeCIPS: qrBankCodeCIPS.trim(),
+      storeName: sanitizeInput(storeName, 100) || 'HisabFlow Store',
+      tagline: sanitizeInput(tagline, 150),
+      ownerName: sanitizeInput(ownerName, 100),
+      phone: sanitizeInput(phone, 20),
+      address: sanitizeInput(address, 200),
+      panNumber: sanitizeInput(panNumber, 30),
+      currencySymbol: sanitizeInput(currencySymbol, 10) || 'Rs.',
+      defaultCreditLimit: sanitizeInput(defaultCreditLimit, 20) || '10000',
+      receiptFooter: sanitizeInput(receiptFooter, 200),
+      qrAccountName: sanitizeInput(qrAccountName, 100),
+      qrAccountNumber: sanitizeInput(qrAccountNumber, 40),
+      qrBankName: sanitizeInput(qrBankName, 100),
+      qrBankCode: sanitizeInput(qrBankCode, 50),
+      qrBankCodeCIPS: sanitizeInput(qrBankCodeCIPS, 40),
       qrFormat: qrFormat,
     });
 
@@ -207,13 +209,13 @@ export const SettingsView: React.FC = () => {
   return (
     <div className="space-y-6 pb-12">
       {/* Header Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900 to-amber-950/40 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 text-amber-400 font-extrabold text-xs tracking-wider uppercase mb-1">
-            <Store className="w-4 h-4" /> Store Settings & Data Backup
+            <Store className="w-4 h-4" /> Store Settings &amp; Data Backup
           </div>
           <h1 className="text-xl sm:text-2xl font-black text-slate-100">
-            System Configuration & Database Center
+            System Configuration &amp; Database Center
           </h1>
           <p className="text-xs text-slate-400 mt-1">
             Manage store profile, credit rules, backup data, and view real-time SQL Server database status.
@@ -224,7 +226,7 @@ export const SettingsView: React.FC = () => {
           <button
             type="button"
             onClick={handleExportJSON}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-2"
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
             Download Full Backup
@@ -380,7 +382,7 @@ export const SettingsView: React.FC = () => {
                     Auto-fills exact cart bill amounts into customer banking apps upon scan.
                   </p>
                 </div>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
+                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
                   <Smartphone className="w-3 h-3" /> Pre-Filled Amount
                 </span>
               </div>
@@ -454,15 +456,15 @@ export const SettingsView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <span className="text-xs text-slate-400 font-medium">QR Encoding Standard:</span>
                 <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
                   <button
                     type="button"
                     onClick={() => setQrFormat('FONEPAY_DYNAMIC')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
                       qrFormat === 'FONEPAY_DYNAMIC'
-                        ? 'bg-rose-500 text-white shadow-sm'
+                        ? 'bg-amber-500 text-slate-950 shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
@@ -471,7 +473,7 @@ export const SettingsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setQrFormat('MOBANK_JSON')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
                       qrFormat === 'MOBANK_JSON'
                         ? 'bg-amber-500 text-slate-950 shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
@@ -482,7 +484,7 @@ export const SettingsView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setQrFormat('EMVCO_NEPALPAY')}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
                       qrFormat === 'EMVCO_NEPALPAY'
                         ? 'bg-amber-500 text-slate-950 shadow-sm'
                         : 'text-slate-400 hover:text-slate-200'
@@ -498,7 +500,7 @@ export const SettingsView: React.FC = () => {
               <button
                 type="submit"
                 disabled={isSaving}
-                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-2"
+                className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-2"
               >
                 <Save className="w-4 h-4" />
                 {isSaving ? 'Saving Changes...' : 'Save Business Settings'}
@@ -516,8 +518,8 @@ export const SettingsView: React.FC = () => {
                 <Database className="w-4 h-4 text-emerald-400" />
                 Live Database Health
               </h3>
-              <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-full flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Connected
+              <span className="px-2 py-0.5 text-[10px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-md flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" /> Connected
               </span>
             </div>
 
@@ -550,11 +552,11 @@ export const SettingsView: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
                 <span className="text-[11px] text-slate-400 block">Total Customers</span>
-                <span className="text-lg font-black text-slate-100 mt-0.5 block">{customers.length}</span>
+                <span className="text-lg font-black text-slate-100 mt-0.5 block font-mono">{customers.length}</span>
               </div>
               <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
                 <span className="text-[11px] text-slate-400 block">Total Products</span>
-                <span className="text-lg font-black text-slate-100 mt-0.5 block">{products.length}</span>
+                <span className="text-lg font-black text-slate-100 mt-0.5 block font-mono">{products.length}</span>
               </div>
             </div>
           </div>
@@ -566,7 +568,7 @@ export const SettingsView: React.FC = () => {
                 <Smartphone className="w-4 h-4 text-amber-400" />
                 Mobile App (PWA)
               </h3>
-              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-full">
+              <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 rounded-md">
                 Ready
               </span>
             </div>
@@ -587,7 +589,7 @@ export const SettingsView: React.FC = () => {
         <div>
           <h2 className="text-base font-bold text-slate-100 flex items-center gap-2">
             <Download className="w-4 h-4 text-amber-400" />
-            Data Backup & Export Tools
+            Data Backup &amp; Export Tools
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
             Export customer ledgers, product inventory, and full system backups to JSON or CSV for safety and reporting.
@@ -609,7 +611,7 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={handleExportJSON}
-              className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-colors duration-150 flex items-center justify-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" /> Export JSON Backup
             </button>
@@ -618,7 +620,7 @@ export const SettingsView: React.FC = () => {
           {/* Card 2: Customers CSV Export */}
           <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-4">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center mb-3">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-100">Customers Ledger (CSV)</h3>
@@ -629,16 +631,16 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={handleExportCustomersCSV}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-emerald-300 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-colors duration-150 flex items-center justify-center gap-1.5"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" /> Export Customers CSV
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" /> Export Customers CSV
             </button>
           </div>
 
           {/* Card 3: Inventory Products CSV Export */}
           <div className="p-5 rounded-2xl bg-slate-950 border border-slate-800 flex flex-col justify-between space-y-4">
             <div>
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex items-center justify-center mb-3">
+              <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center mb-3">
                 <FileSpreadsheet className="w-5 h-5" />
               </div>
               <h3 className="text-sm font-bold text-slate-100">Inventory Stock List (CSV)</h3>
@@ -649,9 +651,9 @@ export const SettingsView: React.FC = () => {
             <button
               type="button"
               onClick={handleExportProductsCSV}
-              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-blue-300 font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5"
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs rounded-xl border border-slate-700 transition-colors duration-150 flex items-center justify-center gap-1.5"
             >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-blue-400" /> Export Inventory CSV
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" /> Export Inventory CSV
             </button>
           </div>
         </div>
@@ -663,11 +665,25 @@ export const SettingsView: React.FC = () => {
             <span className="text-[11px] text-slate-400 block mt-0.5">Select a `.json` backup file from your computer to inspect and restore records.</span>
           </div>
 
-          <label className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 cursor-pointer transition-colors flex items-center gap-2 shrink-0">
+          <label className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs rounded-xl border border-slate-700 cursor-pointer transition-colors duration-150 flex items-center gap-2 shrink-0">
             <Upload className="w-4 h-4 text-amber-400" />
             <span>Browse JSON File</span>
             <input type="file" accept=".json" onChange={handleImportBackupJSON} className="hidden" />
           </label>
+        </div>
+      </div>
+
+      {/* Legal Footer Links */}
+      <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-500">
+        <span>HisabFlow v1.0.0</span>
+        <div className="flex items-center gap-4">
+          <Link href="/terms" className="hover:text-amber-400 transition-colors duration-150">
+            Terms &amp; Conditions
+          </Link>
+          <span>•</span>
+          <Link href="/privacy" className="hover:text-amber-400 transition-colors duration-150">
+            Privacy Policy
+          </Link>
         </div>
       </div>
     </div>

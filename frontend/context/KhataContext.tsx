@@ -15,6 +15,7 @@ import { useSupplierDomain } from '@/hooks/useSupplierDomain';
 
 interface KhataContextType {
   isLoading: boolean;
+  error: string | null;
   isCustomersLoading: boolean;
   isProductsLoading: boolean;
   isExpensesLoading: boolean;
@@ -120,8 +121,8 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const summary = await reportsApi.getDashboardSummary();
       setDashboardSummary(summary);
-    } catch (err: unknown) {
-      console.warn('Failed to fetch dashboard summary from API:', err);
+    } catch {
+      // Fallback computed from local domain state
     }
   }, []);
 
@@ -200,9 +201,17 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     (hasPermission('canManageExpenses') && expenseDomain.isExpensesLoading) ||
     (hasPermission('canManageSuppliers') && supplierDomain.isSuppliersLoading);
 
+  const error =
+    customerDomain.customersError ||
+    productDomain.productsError ||
+    (hasPermission('canManageExpenses') ? expenseDomain.expensesError : null) ||
+    (hasPermission('canManageSuppliers') ? supplierDomain.suppliersError : null) ||
+    null;
+
   const contextValue = useMemo<KhataContextType>(
     () => ({
       isLoading,
+      error,
       isCustomersLoading: customerDomain.isCustomersLoading,
       isProductsLoading: productDomain.isProductsLoading,
       isExpensesLoading: expenseDomain.isExpensesLoading,
@@ -250,6 +259,7 @@ const KhataInnerProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }),
     [
       isLoading,
+      error,
       customerDomain,
       productDomain,
       expenseDomain,

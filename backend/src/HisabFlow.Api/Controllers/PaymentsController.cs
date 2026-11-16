@@ -7,6 +7,7 @@ using HisabFlow.Application.DTOs;
 using HisabFlow.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace HisabFlow.Api.Controllers;
 
@@ -59,6 +60,7 @@ public class PaymentsController : ControllerBase
     /// <summary>Starts a new payment attempt and returns the PRN to embed in the QR.</summary>
     [HttpPost("sessions")]
     [Authorize(Roles = "ADMIN,MANAGER,CASHIER")]
+    [EnableRateLimiting("AuthPolicy")]
     public async Task<ActionResult<PaymentSessionDto>> CreateSession(
         [FromBody] CreatePaymentSessionRequest request, CancellationToken cancellationToken)
     {
@@ -153,6 +155,7 @@ public class PaymentsController : ControllerBase
     /// </summary>
     [HttpPost("callback/{provider}")]
     [AllowAnonymous]
+    [EnableRateLimiting("AuthPolicy")]
     public async Task<IActionResult> Callback(string provider, CancellationToken cancellationToken)
     {
         provider = provider.Trim().ToUpperInvariant();
@@ -198,7 +201,7 @@ public class PaymentsController : ControllerBase
         var session = await _sessions.GetByPrnAsync(payload.Prn, cancellationToken);
         if (session is null) return NotFound();
 
-        // Provider and amount must match what we issued — never trust the callback amount blindly.
+        // Provider and amount must match what we issued - never trust the callback amount blindly.
         if (!string.Equals(session.Provider, provider, StringComparison.OrdinalIgnoreCase)
             || Math.Round(payload.Amount, 2) != session.Amount)
         {

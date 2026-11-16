@@ -2,23 +2,20 @@
 
 import React, { useState, useMemo } from 'react';
 import { useKhata } from '@/context/KhataContext';
-import { Supplier, SupplierTransactionType } from '@/types';
+import { SupplierTransactionType } from '@/types';
 import {
   Truck,
   Plus,
   Search,
   Phone,
   MapPin,
-  Building,
   Coins,
   ArrowUpRight,
   ArrowDownLeft,
   FileText,
   Trash2,
-  Edit2,
-  TrendingUp,
 } from 'lucide-react';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 
 interface SuppliersViewProps {
   onOpenAddSupplier: () => void;
@@ -31,7 +28,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
   onOpenRecordTransaction,
   onSelectSupplier,
 }) => {
-  const { suppliers, suppliersSummary, stats, deleteSupplier, isLoading, t } = useKhata();
+  const { suppliers, stats, deleteSupplier, isLoading, error, refreshData, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -53,54 +50,58 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
     return <PageLoader text="Loading wholesalers & suppliers ledger..." />;
   }
 
+  if (error && suppliers.length === 0) {
+    return <ErrorState title="Unable to load wholesalers ledger" message={error} onRetry={refreshData} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
-      {/* Metrics Strip */}
+      {/* Clear Hierarchy Metrics Strip: One Big Number + Quiet Supporting Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Outstanding Payables */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
+        {/* Hero Card: Total Outstanding Payables */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/35 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               {t('totalSupplierPayables')}
             </span>
-            <div className="text-2xl font-black text-rose-400 mt-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 mt-1">
               Rs. {stats.totalOutstandingPayable.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-500">Amount shop owes wholesalers</span>
+            <span className="text-[11px] text-slate-400">Amount shop owes wholesalers</span>
           </div>
-          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Coins className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Today's Stock Purchases */}
+        {/* Supporting Card: Today's Stock Purchases */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('todaysPurchases')}
             </span>
-            <div className="text-2xl font-black text-amber-400 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               Rs. {stats.todaySupplierPurchases.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-500">Stock purchased today</span>
           </div>
-          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <ArrowUpRight className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Today's Supplier Payments */}
+        {/* Supporting Card: Today's Supplier Payments */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('todaysPaymentsGiven')}
             </span>
-            <div className="text-2xl font-black text-emerald-400 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               Rs. {stats.todaySupplierPayments.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-500">Paid to wholesalers today</span>
           </div>
-          <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <ArrowDownLeft className="w-5 h-5" />
           </div>
         </div>
@@ -109,13 +110,13 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex flex-col justify-between gap-2">
           <div className="flex justify-between items-center text-xs text-slate-400 font-bold">
             <span>{t('wholesalersDirectory')}</span>
-            <span className="text-amber-400">{suppliers.length} Registered</span>
+            <span className="text-slate-200 font-mono">{suppliers.length} Registered</span>
           </div>
           <button
             id="add-supplier-header-btn"
             type="button"
             onClick={onOpenAddSupplier}
-            className="w-full mt-2 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs rounded-xl transition-all flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20"
+            className="w-full mt-2 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-colors duration-150 flex items-center justify-center gap-1.5 shadow-sm"
           >
             <Plus className="w-4 h-4" />
             <span>{t('addSupplier')}</span>
@@ -200,16 +201,16 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onOpenRecordTransaction(supplier.id, 'STOCK_PURCHASE')}
-                  className="flex-1 py-2 px-2.5 bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 font-semibold text-xs border border-rose-800/80 rounded-xl flex items-center justify-center gap-1"
+                  className="flex-1 py-2 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 rounded-xl flex items-center justify-center gap-1 transition-colors duration-150"
                 >
-                  <ArrowUpRight className="w-3.5 h-3.5" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-rose-400" />
                   <span>{t('purchase')}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => onOpenRecordTransaction(supplier.id, 'PAYMENT_GIVEN')}
-                  className="flex-1 py-2 px-2.5 bg-emerald-950/50 hover:bg-emerald-900/60 text-emerald-300 font-semibold text-xs border border-emerald-800/80 rounded-xl flex items-center justify-center gap-1"
+                  className="flex-1 py-2 px-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl flex items-center justify-center gap-1 transition-colors duration-150"
                 >
                   <ArrowDownLeft className="w-3.5 h-3.5" />
                   <span>{t('pay')}</span>
@@ -218,9 +219,9 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                 <button
                   type="button"
                   onClick={() => onSelectSupplier(supplier.id)}
-                  className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 rounded-xl flex items-center justify-center gap-1"
+                  className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs border border-slate-700 rounded-xl flex items-center justify-center gap-1 transition-colors duration-150"
                 >
-                  <FileText className="w-3.5 h-3.5" />
+                  <FileText className="w-3.5 h-3.5 text-amber-400" />
                   <span>{t('ledger')}</span>
                 </button>
               </div>
@@ -248,12 +249,12 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                   <td colSpan={5} className="py-12 text-center text-slate-500">
                     <Truck className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
                     <p className="text-sm font-semibold text-slate-300">No wholesalers found</p>
-                    <p className="text-xs text-slate-500 mt-0.5">Click &apos;+ Supplier&apos; to add a new inventory vendor.</p>
+                    <p className="text-xs text-slate-500 mt-0.5">Click &apos;+ Add Supplier&apos; to add a new inventory vendor.</p>
                   </td>
                 </tr>
               ) : (
                 filteredSuppliers.map((supplier) => (
-                  <tr key={supplier.id} className="hover:bg-slate-800/40 transition-colors group">
+                  <tr key={supplier.id} className="hover:bg-slate-800/40 transition-colors duration-150 group">
                     {/* Name & Company */}
                     <td className="py-4 px-5">
                       <div className="flex items-center gap-3">
@@ -263,7 +264,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                         <div>
                           <div
                             onClick={() => onSelectSupplier(supplier.id)}
-                            className="font-bold text-slate-100 text-sm hover:text-amber-400 cursor-pointer transition-colors"
+                            className="font-bold text-slate-100 text-sm hover:text-amber-400 cursor-pointer transition-colors duration-150"
                           >
                             {supplier.name}
                           </div>
@@ -292,7 +293,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                           <span className="truncate max-w-[160px]">{supplier.address}</span>
                         </div>
                       ) : (
-                        '—'
+                        '-'
                       )}
                     </td>
 
@@ -309,17 +310,17 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onOpenRecordTransaction(supplier.id, 'STOCK_PURCHASE')}
-                          className="px-2.5 py-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 font-bold text-[11px] border border-rose-800/80 rounded-lg transition-colors flex items-center gap-1"
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[11px] border border-slate-700 rounded-lg transition-colors duration-150 flex items-center gap-1"
                           title="Record Purchase from Wholesaler"
                         >
-                          <ArrowUpRight className="w-3 h-3" />
+                          <ArrowUpRight className="w-3 h-3 text-rose-400" />
                           <span>{t('purchase')}</span>
                         </button>
 
                         <button
                           type="button"
                           onClick={() => onOpenRecordTransaction(supplier.id, 'PAYMENT_GIVEN')}
-                          className="px-2.5 py-1.5 bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 font-bold text-[11px] border border-emerald-800/80 rounded-lg transition-colors flex items-center gap-1"
+                          className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-lg transition-colors duration-150 flex items-center gap-1"
                           title="Give Payment to Wholesaler"
                         >
                           <ArrowDownLeft className="w-3 h-3" />
@@ -329,10 +330,10 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onSelectSupplier(supplier.id)}
-                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-[11px] border border-slate-700 rounded-lg transition-colors flex items-center gap-1"
+                          className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-[11px] border border-slate-700 rounded-lg transition-colors duration-150 flex items-center gap-1"
                           title="View Statement Ledger"
                         >
-                          <FileText className="w-3 h-3" />
+                          <FileText className="w-3 h-3 text-amber-400" />
                           <span>{t('ledger')}</span>
                         </button>
 
@@ -343,7 +344,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({
                               deleteSupplier(supplier.id);
                             }
                           }}
-                          className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors"
+                          className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors duration-150"
                           title="Remove Supplier"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

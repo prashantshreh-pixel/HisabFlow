@@ -77,26 +77,27 @@ public class SaleRepository : ISaleRepository
             }
 
             // 2. Lock Products in Deterministic Order (prevents deadlocks across concurrent POS checkouts)
-            //    and track running stock across duplicate product entries in the cart
-            const string lockProductSql = @"
+            //    and track running stock across duplicate product entries in the cart in a single batched round-trip
+            const string lockProductsSql = @"
                 SELECT id AS Id, name AS Name, unit AS Unit, selling_price AS SellingPrice, cost_price AS CostPrice, stock_quantity AS StockQuantity, is_active AS IsActive
                 FROM products WITH (UPDLOCK, ROWLOCK)
-                WHERE id = @ProductId;";
+                WHERE id IN @ProductIds
+                ORDER BY id;";
 
-            var lockedProducts = new Dictionary<Guid, ProductLockRecord>();
-            var runningStockByProduct = new Dictionary<Guid, decimal>();
+            var distinctProductIds = request.Items.Select(i => i.ProductId).Distinct().OrderBy(id => id).ToList();
+            var dbProducts = (await conn.QueryAsync<ProductLockRecord>(
+                new CommandDefinition(lockProductsSql, new { ProductIds = distinctProductIds }, tx, cancellationToken: cancellationToken))).ToList();
 
-            foreach (var productId in request.Items.Select(i => i.ProductId).Distinct().OrderBy(id => id))
+            var lockedProducts = dbProducts.ToDictionary(p => p.Id);
+            var runningStockByProduct = new Dictionary<Guid, decimal>(distinctProductIds.Count);
+
+            foreach (var productId in distinctProductIds)
             {
-                var dbProduct = await conn.QuerySingleOrDefaultAsync<ProductLockRecord>(
-                    new CommandDefinition(lockProductSql, new { ProductId = productId }, tx, cancellationToken: cancellationToken));
-
-                if (dbProduct.Equals(default(ProductLockRecord)) || !dbProduct.IsActive)
+                if (!lockedProducts.TryGetValue(productId, out var dbProduct) || !dbProduct.IsActive)
                 {
                     throw new InvalidOperationException($"Product with ID '{productId}' does not exist or is inactive.");
                 }
 
-                lockedProducts[productId] = dbProduct;
                 runningStockByProduct[productId] = dbProduct.StockQuantity;
             }
 

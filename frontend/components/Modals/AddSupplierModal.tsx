@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { X, Truck, User, Phone, MapPin, Building, Coins } from 'lucide-react';
 
 interface AddSupplierModalProps {
@@ -45,20 +46,20 @@ export const AddSupplierModal: React.FC<AddSupplierModalProps> = ({
       setIsSubmitting(true);
       const numBal = parseFloat(initialBalance) || 0;
       const created = await addSupplier({
-        name: name.trim(),
-        companyName: companyName.trim() || undefined,
-        phone: phone.trim(),
-        address: address.trim() || undefined,
+        name: sanitizeInput(name, 100),
+        companyName: sanitizeInput(companyName, 150) || undefined,
+        phone: sanitizeInput(phone, 20),
+        address: sanitizeInput(address, 500) || undefined,
         initialBalance: numBal,
-        initialNote: initialNote.trim() || undefined,
+        initialNote: sanitizeInput(initialNote, 500) || undefined,
       });
 
       onClose();
       if (onSuccess && created?.id) {
         onSuccess(created.id);
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Handled via toast notification
     } finally {
       setIsSubmitting(false);
     }

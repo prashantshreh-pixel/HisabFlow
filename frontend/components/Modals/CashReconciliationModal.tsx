@@ -5,18 +5,15 @@ import { useKhata } from '@/context/KhataContext';
 import {
   X,
   Calculator,
-  DollarSign,
   TrendingUp,
   TrendingDown,
   CheckCircle,
   AlertTriangle,
-  Receipt,
-  Printer,
   Download,
-  Store,
   Wallet
 } from 'lucide-react';
 import { downloadCSV } from '@/lib/exportUtils';
+import { sanitizeInput } from '@/lib/utils';
 
 interface CashReconciliationModalProps {
   isOpen: boolean;
@@ -31,8 +28,6 @@ export const CashReconciliationModal: React.FC<CashReconciliationModalProps> = (
     ledgerEntries,
     expenses,
     showToast,
-    formatDate,
-    t
   } = useKhata();
 
   const [openingCash, setOpeningCash] = useState<number | ''>(1000);
@@ -70,7 +65,6 @@ export const CashReconciliationModal: React.FC<CashReconciliationModalProps> = (
 
   const isBalanced = actualCash !== '' && difference === 0;
   const isSurplus = actualCash !== '' && difference > 0;
-  const isShortage = actualCash !== '' && difference < 0;
 
   const handleExportReconciliation = () => {
     const headers = ['Metric', 'Amount (Rs.)'];
@@ -82,7 +76,7 @@ export const CashReconciliationModal: React.FC<CashReconciliationModalProps> = (
       ['Expected Cash in Drawer', expectedCash],
       ['Actual Physical Cash Counted', actualCash === '' ? 0 : numActual],
       ['Discrepancy / Tally Difference', difference],
-      ['Notes / Remarks', notes || '-'],
+      ['Notes / Remarks', sanitizeInput(notes, 300) || '-'],
     ];
 
     downloadCSV(`DayEnd_Cash_Reconciliation_${new Date().toISOString().split('T')[0]}`, headers, rows);
@@ -294,7 +288,7 @@ export const CashReconciliationModal: React.FC<CashReconciliationModalProps> = (
               type="button"
               onClick={handleCompleteClosure}
               disabled={actualCash === ''}
-              className="px-5 py-2.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors duration-150 flex items-center gap-1.5 disabled:opacity-50"
             >
               <CheckCircle className="w-4 h-4" />
               <span>Save & Close Register</span>

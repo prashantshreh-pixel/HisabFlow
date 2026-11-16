@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { Product } from '@/types';
-import { X, Plus, Minus, RefreshCw, AlertTriangle, CheckCircle2, Boxes, ArrowRight } from 'lucide-react';
+import { X, Plus, Minus, RefreshCw, CheckCircle2, Boxes, ArrowRight } from 'lucide-react';
 
 interface QuickStockAdjustModalProps {
   isOpen: boolean;
@@ -46,10 +47,10 @@ export const QuickStockAdjustModal: React.FC<QuickStockAdjustModalProps> = ({
     if (delta !== 0) {
       try {
         setIsSubmitting(true);
-        await adjustStock(product.id, delta, reason);
+        await adjustStock(product.id, delta, sanitizeInput(reason, 256));
         onClose();
-      } catch (err) {
-        console.error(err);
+      } catch {
+        // Handled via toast notification
       } finally {
         setIsSubmitting(false);
       }

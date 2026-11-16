@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { X, UserPlus, Phone, MapPin, ShieldCheck, Wallet, UserCheck } from 'lucide-react';
 
 interface AddCustomerModalProps {
@@ -58,12 +59,12 @@ export const AddCustomerModal: React.FC<AddCustomerModalProps> = ({
     try {
       setIsSubmitting(true);
       const created = await addCustomer({
-        name: name.trim(),
-        phone: phone.trim(),
-        address: address.trim(),
+        name: sanitizeInput(name, 100),
+        phone: sanitizeInput(phone, 20),
+        address: sanitizeInput(address, 500),
         creditLimit: limitNum || 10000,
         initialBalance: balNum,
-        initialNote: initialNote.trim() || undefined,
+        initialNote: sanitizeInput(initialNote, 500) || undefined,
       });
 
       // Reset state

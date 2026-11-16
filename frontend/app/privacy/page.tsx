@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ShieldCheck, Lock } from 'lucide-react';
+import { ArrowLeft, Lock } from 'lucide-react';
 
 export const metadata = {
   title: 'Privacy Policy - HisabFlow',

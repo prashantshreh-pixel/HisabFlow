@@ -1,6 +1,4 @@
 {
   "name": "HisabFlow",
-  "description": "Digital credit ledger (Khata), retail inventory management, and shop analytics platform.",
-  "requestFramePermissions": [],
-  "majorCapabilities": []
+  "description": "Digital credit ledger (Khata), retail inventory management, and point of sale terminal."
 }

@@ -5,10 +5,10 @@ import { useKhata } from '@/context/KhataContext';
 import { Product, ProductUnit } from '@/types';
 import { PRODUCT_CATEGORIES } from '@/lib/mockData';
 import { productsApi, getImageUrl } from '@/lib/api';
-import { compressImageFile } from '@/lib/utils';
+import { compressImageFile, sanitizeInput } from '@/lib/utils';
 import { ImageViewerModal } from '@/components/Modals/ImageViewerModal';
 import { ButtonSpinner } from '@/components/Loader';
-import { X, PackagePlus, Edit, BarChart3, Tag, Layers, Boxes, AlertCircle, Image as ImageIcon, Upload, CheckCircle2, Link as LinkIcon, Maximize2, ScanLine } from 'lucide-react';
+import { X, PackagePlus, Edit, BarChart3, Tag, Layers, Boxes, Image as ImageIcon, Upload, CheckCircle2, Link as LinkIcon, Maximize2, ScanLine } from 'lucide-react';
 
 interface AddEditProductModalProps {
   isOpen: boolean;
@@ -123,7 +123,6 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
       const result = await productsApi.uploadImage(compressedFile);
       setImageUrl(result.imageUrl);
     } catch (err: any) {
-      console.error('Image upload error:', err);
       setErrors((prev) => ({ ...prev, imageUrl: err.message || 'Image upload failed.' }));
     } finally {
       setIsUploadingImage(false);
@@ -159,38 +158,44 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
 
     try {
       setIsSubmitting(true);
+      const cleanName = sanitizeInput(name, 200);
+      const cleanBarcode = sanitizeInput(barcode, 50) || undefined;
+      const cleanImageUrl = imageUrl.trim().slice(0, 500) || undefined;
+      const cleanBrand = sanitizeInput(brand, 100) || undefined;
+      const cleanDescription = sanitizeInput(description, 500) || undefined;
+
       if (isEdit && productToEdit) {
         await updateProduct(productToEdit.id, {
-          name: name.trim(),
+          name: cleanName,
           category,
           unit,
           costPrice: costNum,
           sellingPrice: sellNum,
           stockQuantity: stockNum,
           minStockAlert: minStockNum,
-          barcode: barcode.trim() || undefined,
-          imageUrl: imageUrl.trim() || undefined,
-          brand: brand.trim() || undefined,
-          description: description.trim() || undefined,
+          barcode: cleanBarcode,
+          imageUrl: cleanImageUrl,
+          brand: cleanBrand,
+          description: cleanDescription,
         });
       } else {
         await addProduct({
-          name: name.trim(),
+          name: cleanName,
           category,
           unit,
           costPrice: costNum,
           sellingPrice: sellNum,
           stockQuantity: stockNum,
           minStockAlert: minStockNum,
-          barcode: barcode.trim() || undefined,
-          imageUrl: imageUrl.trim() || undefined,
-          brand: brand.trim() || undefined,
-          description: description.trim() || undefined,
+          barcode: cleanBarcode,
+          imageUrl: cleanImageUrl,
+          brand: cleanBrand,
+          description: cleanDescription,
         });
       }
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Handled via toast notification
     } finally {
       setIsSubmitting(false);
     }
@@ -533,7 +538,7 @@ export const AddEditProductModal: React.FC<AddEditProductModalProps> = ({
                             <button
                               type="button"
                               onClick={() => setImageUrl('')}
-                              className="absolute top-0.5 right-0.5 p-0.5 bg-slate-950/80 text-rose-400 rounded-full hover:bg-slate-900"
+                              className="absolute top-0.5 right-0.5 p-0.5 bg-slate-950/80 text-rose-400 rounded-md hover:bg-slate-900"
                             >
                               <X className="w-3 h-3" />
                             </button>

@@ -1,6 +1,6 @@
 ﻿import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Shield, FileText } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 
 export const metadata = {
   title: 'Terms of Service - HisabFlow',

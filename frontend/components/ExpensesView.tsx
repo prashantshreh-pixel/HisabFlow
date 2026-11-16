@@ -2,23 +2,18 @@
 
 import React, { useState, useMemo } from 'react';
 import { useKhata } from '@/context/KhataContext';
-import { Expense } from '@/types';
 import {
   Receipt,
   Plus,
   Search,
   Calendar,
   Coins,
-  CreditCard,
   QrCode,
   Tag,
   Trash2,
   TrendingDown,
-  FileSpreadsheet,
-  AlertCircle,
-  TrendingUp,
 } from 'lucide-react';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 
 interface ExpensesViewProps {
   onOpenAddExpense: () => void;
@@ -37,7 +32,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) => {
-  const { expenses, expensesSummary, stats, deleteExpense, isLoading, formatDate, t } = useKhata();
+  const { expenses, stats, deleteExpense, isLoading, error, refreshData, formatDate, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -75,66 +70,70 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
     return <PageLoader text="Loading store expenses..." />;
   }
 
+  if (error && expenses.length === 0) {
+    return <ErrorState title="Unable to load store expenses" message={error} onRetry={refreshData} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
-      {/* Top Header Strip - Expense Metrics */}
+      {/* Clear Hierarchy Expense Strip: One Big Number + Quiet Supporting Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Expenses */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
+        {/* Hero Card: Total Expenses */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/35 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               {t('totalExpensesSpent')}
             </span>
-            <div className="text-2xl font-black text-rose-400 mt-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 mt-1">
               Rs. {stats.totalExpenses.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-500">{expenses.length} logged vouchers</span>
+            <span className="text-[11px] text-slate-400">{expenses.length} logged vouchers</span>
           </div>
-          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <TrendingDown className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Today's Expenses */}
+        {/* Supporting Card: Today's Expenses */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('todaysStoreExpenses')}
             </span>
-            <div className="text-2xl font-black text-amber-400 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               Rs. {stats.todayExpenses.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-500">Recorded today</span>
           </div>
-          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <Calendar className="w-5 h-5" />
           </div>
         </div>
 
-        {/* This Month Expenses */}
+        {/* Supporting Card: This Month Expenses */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('thisMonthExpenses')}
             </span>
-            <div className="text-2xl font-black text-slate-100 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               Rs. {stats.monthExpenses.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-500">Current calendar month</span>
           </div>
-          <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <Receipt className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Net Profit Indicator + Log Expense CTA */}
+        {/* Supporting Card: Net Profit Indicator + Main Action CTA */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('estNetStoreProfit')}
             </span>
             <div
-              className={`text-2xl font-black mt-1 ${
+              className={`text-lg sm:text-xl font-bold font-mono mt-1 ${
                 netStoreProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'
               }`}
             >
@@ -146,7 +145,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
             id="log-expense-btn"
             type="button"
             onClick={onOpenAddExpense}
-            className="px-3.5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 transition-all flex items-center gap-1.5 shrink-0"
+            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-1.5 shrink-0"
           >
             <Plus className="w-4 h-4" />
             {t('addExpense')}
@@ -165,7 +164,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
             placeholder="Search expense description, category, or note..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+            className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
           />
           {searchQuery && (
             <button
@@ -186,7 +185,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
               id="expense-category-filter"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-rose-500"
+              className="px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-amber-500"
             >
               {EXPENSE_CATEGORIES.map((cat) => (
                 <option key={cat} value={cat}>
@@ -197,7 +196,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
           </div>
 
           <div className="px-3 py-1.5 bg-slate-950 rounded-xl border border-slate-800 text-xs text-slate-300 font-mono">
-            Filtered Total: <strong className="text-rose-400">Rs. {totalFilteredAmount.toLocaleString()}</strong>
+            Filtered Total: <strong className="text-amber-400">Rs. {totalFilteredAmount.toLocaleString()}</strong>
           </div>
         </div>
       </div>
@@ -217,7 +216,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
             >
               <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-rose-300 text-[10px] font-semibold border border-slate-700">
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800 text-slate-300 text-[10px] font-semibold border border-slate-700">
                     {expense.category}
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono">
@@ -244,7 +243,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                 <button
                   type="button"
                   onClick={() => deleteExpense(expense.id)}
-                  className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors"
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors duration-150"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
@@ -283,7 +282,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                   const expDate = formatDate(expense.expenseDate);
 
                   return (
-                    <tr key={expense.id} className="hover:bg-slate-800/40 transition-colors group">
+                    <tr key={expense.id} className="hover:bg-slate-800/40 transition-colors duration-150 group">
                       {/* Description / Title */}
                       <td className="py-4 px-5 font-bold text-slate-100 text-sm">
                         {expense.title}
@@ -291,7 +290,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
 
                       {/* Category Badge */}
                       <td className="py-4 px-5">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-800 text-rose-300 font-semibold text-xs border border-slate-700/80 shadow-sm whitespace-nowrap">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 font-semibold text-xs border border-slate-700/80 shadow-sm whitespace-nowrap">
                           {expense.category}
                         </span>
                       </td>
@@ -306,8 +305,8 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                         {(() => {
                           const isCash =
                             expense.paymentMethod === 'CASH' ||
-                            (expense.paymentMethod as any) === 1 ||
-                            (expense.paymentMethod as any) === 'Cash';
+                            (expense.paymentMethod as unknown) === 1 ||
+                            (expense.paymentMethod as unknown) === 'Cash';
                           return (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950 text-slate-200 font-medium text-xs border border-slate-800">
                               {isCash ? (
@@ -333,7 +332,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
 
                       {/* Particulars / Notes */}
                       <td className="py-4 px-5 text-slate-400 text-xs">
-                        {expense.particulars || '—'}
+                        {expense.particulars || '-'}
                       </td>
 
                       {/* Actions */}
@@ -345,7 +344,7 @@ export const ExpensesView: React.FC<ExpensesViewProps> = ({ onOpenAddExpense }) 
                               deleteExpense(expense.id);
                             }
                           }}
-                          className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors"
+                          className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors duration-150"
                           title="Delete Expense"
                         >
                           <Trash2 className="w-3.5 h-3.5" />

@@ -22,7 +22,10 @@ if (-not (Test-Path $OutDir)) {
 
 Write-Host "==> 2. Syncing static bundle to ASP.NET Core wwwroot..." -ForegroundColor Cyan
 if (Test-Path $WwwRootDir) {
-    Get-ChildItem -Path $WwwRootDir -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    # Preserve user-uploaded content (product images) - only replace the static frontend build
+    Get-ChildItem -Path $WwwRootDir -Force |
+        Where-Object { $_.Name -ne 'uploads' } |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 } else {
     New-Item -ItemType Directory -Path $WwwRootDir -Force | Out-Null
 }

@@ -10,6 +10,7 @@ interface UseExpenseDomainOptions {
 
 export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDomainOptions) {
   const [isExpensesLoading, setIsExpensesLoading] = useState(true);
+  const [expensesError, setExpensesError] = useState<string | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [expensesSummary, setExpensesSummary] = useState<ExpenseSummary>({
     totalExpenses: 0,
@@ -20,13 +21,14 @@ export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDom
 
   const fetchExpenses = useCallback(async () => {
     setIsExpensesLoading(true);
+    setExpensesError(null);
     try {
       const data = await expensesApi.getAll(100);
       setExpenses(data);
       const summary = await expensesApi.getSummary();
       setExpensesSummary(summary);
     } catch (err: unknown) {
-      console.warn('Failed to fetch expenses from API:', err);
+      setExpensesError(err instanceof Error ? err.message : 'Failed to load store expenses.');
     } finally {
       setIsExpensesLoading(false);
     }
@@ -49,7 +51,7 @@ export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDom
 
       setExpenses((prev) => [created, ...prev]);
       showToast({ type: 'success', title: 'Expense Added', message: `Rs. ${data.amount} recorded.` });
-      
+
       const summary = await expensesApi.getSummary();
       setExpensesSummary(summary);
       onMutationSuccess?.();
@@ -63,7 +65,7 @@ export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDom
       await expensesApi.delete(id);
       setExpenses((prev) => prev.filter((e) => e.id !== id));
       showToast({ type: 'warning', title: 'Expense Removed', message: 'Expense entry deleted.' });
-      
+
       const summary = await expensesApi.getSummary();
       setExpensesSummary(summary);
       onMutationSuccess?.();
@@ -73,6 +75,7 @@ export function useExpenseDomain({ showToast, onMutationSuccess }: UseExpenseDom
 
   return {
     isExpensesLoading,
+    expensesError,
     expenses,
     expensesSummary,
     fetchExpenses,

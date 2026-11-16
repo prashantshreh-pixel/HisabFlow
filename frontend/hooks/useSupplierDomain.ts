@@ -11,6 +11,7 @@ interface UseSupplierDomainOptions {
 
 export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierDomainOptions) {
   const [isSuppliersLoading, setIsSuppliersLoading] = useState(true);
+  const [suppliersError, setSuppliersError] = useState<string | null>(null);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [suppliersSummary, setSuppliersSummary] = useState<SupplierSummary>({
     totalOutstandingPayable: 0,
@@ -22,13 +23,14 @@ export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierD
 
   const fetchSuppliers = useCallback(async () => {
     setIsSuppliersLoading(true);
+    setSuppliersError(null);
     try {
       const data = await suppliersApi.getAll();
       setSuppliers(data.map(mapApiSupplierToUI));
       const summary = await suppliersApi.getSummary();
       setSuppliersSummary(summary);
     } catch (err: unknown) {
-      console.warn('Failed to fetch suppliers from API:', err);
+      setSuppliersError(err instanceof Error ? err.message : 'Failed to load wholesalers ledger.');
     } finally {
       setIsSuppliersLoading(false);
     }
@@ -40,7 +42,7 @@ export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierD
       const newSupplier = mapApiSupplierToUI(created);
       setSuppliers((prev) => [newSupplier, ...prev]);
       showToast({ type: 'success', title: 'Supplier Added', message: `${newSupplier.name} saved.` });
-      
+
       const summary = await suppliersApi.getSummary();
       setSuppliersSummary(summary);
       onMutationSuccess?.();
@@ -74,7 +76,7 @@ export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierD
       await suppliersApi.delete(id);
       setSuppliers((prev) => prev.filter((s) => s.id !== id));
       showToast({ type: 'warning', title: 'Supplier Deleted', message: 'Supplier record removed.' });
-      
+
       const summary = await suppliersApi.getSummary();
       setSuppliersSummary(summary);
       onMutationSuccess?.();
@@ -125,7 +127,7 @@ export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierD
 
       const newEntry = mapApiSupplierLedgerEntryToUI(created);
       showToast({ type: 'success', title: 'Supplier Transaction', message: `Rs. ${params.amount} recorded.` });
-      
+
       fetchSuppliers();
       onMutationSuccess?.();
       return newEntry;
@@ -135,6 +137,7 @@ export function useSupplierDomain({ showToast, onMutationSuccess }: UseSupplierD
 
   return {
     isSuppliersLoading,
+    suppliersError,
     suppliers,
     suppliersSummary,
     fetchSuppliers,

@@ -65,7 +65,9 @@ public class AuthService : IAuthService
         _db = db;
         _logger = logger;
 
-        var configuredKey = configuration["Auth:JwtSecret"];
+        var configuredKey = configuration["Auth:JwtSecret"]
+            ?? configuration["Jwt:SecretKey"]
+            ?? Environment.GetEnvironmentVariable("HISABFLOW_JWT_SECRET");
         if (string.IsNullOrWhiteSpace(configuredKey) || configuredKey.Length < 32)
         {
             configuredKey = "HisabFlow_Enterprise_POS_HMAC_SHA256_Signing_Secret_Key_2026!";

@@ -134,4 +134,21 @@ public class SecurityAndValidationTests
         validator.Validate(new RefundSaleApiRequest(new string('A', 501))).IsValid.Should().BeFalse();
         validator.Validate(new RefundSaleApiRequest("Damaged packaging returned by customer")).IsValid.Should().BeTrue();
     }
+
+    [Fact]
+    public void PaymentValidators_ShouldValidateSessionAndCallbackRequests()
+    {
+        var sessionValidator = new CreatePaymentSessionRequestValidator();
+        sessionValidator.Validate(new CreatePaymentSessionRequest(0m, "INV-1", "FONEPAY")).IsValid.Should().BeFalse();
+        sessionValidator.Validate(new CreatePaymentSessionRequest(1500m, "INV-1", "UNKNOWN")).IsValid.Should().BeFalse();
+        sessionValidator.Validate(new CreatePaymentSessionRequest(1500m, new string('X', 60), "FONEPAY")).IsValid.Should().BeFalse();
+        sessionValidator.Validate(new CreatePaymentSessionRequest(1500m, "INV-1001", "FONEPAY")).IsValid.Should().BeTrue();
+        sessionValidator.Validate(new CreatePaymentSessionRequest(250m, "INV-1002", "KHALTI")).IsValid.Should().BeTrue();
+
+        var callbackValidator = new PaymentCallbackRequestValidator();
+        callbackValidator.Validate(new PaymentCallbackRequest("", 500m, "TX-1", "SUCCESS")).IsValid.Should().BeFalse();
+        callbackValidator.Validate(new PaymentCallbackRequest("HF123456", -10m, "TX-1", "SUCCESS")).IsValid.Should().BeFalse();
+        callbackValidator.Validate(new PaymentCallbackRequest("HF123456", 500m, "TX-1", "")).IsValid.Should().BeFalse();
+        callbackValidator.Validate(new PaymentCallbackRequest("HF123456", 500m, "TX-1", "SUCCESS")).IsValid.Should().BeTrue();
+    }
 }

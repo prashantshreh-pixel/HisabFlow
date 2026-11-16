@@ -1,6 +1,6 @@
 // CSV & Data Export Utility for HisabFlow
 
-import { CreditLedgerEntry, SupplierLedgerEntry } from '../types';
+import type { CreditLedgerEntry, SupplierLedgerEntry } from '../types';
 import { parseApiDate } from './utils';
 
 /**

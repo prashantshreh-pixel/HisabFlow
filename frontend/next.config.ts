@@ -1,7 +1,8 @@
-import type {NextConfig} from 'next';
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  poweredByHeader: false,
   eslint: {
     ignoreDuringBuilds: false,
   },
@@ -11,17 +12,8 @@ const nextConfig: NextConfig = {
   output: 'export',
   images: {
     unoptimized: true,
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'picsum.photos',
-        port: '',
-        pathname: '/**',
-      },
-    ],
   },
-  transpilePackages: ['motion'],
-  webpack: (config, {dev}) => {
+  webpack: (config, { dev }) => {
     if (dev && process.env.DISABLE_HMR === 'true') {
       config.watchOptions = {
         ignored: /.*/,
