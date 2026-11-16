@@ -5,21 +5,16 @@ import { useKhata } from '@/context/KhataContext';
 import {
   Search,
   UserPlus,
-  ArrowDownLeft,
-  ArrowUpRight,
-  Eye,
   Phone,
   MapPin,
   ShieldAlert,
   CheckCircle2,
-  Filter,
   Users,
   Wallet,
-  AlertCircle,
   FileText,
   MessageSquare,
 } from 'lucide-react';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 
 interface KhataViewProps {
   onOpenAddCustomer: () => void;
@@ -32,7 +27,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
   onOpenRecordTransaction,
   onSelectCustomer,
 }) => {
-  const { customers, stats, isLoading, formatDate, t, language, storeProfile } = useKhata();
+  const { customers, stats, isLoading, error, refreshData, formatDate, t, language, storeProfile } = useKhata();
   const cur = storeProfile?.currencySymbol || 'Rs.';
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,49 +75,53 @@ export const KhataView: React.FC<KhataViewProps> = ({
     return <PageLoader text="Loading khata records..." />;
   }
 
+  if (error && customers.length === 0) {
+    return <ErrorState title="Unable to load khata records" message={error} onRetry={refreshData} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
-      {/* Header ribbon & Top stats */}
+      {/* Header ribbon & Clear Hierarchy Top stats (One Big Number + Quiet Supporting) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {/* Total Receivables */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
+        {/* Hero Card: Total Receivables */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/35 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               {t('totalUdhaar')}
             </span>
-            <div className="text-2xl font-black text-rose-400 mt-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 mt-1">
               {cur} {stats.totalOutstandingKhata.toLocaleString()}
             </div>
-            <span className="text-[11px] text-slate-500">{stats.activeDebtorsCount} {t('customersHaveDues')}</span>
+            <span className="text-[11px] text-slate-400">{stats.activeDebtorsCount} {t('customersHaveDues')}</span>
           </div>
-          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <Wallet className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Total Registered Accounts */}
+        {/* Supporting Card: Total Registered Accounts */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('khataCustomers')}
             </span>
-            <div className="text-2xl font-black text-slate-100 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               {customers.length} {t('accounts')}
             </div>
             <span className="text-[11px] text-emerald-400">{settledCount} {t('fullySettled')}</span>
           </div>
-          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <Users className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Over Limit Alerts & CTA */}
+        {/* Supporting Card: Over Limit Alerts & Main Action CTA */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('creditLimitAlerts')}
             </span>
-            <div className="text-2xl font-black text-amber-400 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               {overLimitCount} {t('atRisk')}
             </div>
             <span className="text-[11px] text-slate-400">{t('exceedingLimit')}</span>
@@ -131,7 +130,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             id="khata-add-customer-btn"
             type="button"
             onClick={onOpenAddCustomer}
-            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5"
+            className="px-3.5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-1.5"
           >
             <UserPlus className="w-4 h-4" />
             {t('addCustomer')}
@@ -169,7 +168,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             id="filter-all"
             type="button"
             onClick={() => setFilterMode('ALL')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               filterMode === 'ALL'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -181,7 +180,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             id="filter-due-only"
             type="button"
             onClick={() => setFilterMode('DUE_ONLY')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               filterMode === 'DUE_ONLY'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -193,7 +192,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             id="filter-over-limit"
             type="button"
             onClick={() => setFilterMode('OVER_LIMIT')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               filterMode === 'OVER_LIMIT'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -205,7 +204,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
             id="filter-settled"
             type="button"
             onClick={() => setFilterMode('SETTLED')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               filterMode === 'SETTLED'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -221,7 +220,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
           <select
             id="khata-sort-select"
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
+            onChange={(e) => setSortBy(e.target.value as 'BALANCE_DESC' | 'NAME' | 'RECENT')}
             className="px-2.5 py-1.5 bg-slate-950 border border-slate-700/80 rounded-lg text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
           >
             <option value="BALANCE_DESC">{t('highestBalanceFirst')}</option>
@@ -231,7 +230,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
         </div>
       </div>
 
-      {/* Mobile Customer Cards (Visible on phones) */}
+      {/* Mobile Customer Cards */}
       <div className="md:hidden space-y-3">
         {filteredCustomers.length === 0 ? (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
@@ -278,7 +277,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                         </span>
                       </div>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md">
                         {t('settled')}
                       </span>
                     )}
@@ -291,10 +290,10 @@ export const KhataView: React.FC<KhataViewProps> = ({
                       id={`wa-mobile-reminder-${customer.id}`}
                       type="button"
                       onClick={() => handleSendWhatsAppReminder(customer)}
-                      className="py-2 px-3 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors shrink-0"
+                      className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors duration-150 shrink-0"
                       title="Send WhatsApp Payment Reminder"
                     >
-                      <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                      <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
                       <span>{t('whatsapp')}</span>
                     </button>
                   )}
@@ -302,7 +301,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onOpenRecordTransaction(customer.id, 'PAYMENT_RECEIVED')}
-                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-xl flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 transition-colors duration-150"
                   >
                     <Wallet className="w-3.5 h-3.5" />
                     <span>{t('recordTx')}</span>
@@ -311,7 +310,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onSelectCustomer(customer.id)}
-                    className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-colors duration-150"
                   >
                     <FileText className="w-3.5 h-3.5 text-amber-400" />
                     <span>{t('statement')}</span>
@@ -360,19 +359,19 @@ export const KhataView: React.FC<KhataViewProps> = ({
                   return (
                     <tr
                       key={customer.id}
-                      className="hover:bg-slate-800/40 transition-colors group"
+                      className="hover:bg-slate-800/40 transition-colors duration-150 group"
                     >
                       {/* Customer Info */}
                       <td className="py-4 px-5">
                         <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-800 to-slate-700 border border-slate-700/80 flex items-center justify-center text-amber-400 font-bold text-sm shrink-0">
+                          <div className="w-9 h-9 rounded-xl bg-slate-800 border border-slate-700/80 flex items-center justify-center text-amber-400 font-bold text-sm shrink-0">
                             {customer.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
                             <button
                               type="button"
                               onClick={() => onSelectCustomer(customer.id)}
-                              className="font-bold text-slate-100 hover:text-amber-400 text-left transition-colors text-sm"
+                              className="font-bold text-slate-100 hover:text-amber-400 text-left transition-colors duration-150 text-sm"
                             >
                               {customer.name}
                             </button>
@@ -405,7 +404,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                       <td className="py-4 px-5 text-right">
                         {hasDue ? (
                           <div>
-                            <span className="text-sm font-black text-rose-400 block">
+                            <span className="text-sm font-black text-rose-400 block font-mono">
                               {cur} {customer.currentBalance.toLocaleString()}
                             </span>
                             {isOverLimit && (
@@ -428,9 +427,9 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             <span>Limit: {cur} {customer.creditLimit.toLocaleString()}</span>
                             <span>{percentUsed}%</span>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                          <div className="w-full h-1.5 bg-slate-800 rounded-sm overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all ${
+                              className={`h-full rounded-sm transition-all duration-200 ${
                                 isOverLimit
                                   ? 'bg-rose-500'
                                   : percentUsed > 75
@@ -456,10 +455,10 @@ export const KhataView: React.FC<KhataViewProps> = ({
                               id={`wa-reminder-${customer.id}`}
                               type="button"
                               onClick={() => handleSendWhatsAppReminder(customer)}
-                              className="h-8 px-2.5 bg-emerald-600/20 hover:bg-emerald-600 text-emerald-300 hover:text-white border border-emerald-500/30 text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1 whitespace-nowrap"
+                              className="h-8 px-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold rounded-lg transition-colors duration-150 inline-flex items-center justify-center gap-1 whitespace-nowrap"
                               title="Send WhatsApp Payment Reminder"
                             >
-                              <MessageSquare className="w-3.5 h-3.5 shrink-0 fill-current" />
+                              <MessageSquare className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
                               <span>{t('whatsapp')}</span>
                             </button>
                           )}
@@ -468,7 +467,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             id={`record-tx-${customer.id}`}
                             type="button"
                             onClick={() => onOpenRecordTransaction(customer.id)}
-                            className="h-8 px-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition-all inline-flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm shadow-emerald-600/20"
+                            className="h-8 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-lg transition-colors duration-150 inline-flex items-center justify-center gap-1.5 whitespace-nowrap shadow-sm"
                             title="Record Udhaar or Payment"
                           >
                             <Wallet className="w-3.5 h-3.5 shrink-0" />
@@ -479,7 +478,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
                             id={`view-statement-${customer.id}`}
                             type="button"
                             onClick={() => onSelectCustomer(customer.id)}
-                            className="h-8 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 transition-colors inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
+                            className="h-8 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white text-xs font-semibold rounded-lg border border-slate-700 transition-colors duration-150 inline-flex items-center justify-center gap-1.5 whitespace-nowrap"
                             title="View Statement"
                           >
                             <FileText className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -498,7 +497,7 @@ export const KhataView: React.FC<KhataViewProps> = ({
         {/* Footer info */}
         <div className="px-6 py-3 border-t border-slate-800/80 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
           <span>Showing {filteredCustomers.length} of {customers.length} total customer accounts</span>
-          <span>Click on any customer name to view full chronological statement</span>
+          <span>Click any customer name to view full statement</span>
         </div>
       </div>
     </div>

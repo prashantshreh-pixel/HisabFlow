@@ -11,15 +11,17 @@ interface UseProductDomainOptions {
 
 export function useProductDomain({ showToast, onMutationSuccess }: UseProductDomainOptions) {
   const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [productsError, setProductsError] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
 
   const fetchProducts = useCallback(async () => {
     setIsProductsLoading(true);
+    setProductsError(null);
     try {
       const data = await productsApi.getAll();
       setProducts(data.map(mapApiProductToUI));
     } catch (err: unknown) {
-      console.warn('Failed to fetch products from API:', err);
+      setProductsError(err instanceof Error ? err.message : 'Failed to load inventory products.');
     } finally {
       setIsProductsLoading(false);
     }
@@ -105,6 +107,7 @@ export function useProductDomain({ showToast, onMutationSuccess }: UseProductDom
 
   return {
     isProductsLoading,
+    productsError,
     products,
     fetchProducts,
     addProduct,

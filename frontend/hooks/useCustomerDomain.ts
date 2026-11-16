@@ -11,16 +11,18 @@ interface UseCustomerDomainOptions {
 
 export function useCustomerDomain({ showToast, onMutationSuccess }: UseCustomerDomainOptions) {
   const [isCustomersLoading, setIsCustomersLoading] = useState(true);
+  const [customersError, setCustomersError] = useState<string | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [ledgerEntries, setLedgerEntries] = useState<CreditLedgerEntry[]>([]);
 
   const fetchCustomers = useCallback(async () => {
     setIsCustomersLoading(true);
+    setCustomersError(null);
     try {
       const data = await customersApi.getAll();
       setCustomers(data.map(mapApiCustomerToUI));
     } catch (err: unknown) {
-      console.warn('Failed to fetch customers from API:', err);
+      setCustomersError(err instanceof Error ? err.message : 'Failed to load customer records.');
     } finally {
       setIsCustomersLoading(false);
     }
@@ -30,8 +32,8 @@ export function useCustomerDomain({ showToast, onMutationSuccess }: UseCustomerD
     try {
       const data = await customersApi.getRecentTransactions(50);
       setLedgerEntries(data.map(mapApiLedgerEntryToUI));
-    } catch (err: unknown) {
-      console.warn('Failed to fetch transactions from API:', err);
+    } catch {
+      // Handled by primary customer fetch state
     }
   }, []);
 
@@ -151,6 +153,7 @@ export function useCustomerDomain({ showToast, onMutationSuccess }: UseCustomerD
 
   return {
     isCustomersLoading,
+    customersError,
     customers,
     ledgerEntries,
     fetchCustomers,

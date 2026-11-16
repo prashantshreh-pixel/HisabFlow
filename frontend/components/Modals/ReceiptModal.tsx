@@ -1,10 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sale, DEFAULT_STORE_PROFILE } from '@/types';
 import { useKhata } from '@/context/KhataContext';
-import { formatLocalTime } from '@/lib/utils';
-import { X, Printer, Store, CheckCircle, Sun, Moon, RotateCcw, MessageCircle, Send } from 'lucide-react';
+import { formatLocalTime, playPosSound, escapeHtml } from '@/lib/utils';
+import {
+  printSaleViaBluetooth,
+  connectBluetoothPrinter,
+  subscribePrinterStatus,
+  getBluetoothPrinterState,
+  BluetoothPrinterState,
+} from '@/lib/thermalPrinter';
+import {
+  X,
+  Printer,
+  Store,
+  CheckCircle,
+  Sun,
+  Moon,
+  RotateCcw,
+  MessageCircle,
+  Send,
+  Bluetooth,
+  BluetoothConnected,
+  Loader2,
+} from 'lucide-react';
 
 interface ReceiptModalProps {
   sale: Sale | null;
@@ -37,11 +57,34 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   canRefund = false,
 }) => {
   const { storeProfile, formatDate, language, t, showToast } = useKhata();
-  const [paperSize, setPaperSize] = useState<'58mm' | '80mm' | 'A4'>('80mm');
+  const [paperSize, setPaperSize] = useState<'58mm' | '80mm' | 'A4'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hisabflow_receipt_paper_size');
+      if (saved === '58mm' || saved === '80mm' || saved === 'A4') return saved;
+    }
+    return '58mm';
+  });
   const [receiptTheme, setReceiptTheme] = useState<'light' | 'dark'>('light');
   const [showWaPhoneBar, setShowWaPhoneBar] = useState<boolean>(false);
   const [customWaPhone, setCustomWaPhone] = useState<string>('');
+  const [btState, setBtState] = useState<BluetoothPrinterState>(() => getBluetoothPrinterState());
+  const [isBtPrinting, setIsBtPrinting] = useState<boolean>(false);
   const profile = storeProfile || DEFAULT_STORE_PROFILE;
+
+  useEffect(() => {
+    return subscribePrinterStatus((state) => setBtState(state));
+  }, []);
+
+  const handlePaperSizeChange = (sz: '58mm' | '80mm' | 'A4') => {
+    setPaperSize(sz);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('hisabflow_receipt_paper_size', sz);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   if (!isOpen || !sale) return null;
 
@@ -50,7 +93,166 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
   const formattedBillTime = formatLocalTime(sale.saleDate);
 
   const handlePrint = () => {
-    window.print();
+    const printable = document.getElementById('receipt-printable-content');
+    if (!printable) {
+      window.print();
+      return;
+    }
+
+    // Clean up any previously created print iframe
+    const oldIframe = document.getElementById('hisabflow-print-frame');
+    if (oldIframe) {
+      oldIframe.remove();
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.id = 'hisabflow-print-frame';
+    iframe.style.position = 'fixed';
+    iframe.style.right = '0';
+    iframe.style.bottom = '0';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) {
+      window.print();
+      return;
+    }
+
+    // Extract all application styles and tailwind rules
+    const styleTags = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((el) => el.outerHTML)
+      .join('\n');
+
+    const printWidth = paperSize === '58mm' ? '54mm' : paperSize === '80mm' ? '76mm' : '100%';
+    const printPadding = paperSize === '58mm' ? '1.5mm' : paperSize === '80mm' ? '3mm' : '8mm';
+
+    doc.open();
+    doc.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>${escapeHtml(sale.invoiceNumber)} - Receipt</title>
+          ${styleTags}
+          <style>
+            @page {
+              size: ${paperSize === 'A4' ? 'A4 portrait' : 'portrait'};
+              margin: ${paperSize === 'A4' ? '10mm' : '0mm'};
+            }
+            *, *::before, *::after {
+              box-sizing: border-box !important;
+            }
+            html, body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              width: 100% !important;
+            }
+            .thermal-print-container {
+              width: ${printWidth} !important;
+              max-width: ${printWidth} !important;
+              margin: 0 auto !important;
+              padding: ${printPadding} !important;
+              background: #ffffff !important;
+              color: #000000 !important;
+            }
+            .thermal-print-container * {
+              color: #000000 !important;
+              border-color: #000000 !important;
+              text-shadow: none !important;
+              box-shadow: none !important;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="thermal-print-container">
+            ${printable.innerHTML}
+          </div>
+        </body>
+      </html>
+    `);
+    doc.close();
+
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        window.print();
+      }
+    }, 200);
+  };
+
+  const handlePairOrToggleBluetooth = async () => {
+    if (isBtPrinting) return;
+    try {
+      setIsBtPrinting(true);
+      const state = await connectBluetoothPrinter(true);
+      playPosSound('beep');
+      showToast({
+        type: 'success',
+        title: language === 'np' ? 'ब्लुटुथ प्रिन्टर जडान भयो' : 'Bluetooth Printer Connected',
+        message: `${state.deviceName || 'Mini Thermal Printer'} is ready for 1-click ESC/POS printing.`,
+      });
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('User cancelled')) {
+        return;
+      }
+      playPosSound('error');
+      showToast({
+        type: 'error',
+        title: language === 'np' ? 'ब्लुटुथ जडान असफल' : 'Bluetooth Connection Failed',
+        message: err?.message || 'Could not pair with Bluetooth printer.',
+      });
+    } finally {
+      setIsBtPrinting(false);
+    }
+  };
+
+  const handleBluetoothPrint = async () => {
+    if (isBtPrinting || !sale) return;
+    try {
+      setIsBtPrinting(true);
+      const thermalWidth: '58mm' | '80mm' = paperSize === '80mm' ? '80mm' : '58mm';
+      const state = await printSaleViaBluetooth(
+        sale,
+        profile,
+        thermalWidth,
+        formattedBillDate,
+        formattedBillTime
+      );
+      playPosSound('beep');
+      showToast({
+        type: 'success',
+        title: language === 'np' ? 'ब्लुटुथ बिल प्रिन्ट भयो' : 'Printed via Bluetooth',
+        message:
+          language === 'np'
+            ? `${state.deviceName || 'BT Printer'} (${thermalWidth}) मा बिल प्रिन्ट गरियो।`
+            : `Sent ESC/POS receipt to ${state.deviceName || 'Mini Printer'} (${thermalWidth}).`,
+      });
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('User cancelled')) {
+        return;
+      }
+      playPosSound('error');
+      showToast({
+        type: 'error',
+        title: language === 'np' ? 'ब्लुटुथ प्रिन्ट त्रुटि' : 'Bluetooth Print Error',
+        message: err?.message || 'Failed to print to Bluetooth mini printer.',
+      });
+    } finally {
+      setIsBtPrinting(false);
+    }
   };
 
   const getPaymentLabel = (method: number) => {
@@ -93,14 +295,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
 
     const statusLine = sale.isRefunded
       ? language === 'np'
-        ? '\n⚠️ *स्थिति: फिर्ता गरिएको बिल (REFUNDED)*\n'
-        : '\n⚠️ *STATUS: REFUNDED / RETURNED*\n'
+        ? '\n*स्थिति: फिर्ता गरिएको बिल (REFUNDED)*\n'
+        : '\n*STATUS: REFUNDED / RETURNED*\n'
       : '';
 
     const message =
       language === 'np'
-        ? `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}🧾 *बिल नं:* ${sale.invoiceNumber}\n📅 *मिति:* ${formattedBillDate} (${formattedBillTime})\n👤 *ग्राहक:* ${sale.customerName || 'Walk-in Customer'}\n────────────────\n${itemLines}\n────────────────\n${sale.discountAmount > 0 ? `छुट: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `भ्याट (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}💰 *जम्मा रकम: ${cur} ${sale.totalAmount.toLocaleString()}*\n💳 *भुक्तानी माध्यम:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n📒 *खाता बाँकी (उधारो): ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'हामीलाई सम्झनुभएकोमा धन्यवाद!'}_`
-        : `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}🧾 *Bill No:* ${sale.invoiceNumber}\n📅 *Date:* ${formattedBillDate} (${formattedBillTime})\n👤 *Customer:* ${sale.customerName || 'Walk-in Customer'}\n────────────────\n${itemLines}\n────────────────\n${sale.discountAmount > 0 ? `Discount: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `VAT (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}💰 *Grand Total: ${cur} ${sale.totalAmount.toLocaleString()}*\n💳 *Payment Mode:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n📒 *Khata Due: ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'Thank you for shopping with us!'}_`;
+        ? `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}*बिल नं:* ${sale.invoiceNumber}\n*मिति:* ${formattedBillDate} (${formattedBillTime})\n*ग्राहक:* ${sale.customerName || 'Walk-in Customer'}\n----------------\n${itemLines}\n----------------\n${sale.discountAmount > 0 ? `छुट: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `भ्याट (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}*जम्मा रकम: ${cur} ${sale.totalAmount.toLocaleString()}*\n*भुक्तानी माध्यम:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n*खाता बाँकी (उधारो): ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'हामीलाई सम्झनुभएकोमा धन्यवाद!'}_`
+        : `*${profile.storeName}*\n${profile.address ? `${profile.address}\n` : ''}${statusLine}*Bill No:* ${sale.invoiceNumber}\n*Date:* ${formattedBillDate} (${formattedBillTime})\n*Customer:* ${sale.customerName || 'Walk-in Customer'}\n----------------\n${itemLines}\n----------------\n${sale.discountAmount > 0 ? `Discount: -${cur} ${sale.discountAmount.toLocaleString()}\n` : ''}${sale.taxAmount > 0 ? `VAT (13%): ${cur} ${sale.taxAmount.toLocaleString()}\n` : ''}*Grand Total: ${cur} ${sale.totalAmount.toLocaleString()}*\n*Payment Mode:* ${getPaymentLabel(sale.paymentMethod)}${sale.creditPaid > 0 ? `\n*Khata Due: ${cur} ${sale.creditPaid.toLocaleString()}*` : ''}\n\n_${profile.receiptFooter || 'Thank you for shopping with us!'}_`;
 
     window.open(`https://wa.me/${targetPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
     setShowWaPhoneBar(false);
@@ -123,12 +325,12 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
           @page {
-            size: ${paperSize === 'A4' ? 'A4 portrait' : `${paperSize} auto`};
-            margin: ${paperSize === 'A4' ? '12mm 15mm' : '0'};
+            size: ${paperSize === 'A4' ? 'A4 portrait' : 'portrait'};
+            margin: ${paperSize === 'A4' ? '10mm 12mm' : '0mm'};
           }
           html, body {
-            background: ${isDark ? '#0f172a' : '#ffffff'} !important;
-            color: ${isDark ? '#f8fafc' : '#000000'} !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             margin: 0 !important;
             padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
@@ -146,7 +348,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             top: 0 !important;
             width: 100% !important;
             height: auto !important;
-            background: ${isDark ? '#0f172a' : '#ffffff'} !important;
+            background: #ffffff !important;
             display: block !important;
             padding: 0 !important;
             margin: 0 !important;
@@ -158,16 +360,19 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
           #receipt-printable-content {
             visibility: visible !important;
             display: block !important;
-            width: ${paperSize === '58mm' ? '58mm' : paperSize === '80mm' ? '80mm' : '100%'} !important;
-            max-width: ${paperSize === '58mm' ? '58mm' : paperSize === '80mm' ? '80mm' : '100%'} !important;
+            width: ${paperSize === '58mm' ? '54mm' : paperSize === '80mm' ? '76mm' : '100%'} !important;
+            max-width: ${paperSize === '58mm' ? '54mm' : paperSize === '80mm' ? '76mm' : '100%'} !important;
             margin: 0 auto !important;
-            padding: ${paperSize === '58mm' ? '2mm' : paperSize === '80mm' ? '4mm' : '0'} !important;
-            background: ${isDark ? '#0f172a' : '#ffffff'} !important;
-            color: ${isDark ? '#f8fafc' : '#000000'} !important;
+            padding: ${paperSize === '58mm' ? '1.5mm' : paperSize === '80mm' ? '3mm' : '0'} !important;
+            background: #ffffff !important;
+            color: #000000 !important;
             box-shadow: none !important;
             border: none !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+          }
+          #receipt-printable-content * {
+            color: #000000 !important;
           }
         }
       ` }} />
@@ -207,6 +412,36 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePairOrToggleBluetooth}
+                disabled={isBtPrinting}
+                className={`px-2.5 py-1.5 rounded-xl text-[11px] font-bold flex items-center gap-1.5 border transition-all ${
+                  btState.isConnected
+                    ? 'bg-sky-500/15 text-sky-300 border-sky-500/30 hover:bg-sky-500/25'
+                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                }`}
+                title={
+                  btState.isConnected
+                    ? `Connected to ${btState.deviceName} (Click to switch printer)`
+                    : 'Pair a 58mm / 80mm Bluetooth Mini Thermal Printer'
+                }
+              >
+                {btState.isConnected ? (
+                  <>
+                    <BluetoothConnected className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="max-w-[110px] truncate">{btState.deviceName}</span>
+                  </>
+                ) : (
+                  <>
+                    <Bluetooth className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="hidden sm:inline">
+                      {language === 'np' ? 'BT प्रिन्टर जोड्नुहोस्' : 'Pair BT Printer'}
+                    </span>
+                  </>
+                )}
+              </button>
+
               {!sale.isRefunded && canRefund && onRefundSale && (
                 <button
                   type="button"
@@ -720,7 +955,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                     <button
                       key={sz}
                       type="button"
-                      onClick={() => setPaperSize(sz)}
+                      onClick={() => handlePaperSizeChange(sz)}
                       className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
                         paperSize === sz
                           ? 'bg-amber-500 text-slate-950 shadow-sm'
@@ -842,9 +1077,43 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({
                 )}
 
                 <button
+                  id="bt-thermal-print-btn"
+                  type="button"
+                  onClick={handleBluetoothPrint}
+                  disabled={isBtPrinting}
+                  className={`py-2.5 px-3.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 border ${
+                    btState.isConnected
+                      ? 'bg-sky-500 hover:bg-sky-400 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20'
+                      : 'bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border-sky-500/30'
+                  } disabled:opacity-50`}
+                  title={
+                    btState.isConnected
+                      ? `Instant ESC/POS print to ${btState.deviceName} (${paperSize === '80mm' ? '80mm' : '58mm'})`
+                      : 'Connect Bluetooth Mini Printer & print receipt via ESC/POS'
+                  }
+                >
+                  {isBtPrinting ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : btState.isConnected ? (
+                    <BluetoothConnected className="w-4 h-4" />
+                  ) : (
+                    <Bluetooth className="w-4 h-4" />
+                  )}
+                  <span>
+                    {isBtPrinting
+                      ? language === 'np'
+                        ? 'प्रिन्ट हुँदै...'
+                        : 'Printing...'
+                      : language === 'np'
+                      ? `BT प्रिन्ट (${paperSize === '80mm' ? '80mm' : '58mm'})`
+                      : `BT Print (${paperSize === '80mm' ? '80mm' : '58mm'})`}
+                  </span>
+                </button>
+
+                <button
                   type="button"
                   onClick={handlePrint}
-                  className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-initial py-2.5 px-4 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors duration-150 flex items-center justify-center gap-2"
                 >
                   <Printer className="w-4 h-4" />
                   <span>

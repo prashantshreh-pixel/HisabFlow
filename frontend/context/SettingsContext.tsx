@@ -130,8 +130,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           qrCity: p.qrCity || DEFAULT_STORE_PROFILE.qrCity,
         });
       }
-    } catch (e) {
-      console.error('Error loading store profile:', e);
+    } catch {
+      // Ignore corrupt localStorage profile
     }
   }, []);
 
@@ -182,8 +182,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       try {
         localStorage.setItem('hisabflow_store_profile', JSON.stringify(updated));
         window.dispatchEvent(new Event('hisabflow_store_profile_updated'));
-      } catch (e) {
-        console.error('Error saving store profile:', e);
+      } catch {
+        // Ignore storage write errors
       }
       return updated;
     });

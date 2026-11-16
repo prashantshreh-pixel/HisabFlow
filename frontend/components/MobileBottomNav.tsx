@@ -95,7 +95,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             <div className="relative">
               <Boxes className="w-5 h-5" />
               {hasStockAlert && (
-                <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-slate-950" />
+                <span className="absolute -top-1 -right-1.5 w-2 h-2 rounded-sm bg-rose-500 ring-2 ring-slate-950" />
               )}
             </div>
             <span className="text-[10px] font-semibold tracking-tight">{t('products')}</span>

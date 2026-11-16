@@ -1,4 +1,4 @@
-import { AuthUser, UserRole, ROLE_PERMISSIONS, RolePermissions } from '../types/auth';
+import { type AuthUser, type UserRole, ROLE_PERMISSIONS, type RolePermissions } from '../types/auth';
 
 const AUTH_STORAGE_KEY = 'hisabflow_session';
 

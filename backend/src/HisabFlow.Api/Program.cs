@@ -76,14 +76,56 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure();
 
-// Configure CORS to allow frontend requests
+// Configure CORS with strict origin validation (configured origins + local/LAN POS terminals)
+var configuredOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ??
+[
+    "http://localhost:3000",
+    "http://localhost:5000",
+    "https://localhost:5001",
+    "https://hisabflow.app"
+];
+var allowedOriginsSet = new HashSet<string>(configuredOrigins, StringComparer.OrdinalIgnoreCase);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.SetIsOriginAllowed(_ => true)
-              .AllowAnyHeader()
-              .AllowAnyMethod();
+        policy.SetIsOriginAllowed(origin =>
+              {
+                  if (string.IsNullOrWhiteSpace(origin)) return false;
+                  if (allowedOriginsSet.Contains(origin)) return true;
+                  if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri)) return false;
+                  if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) return false;
+
+                  var host = uri.Host;
+                  if (string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+                      || host == "127.0.0.1"
+                      || host == "::1")
+                  {
+                      return true;
+                  }
+
+                  // Allow RFC1918 private LAN origins for local network POS tablet/scanner access
+                  if (System.Net.IPAddress.TryParse(host, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                  {
+                      var bytes = ip.GetAddressBytes();
+                      if (bytes[0] == 10) return true;
+                      if (bytes[0] == 192 && bytes[1] == 168) return true;
+                      if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
+                  }
+
+                  return false;
+              })
+              .WithMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+              .WithHeaders(
+                  "Content-Type",
+                  "Authorization",
+                  "Accept",
+                  "X-Requested-With",
+                  "X-User-Role",
+                  "X-User-Name",
+                  "X-User-Id",
+                  "X-Signature");
     });
 });
 
@@ -92,19 +134,35 @@ var app = builder.Build();
 // Enable Global Exception Handling
 app.UseExceptionHandler();
 
-// Global HTTP Security Headers Middleware
+// Global HTTP Security Headers & Exposed File Protection Middleware
+var blockedExtensions = new[] { ".env", ".bak", ".sql", ".config", ".pdb", ".key", ".pem" };
 app.Use(async (context, next) =>
 {
     var headers = context.Response.Headers;
+    headers.Remove("Server");
+    headers.Remove("X-Powered-By");
     headers.TryAdd("X-Content-Type-Options", "nosniff");
     headers.TryAdd("X-Frame-Options", "SAMEORIGIN");
     headers.TryAdd("Referrer-Policy", "strict-origin-when-cross-origin");
     headers.TryAdd("X-Permitted-Cross-Domain-Policies", "none");
+    headers.TryAdd("Cross-Origin-Opener-Policy", "same-origin");
     headers.TryAdd("Permissions-Policy", "camera=(self), microphone=(), geolocation=()");
+    headers.TryAdd(
+        "Content-Security-Policy",
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' http://localhost:* https://localhost:* https://world.openfoodfacts.org https://api.upcitemdb.com; frame-ancestors 'self'; base-uri 'self'; form-action 'self'");
 
     if (!app.Environment.IsDevelopment())
     {
         headers.TryAdd("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+
+    var reqPath = context.Request.Path.Value ?? string.Empty;
+    if (reqPath.StartsWith("/.", StringComparison.OrdinalIgnoreCase)
+        || reqPath.StartsWith("/appsettings", StringComparison.OrdinalIgnoreCase)
+        || blockedExtensions.Any(ext => reqPath.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
+    {
+        context.Response.StatusCode = StatusCodes.Status404NotFound;
+        return;
     }
 
     await next();

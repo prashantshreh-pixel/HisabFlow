@@ -184,7 +184,9 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
       .then((url) => {
         if (isMounted) setQrDataUrl(url);
       })
-      .catch((err) => console.error('Error generating dynamic QR:', err));
+      .catch(() => {
+        if (isMounted) setQrDataUrl('');
+      });
 
     return () => {
       isMounted = false;
@@ -295,15 +297,15 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
           {/* Dynamic Amount Banner */}
           <div
-            className={`p-4 rounded-2xl border text-center space-y-1 shadow-lg transition-colors duration-500 ${
+            className={`p-4 rounded-2xl border text-center space-y-1 shadow-lg transition-colors duration-200 ${
               isPaid
-                ? 'bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950/40 border-emerald-500/40'
-                : 'bg-gradient-to-br from-slate-950 via-slate-900 to-rose-950/30 border-rose-500/30'
+                ? 'bg-slate-950 border-emerald-500/40'
+                : 'bg-slate-950 border-amber-500/35'
             }`}
           >
             <span
               className={`text-[11px] font-bold uppercase tracking-wider ${
-                isPaid ? 'text-emerald-400' : 'text-rose-400'
+                isPaid ? 'text-emerald-400' : 'text-amber-400'
               }`}
             >
               {isPaid ? 'Amount Paid' : 'Exact Amount To Pay (Pre-Filled)'}
@@ -314,7 +316,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
             {!isPaid && (
               <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5 pt-0.5">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                <span>Customer scans QR &mdash; amount is automatically filled in banking app</span>
+                <span>Customer scans QR - amount is automatically filled in banking app</span>
               </p>
             )}
           </div>
@@ -364,7 +366,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                 <img
                   src={qrDataUrl}
                   alt="Dynamic Payment QR Code"
-                  className={`w-full h-full object-contain rounded-lg transition-all duration-500 ${
+                  className={`w-full h-full object-contain rounded-lg transition-all duration-200 ${
                     isPaid || isExpired ? 'blur-md opacity-40 scale-95' : ''
                   }`}
                 />
@@ -372,7 +374,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
 
               {isPaid && (
                 <div className="absolute inset-0 flex items-center justify-center bg-white/50" role="status" aria-live="polite">
-                  <div className="hf-check-circle w-24 h-24 rounded-full bg-emerald-500 shadow-xl shadow-emerald-500/40 flex items-center justify-center">
+                  <div className="hf-check-circle w-24 h-24 rounded-2xl bg-emerald-500 shadow-xl shadow-emerald-500/40 flex items-center justify-center">
                     <svg viewBox="0 0 24 24" className="w-14 h-14" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <path className="hf-check-path" d="M5 12.5l4.5 4.5L19 7.5" />
                     </svg>
@@ -387,7 +389,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                   <button
                     type="button"
                     onClick={restart}
-                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5"
+                    className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold flex items-center gap-1.5"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> New QR
                   </button>
@@ -402,7 +404,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                 <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300 font-black">UnionPay</span>
               </div>
               <p className="text-[9px] text-slate-500 font-semibold">
-                ACQUIRED BY <span className="text-purple-700 font-bold">khalti</span> • fonepay.com
+                ACQUIRED BY <span className="text-slate-800 font-bold">khalti</span> • fonepay.com
               </p>
             </div>
           </div>
@@ -412,10 +414,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
             <div className="flex items-center justify-center gap-2 text-[11px] text-slate-400" role="status" aria-live="polite">
               {phase === 'waiting' && (
                 <>
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
-                  </span>
+                  <span className="w-2 h-2 rounded-sm bg-amber-400 shrink-0" />
                   <span>Waiting for payment…</span>
                   {secondsLeft !== null && (
                     <span className="font-mono text-slate-500">({formatCountdown(secondsLeft)})</span>
@@ -450,8 +449,8 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                       key={p.id}
                       type="button"
                       onClick={() => handleProviderChange(p.id)}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                        provider === p.id ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
+                        provider === p.id ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
                       {p.label}
@@ -464,8 +463,8 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                     <button
                       type="button"
                       onClick={() => setQrFormat('FONEPAY_DYNAMIC')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
-                        qrFormat === 'FONEPAY_DYNAMIC' ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
+                        qrFormat === 'FONEPAY_DYNAMIC' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
                       }`}
                       title="Fonepay Dynamic QR (Standee Standard)"
                     >
@@ -474,7 +473,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                     <button
                       type="button"
                       onClick={() => setQrFormat('EMVCO_NEPALPAY')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
                         qrFormat === 'EMVCO_NEPALPAY' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
                       }`}
                       title="NepalQR / NEPALPAY Standard (EMVCo Dynamic)"
@@ -484,7 +483,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
                     <button
                       type="button"
                       onClick={() => setQrFormat('MOBANK_JSON')}
-                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors duration-150 ${
                         qrFormat === 'MOBANK_JSON' ? 'bg-amber-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-slate-200'
                       }`}
                       title="NIC ASIA MoBank & connectIPS JSON Format"
@@ -534,7 +533,7 @@ const DynamicQrPanel: React.FC<Omit<DynamicQrModalProps, 'isOpen'>> = ({
               onClick={handleManualConfirm}
               disabled={phase !== 'waiting' || isConfirming}
               title="Use only after checking the payment in your merchant app"
-              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex-1 py-2.5 px-4 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm transition-colors duration-150 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <CheckCircle className="w-4 h-4" />
               <span>Confirm Paid ({cur} {amount.toFixed(2)})</span>

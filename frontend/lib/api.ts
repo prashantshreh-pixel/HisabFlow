@@ -55,6 +55,7 @@ async function apiFetch<T>(path: string, options?: RequestInit & { idempotencyKe
 
   const headers: Record<string, string> = {
     ...(options?.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+    'X-Requested-With': 'XMLHttpRequest',
     ...authHeaders,
     ...(options?.headers as Record<string, string>),
   };

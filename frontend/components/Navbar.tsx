@@ -85,8 +85,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <h2 className="text-sm font-semibold text-slate-100 tracking-tight">
                 {t(TAB_TITLE_KEYS[currentTab])}
               </h2>
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-medium text-emerald-400">
+                <span className="w-1.5 h-1.5 rounded-sm bg-emerald-400" />
                 {t('live')}
               </span>
             </div>

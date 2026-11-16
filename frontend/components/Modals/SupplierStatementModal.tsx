@@ -3,8 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { SupplierLedgerEntry } from '@/types';
-import { X, Truck, Phone, MapPin, Building, ArrowUpRight, ArrowDownLeft, Calendar, FileText, Printer } from 'lucide-react';
-import { PageLoader } from '@/components/Loader';
+import { X, Truck, ArrowUpRight, ArrowDownLeft, FileText, Printer, Download } from 'lucide-react';
+import { PageLoader, ErrorState } from '@/components/Loader';
+import { exportSupplierStatementCSV } from '@/lib/exportUtils';
 
 interface SupplierStatementModalProps {
   supplierId: string | null;
@@ -17,23 +18,33 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
   isOpen,
   onClose,
 }) => {
-  const { getSupplierById, getSupplierLedger, formatDate } = useKhata();
+  const { getSupplierById, getSupplierLedger, showToast, formatDate } = useKhata();
   const [entries, setEntries] = useState<SupplierLedgerEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
 
   const supplier = supplierId ? getSupplierById(supplierId) : null;
+
+  const loadSupplierLedger = React.useCallback(async () => {
+    if (!supplierId) return;
+    setLoading(true);
+    setLedgerError(null);
+    try {
+      const res = await getSupplierLedger(supplierId);
+      setEntries(res);
+    } catch (err: unknown) {
+      setLedgerError(err instanceof Error ? err.message : 'Unable to load supplier statement ledger.');
+    } finally {
+      setLoading(false);
+    }
+  }, [supplierId, getSupplierLedger]);
 
   useEffect(() => {
     if (supplierId && isOpen) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setLoading(true);
-      getSupplierLedger(supplierId).then((res) => {
-        setEntries(res);
-        setLoading(false);
-      });
+      loadSupplierLedger();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supplierId, isOpen]);
+  }, [supplierId, isOpen, loadSupplierLedger]);
 
   if (!isOpen || !supplier) return null;
 
@@ -63,6 +74,21 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  exportSupplierStatementCSV(supplier.name, entries);
+                  showToast({
+                    type: 'success',
+                    title: 'Statement Exported',
+                    message: `Exported statement for ${supplier.name} to CSV.`,
+                  });
+                }}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-lg border border-slate-700 transition-colors flex items-center gap-1.5"
+              >
+                <Download className="w-3.5 h-3.5 text-amber-400" />
+                Export CSV
+              </button>
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -123,6 +149,12 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
 
             {loading ? (
               <PageLoader text="Loading ledger entries..." />
+            ) : ledgerError ? (
+              <ErrorState
+                title="Unable to load supplier statement"
+                message={ledgerError}
+                onRetry={loadSupplierLedger}
+              />
             ) : entries.length === 0 ? (
               <div className="py-12 text-center text-slate-500 border border-slate-800/80 rounded-2xl bg-slate-950/50">
                 <FileText className="w-8 h-8 mx-auto mb-2 opacity-40 text-slate-400" />
@@ -158,7 +190,7 @@ export const SupplierStatementModal: React.FC<SupplierStatementModalProps> = ({
                             {entry.type === 'STOCK_PURCHASE' ? 'Stock Purchase (+Payable)' : 'Payment Given (-Payable)'}
                           </div>
                           <div className="text-[11px] text-slate-400 mt-0.5">
-                            {entry.notes || '—'}
+                            {entry.notes || '-'}
                           </div>
                           <div className="text-[10px] text-slate-500 font-mono mt-0.5">
                             {entryDate} {entry.invoiceNumber ? `· Bill: ${entry.invoiceNumber}` : ''}

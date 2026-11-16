@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { SupplierTransactionType } from '@/types';
 import { X, Truck, Coins, QrCode, Calendar, FileText, ArrowUpRight, ArrowDownLeft, Hash } from 'lucide-react';
 
@@ -67,14 +68,14 @@ export const RecordSupplierTxModal: React.FC<RecordSupplierTxModalProps> = ({
         supplierId,
         type,
         amount: numAmount,
-        notes: notes.trim() || undefined,
-        invoiceNumber: invoiceNumber.trim() || undefined,
+        notes: sanitizeInput(notes, 500) || undefined,
+        invoiceNumber: sanitizeInput(invoiceNumber, 50) || undefined,
         paymentMethod,
         date: new Date(date).toISOString(),
       });
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Handled via toast notification
     } finally {
       setIsSubmitting(false);
     }
@@ -329,15 +330,11 @@ export const RecordSupplierTxModal: React.FC<RecordSupplierTxModalProps> = ({
             type="submit"
             disabled={isSubmitting}
             form="record-supplier-tx-form"
-            className={`px-5 py-2.5 font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 text-white disabled:opacity-50 ${
-              type === 'STOCK_PURCHASE'
-                ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
-                : 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-            }`}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-2 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
-                <ButtonSpinner className="w-4 h-4 text-white" />
+                <ButtonSpinner className="w-4 h-4 text-slate-950" />
                 <span>Processing...</span>
               </>
             ) : (

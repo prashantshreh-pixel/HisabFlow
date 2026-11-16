@@ -1,8 +1,28 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+/**
+ * Sanitizes user form input against XSS injection, control characters, and em dashes.
+ */
+export function sanitizeInput(input: string | undefined | null, maxLength = 500): string {
+  if (!input || typeof input !== "string") return "";
+  return input
+    .replace(/<[^>]*>?/gm, "")
+    .replace(/javascript:/gi, "")
+    .replace(/[\u0000-\u001F\u007F]/g, " ")
+    .replace(/[\u2014\u2013]/g, "-")
+    .trim()
+    .slice(0, maxLength);
+}
 
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
+/**
+ * Escapes HTML special characters to prevent XSS in generated print templates.
+ */
+export function escapeHtml(input: string | undefined | null): string {
+  if (!input || typeof input !== "string") return "";
+  return input
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
 
 /**
@@ -10,28 +30,26 @@ export function cn(...inputs: ClassValue[]) {
  * Handles uppercase entries, lowercases, and preserves initials.
  */
 export function formatPersonName(name: string): string {
-  if (!name || typeof name !== 'string') return '';
-  const trimmed = name.trim();
-  // Check if ALL CAPS or mixed lower/upper
+  if (!name || typeof name !== "string") return "";
+  const trimmed = sanitizeInput(name, 100);
   return trimmed
     .split(/\s+/)
     .map((word) => {
       if (word.length <= 1) return word.toUpperCase();
-      // Keep acronyms like POS or SKU
-      if (['POS', 'SKU', 'QR', 'VAT', 'PAN'].includes(word.toUpperCase())) {
+      if (["POS", "SKU", "QR", "VAT", "PAN"].includes(word.toUpperCase())) {
         return word.toUpperCase();
       }
       return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
     })
-    .join(' ');
+    .join(" ");
 }
 
 /**
  * Standardized currency formatter for Rupee amounts.
  */
 export function formatCurrency(amount: number): string {
-  if (isNaN(amount) || amount === null || amount === undefined) return 'Rs. 0';
-  return `Rs. ${Math.round(amount).toLocaleString('en-IN')}`;
+  if (isNaN(amount) || amount === null || amount === undefined) return "Rs. 0";
+  return `Rs. ${Math.round(amount).toLocaleString("en-IN")}`;
 }
 
 /**
@@ -101,12 +119,8 @@ export function compressImageFile(
             lastModified: Date.now(),
           });
 
-          console.log(
-            `Image compressed: ${(file.size / 1024).toFixed(1)} KB -> ${(compressedFile.size / 1024).toFixed(1)} KB`
-          );
           resolve(compressedFile);
-        } catch (err) {
-          console.error("Canvas compression failed, using original file:", err);
+        } catch {
           resolve(file);
         }
       };
@@ -126,11 +140,10 @@ export function compressImageFile(
 export function parseApiDate(dateVal: string | Date | undefined | null): Date {
   if (!dateVal) return new Date();
   if (dateVal instanceof Date) return isNaN(dateVal.getTime()) ? new Date() : dateVal;
-  if (typeof dateVal === 'string') {
+  if (typeof dateVal === "string") {
     const trimmed = dateVal.trim();
     if (!trimmed) return new Date();
-    // If it doesn't already have Z or a timezone offset like +05:45, append Z
-    if (!trimmed.endsWith('Z') && !/[+-]\d{2}:?\d{2}$/.test(trimmed)) {
+    if (!trimmed.endsWith("Z") && !/[+-]\d{2}:?\d{2}$/.test(trimmed)) {
       const parsed = new Date(`${trimmed}Z`);
       if (!isNaN(parsed.getTime())) return parsed;
     }
@@ -141,36 +154,21 @@ export function parseApiDate(dateVal: string | Date | undefined | null): Date {
 }
 
 /**
- * Formats a date into localized date string (e.g. "Oct 28, 2026")
- */
-export function formatLocalDate(dateVal: string | Date | undefined | null, options?: Intl.DateTimeFormatOptions): string {
-  const d = parseApiDate(dateVal);
-  return d.toLocaleDateString('en-US', options || {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
-
-/**
  * Formats a date into localized time string (e.g. "02:03 PM")
  */
 export function formatLocalTime(dateVal: string | Date | undefined | null): string {
   const d = parseApiDate(dateVal);
-  return d.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return d.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
 /**
  * Plays synthesized POS audio feedback via Web Audio API (no external audio files needed).
- * - 'beep': Crisp high-pitched supermarket laser barcode scan beep (1046Hz)
- * - 'error': Double low-pitched warning buzz for out-of-stock or unrecognized barcode
- * - 'checkout': Pleasant ascending two-tone register chime on sale completion
  */
-export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void {
-  if (typeof window === 'undefined') return;
+export function playPosSound(type: "beep" | "error" | "checkout" = "beep"): void {
+  if (typeof window === "undefined") return;
   try {
     const AudioCtx =
       window.AudioContext ||
@@ -180,11 +178,11 @@ export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void
     const ctx = new AudioCtx();
     const now = ctx.currentTime;
 
-    if (type === 'beep') {
+    if (type === "beep") {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(1046.5, now); // C6 crisp scanner tone
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(1046.5, now);
       gain.gain.setValueAtTime(0.22, now);
       gain.gain.exponentialRampToValueAtTime(0.008, now + 0.11);
       osc.connect(gain);
@@ -193,10 +191,10 @@ export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void
       osc.stop(now + 0.11);
       setTimeout(() => ctx.close().catch(() => {}), 200);
       navigator.vibrate?.([40]);
-    } else if (type === 'error') {
+    } else if (type === "error") {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.type = 'sawtooth';
+      osc.type = "sawtooth";
       osc.frequency.setValueAtTime(220, now);
       osc.frequency.setValueAtTime(180, now + 0.12);
       gain.gain.setValueAtTime(0.2, now);
@@ -207,14 +205,14 @@ export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void
       osc.stop(now + 0.26);
       setTimeout(() => ctx.close().catch(() => {}), 350);
       navigator.vibrate?.([80, 40, 80]);
-    } else if (type === 'checkout') {
+    } else if (type === "checkout") {
       const osc1 = ctx.createOscillator();
       const osc2 = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc1.type = 'sine';
-      osc2.type = 'sine';
-      osc1.frequency.setValueAtTime(880, now); // A5
-      osc2.frequency.setValueAtTime(1318.5, now + 0.1); // E6
+      osc1.type = "sine";
+      osc2.type = "sine";
+      osc1.frequency.setValueAtTime(880, now);
+      osc2.frequency.setValueAtTime(1318.5, now + 0.1);
       gain.gain.setValueAtTime(0.2, now);
       gain.gain.exponentialRampToValueAtTime(0.008, now + 0.28);
       osc1.connect(gain);
@@ -231,5 +229,3 @@ export function playPosSound(type: 'beep' | 'error' | 'checkout' = 'beep'): void
     // Ignore if browser autoplay policy blocks audio before user interaction
   }
 }
-
-

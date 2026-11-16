@@ -16,7 +16,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Product } from '@/types';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 import { NavTab } from '@/components/Navbar';
 import { formatPersonName, formatCurrency } from '@/lib/utils';
 
@@ -36,7 +36,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onQuickStockAdjust,
   onNavigateTab,
 }) => {
-  const { stats, ledgerEntries, customers, products, isLoading, formatDate, t } = useKhata();
+  const { stats, ledgerEntries, customers, products, isLoading, error, refreshData, formatDate, t } = useKhata();
   const [watchlistTab, setWatchlistTab] = useState<'DEBTORS' | 'STOCK'>('DEBTORS');
 
   const activeDebtors = useMemo(
@@ -66,6 +66,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     return <PageLoader text="Loading store overview..." />;
   }
 
+  if (error && customers.length === 0 && products.length === 0) {
+    return <ErrorState title="Unable to load store overview" message={error} onRetry={refreshData} />;
+  }
+
   return (
     <div className="space-y-6">
       {/* 1. Clean Contextual Header */}
@@ -83,16 +87,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <button
             type="button"
             onClick={() => onOpenRecordTransaction(undefined, 'PAYMENT_RECEIVED')}
-            className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-semibold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+            className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl transition-colors duration-150 flex items-center gap-1.5 shadow-sm"
           >
-            <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
+            <ArrowDownLeft className="w-4 h-4" />
             <span>{t('recordPayment')}</span>
           </button>
 
           <button
             type="button"
             onClick={onOpenAddCustomer}
-            className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+            className="flex-1 sm:flex-initial justify-center px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs rounded-xl transition-colors duration-150 flex items-center gap-1.5"
           >
             <UserPlus className="w-4 h-4 text-amber-400" />
             <span>{t('newCustomer')}</span>
@@ -100,29 +104,29 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Unified 4-Card KPI Strip (2x2 on mobile, 4-col on desktop) */}
+      {/* 2. Clear Hierarchy KPI Strip: One Big Number + Quiet Supporting Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1: Outstanding Khata */}
+        {/* Card 1 (Primary Hero Metric): Outstanding Khata */}
         <button
           type="button"
           id="stat-card-khata-hero"
           onClick={() => onNavigateTab('KHATA')}
-          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-all flex flex-col justify-between group"
+          className="p-5 rounded-2xl bg-slate-900 hover:bg-slate-900/95 border border-amber-500/35 hover:border-amber-500/60 text-left transition-colors duration-150 flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between w-full">
-            <span className="text-xs font-medium text-slate-400">{t('outstandingKhata')}</span>
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+            <span className="text-xs font-bold uppercase tracking-wider text-amber-400">{t('outstandingKhata')}</span>
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <Wallet className="w-4 h-4" />
             </div>
           </div>
 
           <div className="my-3">
-            <div className="text-2xl font-bold font-mono tracking-tight text-rose-400">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono tracking-tight text-amber-400">
               {formatCurrency(stats.totalOutstandingKhata)}
             </div>
-            <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden mt-2.5">
+            <div className="w-full h-1.5 rounded-sm bg-slate-800 overflow-hidden mt-2.5">
               <div
-                className={`h-full rounded-full ${
+                className={`h-full rounded-sm ${
                   limitPercent > 80 ? 'bg-rose-500' : limitPercent > 50 ? 'bg-amber-500' : 'bg-emerald-500'
                 }`}
                 style={{ width: `${limitPercent}%` }}
@@ -138,26 +142,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
 
-        {/* Card 2: Today's Sales */}
+        {/* Card 2 (Quiet Supporting): Today's Sales */}
         <button
           type="button"
           id="stat-card-cashflow"
           onClick={() => onNavigateTab('POS')}
-          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-all flex flex-col justify-between group"
+          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-colors duration-150 flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between w-full">
             <span className="text-xs font-medium text-slate-400">{t('todaysSales')}</span>
-            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
               <TrendingUp className="w-4 h-4" />
             </div>
           </div>
 
           <div className="my-3">
-            <div className="text-2xl font-bold font-mono tracking-tight text-emerald-400">
+            <div className="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-100">
               {formatCurrency(stats.todayTotalSales)}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              {t('cash')}: <span className="font-mono text-slate-200">{formatCurrency(stats.todayCashSales)}</span>
+              {t('cash')}: <span className="font-mono text-slate-300">{formatCurrency(stats.todayCashSales)}</span>
             </p>
           </div>
 
@@ -169,25 +173,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
 
-        {/* Card 3: Payables & Expenses */}
+        {/* Card 3 (Quiet Supporting): Payables & Expenses */}
         <button
           type="button"
           onClick={() => onNavigateTab('SUPPLIERS')}
-          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-all flex flex-col justify-between group"
+          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-colors duration-150 flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between w-full">
             <span className="text-xs font-medium text-slate-400">{t('supplierPayables')}</span>
-            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
               <Truck className="w-4 h-4" />
             </div>
           </div>
 
           <div className="my-3">
-            <div className="text-2xl font-bold font-mono tracking-tight text-slate-100">
+            <div className="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-100">
               {formatCurrency(stats.totalOutstandingPayable)}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
-              {t('expenses')}: <span className="font-mono text-slate-200">{formatCurrency(stats.totalExpenses)}</span>
+              {t('expenses')}: <span className="font-mono text-slate-300">{formatCurrency(stats.totalExpenses)}</span>
             </p>
           </div>
 
@@ -199,36 +203,26 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </button>
 
-        {/* Card 4: Inventory Status */}
+        {/* Card 4 (Quiet Supporting): Inventory Status */}
         <button
           type="button"
           id="stat-card-inventory"
           onClick={() => onNavigateTab('PRODUCTS')}
-          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-all flex flex-col justify-between group"
+          className="p-5 rounded-2xl bg-slate-900/90 hover:bg-slate-900 border border-slate-800/90 hover:border-slate-700 text-left transition-colors duration-150 flex flex-col justify-between group"
         >
           <div className="flex items-center justify-between w-full">
             <span className="text-xs font-medium text-slate-400">{t('inventoryHealth')}</span>
-            <div
-              className={`p-2 rounded-xl border ${
-                totalStockAlerts > 0
-                  ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              }`}
-            >
+            <div className="p-2 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
               {totalStockAlerts > 0 ? (
-                <AlertTriangle className="w-4 h-4" />
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
               ) : (
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
               )}
             </div>
           </div>
 
           <div className="my-3">
-            <div
-              className={`text-2xl font-bold font-mono tracking-tight ${
-                totalStockAlerts > 0 ? 'text-rose-400' : 'text-emerald-400'
-              }`}
-            >
+            <div className="text-lg sm:text-xl font-bold font-mono tracking-tight text-slate-100">
               {totalStockAlerts > 0 ? `${totalStockAlerts} ${t('alerts')}` : t('optimal')}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">
@@ -260,7 +254,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <button
                 type="button"
                 onClick={() => onNavigateTab('KHATA')}
-                className="text-xs font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors"
+                className="text-xs font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1 transition-colors duration-150"
               >
                 <span>{t('allLedgers')}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
@@ -280,7 +274,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <div
                       key={tx.id}
                       onClick={() => onSelectCustomer(tx.customerId)}
-                      className="py-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/30 -mx-2 px-2 rounded-xl cursor-pointer transition-colors"
+                      className="py-3.5 flex items-center justify-between gap-3 hover:bg-slate-800/30 -mx-2 px-2 rounded-xl cursor-pointer transition-colors duration-150"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div
@@ -336,7 +330,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setWatchlistTab('DEBTORS')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors duration-150 flex items-center justify-center gap-1.5 ${
                     watchlistTab === 'DEBTORS'
                       ? 'bg-slate-800 text-slate-100 shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
@@ -350,7 +344,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setWatchlistTab('STOCK')}
-                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-1.5 ${
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-semibold transition-colors duration-150 flex items-center justify-center gap-1.5 ${
                     watchlistTab === 'STOCK'
                       ? 'bg-slate-800 text-slate-100 shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
@@ -389,7 +383,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                         onClick={() => onSelectCustomer(c.id)}
                         className="text-left min-w-0 flex-1 group"
                       >
-                        <div className="text-xs font-semibold text-slate-100 group-hover:text-amber-400 transition-colors truncate">
+                        <div className="text-xs font-semibold text-slate-100 group-hover:text-amber-400 transition-colors duration-150 truncate">
                           {formatPersonName(c.name)}
                         </div>
                         <div className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -400,7 +394,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                       <button
                         type="button"
                         onClick={() => onOpenRecordTransaction(c.id, 'PAYMENT_RECEIVED')}
-                        className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/25 rounded-lg text-[11px] font-semibold transition-colors shrink-0"
+                        className="px-2.5 py-1.5 bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold transition-colors duration-150 shrink-0"
                       >
                         {t('receive')}
                       </button>
@@ -439,7 +433,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     <button
                       type="button"
                       onClick={() => onQuickStockAdjust(item)}
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold transition-colors shrink-0"
+                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-[11px] font-semibold transition-colors duration-150 shrink-0"
                     >
                       {t('restock')}
                     </button>

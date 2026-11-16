@@ -3,8 +3,9 @@
 import React, { useState } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { ButtonSpinner } from '@/components/Loader';
+import { sanitizeInput } from '@/lib/utils';
 import { LedgerTransactionType } from '@/types';
-import { X, ArrowDownLeft, ArrowUpRight, Search, Receipt, Calendar, CreditCard, Banknote, QrCode, User, FileText } from 'lucide-react';
+import { X, ArrowDownLeft, ArrowUpRight, Receipt, CreditCard, Banknote, QrCode, User, FileText } from 'lucide-react';
 
 interface RecordTransactionModalProps {
   isOpen: boolean;
@@ -29,19 +30,12 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
   const [notes, setNotes] = useState('');
   const [billNumber, setBillNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'QR_PAYMENT'>('CASH');
-  const [customerSearch, setCustomerSearch] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
-
-  const filteredCustomers = customers.filter(
-    (c) =>
-      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-      c.phone.includes(customerSearch)
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +56,9 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
         customerId: selectedCustomerId,
         type,
         amount: amtNum,
-        notes: notes.trim(),
+        notes: sanitizeInput(notes, 500),
         paymentMethod: type === 'PAYMENT_RECEIVED' ? paymentMethod : undefined,
-        billNumber: billNumber.trim() || undefined,
+        billNumber: sanitizeInput(billNumber, 50) || undefined,
       });
 
       setAmount('');
@@ -72,8 +66,8 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
       setBillNumber('');
       setError('');
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Handled via toast notification
     } finally {
       setIsSubmitting(false);
     }
@@ -326,15 +320,11 @@ export const RecordTransactionModal: React.FC<RecordTransactionModalProps> = ({
             type="submit"
             disabled={isSubmitting}
             form="record-tx-drawer-form"
-            className={`px-5 py-2.5 font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 text-white disabled:opacity-50 ${
-              isPayment
-                ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-600/20'
-                : 'bg-rose-600 hover:bg-rose-500 shadow-rose-600/20'
-            }`}
+            className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-sm rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-2 disabled:opacity-50"
           >
             {isSubmitting ? (
               <>
-                <ButtonSpinner className="w-4 h-4 text-white" />
+                <ButtonSpinner className="w-4 h-4 text-slate-950" />
                 <span>Processing...</span>
               </>
             ) : (

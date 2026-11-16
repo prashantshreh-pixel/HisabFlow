@@ -3,9 +3,20 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useKhata } from '@/context/KhataContext';
 import { salesApi, getImageUrl } from '@/lib/api';
-import { formatLocalTime, playPosSound } from '@/lib/utils';
+import { formatLocalTime, playPosSound, sanitizeInput } from '@/lib/utils';
 import { getCurrentUser } from '@/lib/auth';
-import { Product, Customer, CartItem, Sale, SalesSummary } from '@/types';
+import {
+  connectBluetoothPrinter,
+  printSaleViaBluetooth,
+  printBluetoothTestPage,
+  subscribePrinterStatus,
+  getBluetoothPrinterState,
+  getPrinterTransport,
+  setPrinterTransport,
+  PrinterTransport,
+  BluetoothPrinterState,
+} from '@/lib/thermalPrinter';
+import type { Product, CartItem, Sale, SalesSummary } from '@/types';
 import {
   ScanBarcode,
   Search,
@@ -13,29 +24,23 @@ import {
   Plus,
   Minus,
   Trash2,
-  Receipt,
   Printer,
   DollarSign,
   QrCode,
   BookOpen,
   Split,
-  Layers,
   PauseCircle,
-  PlayCircle,
   RotateCcw,
-  Sparkles,
   ArrowRight,
-  User,
   CheckCircle,
   History,
-  TrendingUp,
   Boxes,
   AlertCircle,
-  Keyboard,
-  Store,
   X,
+  Bluetooth,
+  BluetoothConnected,
 } from 'lucide-react';
-import { ButtonSpinner, PageLoader } from '@/components/Loader';
+import { ButtonSpinner, PageLoader, ErrorState } from '@/components/Loader';
 import { ReceiptModal } from '@/components/Modals/ReceiptModal';
 import { DynamicQrModal } from '@/components/Modals/DynamicQrModal';
 import { generateDynamicQrPayload, generateQrDataUrl } from '@/lib/qrUtils';
@@ -62,6 +67,82 @@ export const PosView: React.FC = () => {
   const [saleToRefund, setSaleToRefund] = useState<Sale | null>(null);
   const [refundReason, setRefundReason] = useState<string>('Customer Return');
   const [isRefunding, setIsRefunding] = useState<boolean>(false);
+
+  // Bluetooth Mini Thermal Printer State
+  const [printerTransport, setPrinterTransportState] = useState<PrinterTransport>(() => getPrinterTransport());
+  const [btState, setBtState] = useState<BluetoothPrinterState>(() => getBluetoothPrinterState());
+  const [autoBtPrint, setAutoBtPrint] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('hisabflow_auto_bt_print') === 'true';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    return subscribePrinterStatus((state) => setBtState(state));
+  }, []);
+
+  const toggleAutoBtPrint = () => {
+    setAutoBtPrint((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('hisabflow_auto_bt_print', String(next));
+        } catch {
+          // ignore
+        }
+      }
+      return next;
+    });
+  };
+
+  const handlePairPosBluetoothPrinter = async () => {
+    try {
+      const state = await connectBluetoothPrinter(true);
+      playPosSound('beep');
+      showToast({
+        type: 'success',
+        title: language === 'np' ? 'ब्लुटुथ प्रिन्टर जडान भयो' : 'Bluetooth Printer Connected',
+        message: `${state.deviceName || 'Mini Printer'} is paired and ready for ESC/POS printing.`,
+      });
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('User cancelled')) {
+        return;
+      }
+      playPosSound('error');
+      showToast({
+        type: 'error',
+        title: language === 'np' ? 'ब्लुटुथ जडान असफल' : 'Bluetooth Connection Failed',
+        message: err?.message || 'Could not pair with Bluetooth printer.',
+      });
+    }
+  };
+
+  const handleTestPosBluetoothPrinter = async () => {
+    try {
+      const savedWidth =
+        typeof window !== 'undefined' && localStorage.getItem('hisabflow_receipt_paper_size') === '80mm'
+          ? '80mm'
+          : '58mm';
+      const state = await printBluetoothTestPage(storeProfile, savedWidth);
+      playPosSound('beep');
+      showToast({
+        type: 'success',
+        title: 'Test Page Sent',
+        message: `Printed ESC/POS test slip on ${state.deviceName || 'Mini Printer'} (${savedWidth}).`,
+      });
+    } catch (err: any) {
+      if (err?.name === 'NotFoundError' || err?.message?.includes('User cancelled')) {
+        return;
+      }
+      playPosSound('error');
+      showToast({
+        type: 'error',
+        title: 'Test Print Failed',
+        message: err?.message || 'Could not print test slip.',
+      });
+    }
+  };
 
   // Cart State
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -93,6 +174,7 @@ export const PosView: React.FC = () => {
   const [recentSales, setRecentSales] = useState<Sale[]>([]);
   const [salesSummary, setSalesSummary] = useState<SalesSummary | null>(null);
   const [isLoadingInvoices, setIsLoadingInvoices] = useState<boolean>(false);
+  const [invoicesError, setInvoicesError] = useState<string | null>(null);
   const [invoiceSearch, setInvoiceSearch] = useState<string>('');
 
   // Categories list
@@ -210,14 +292,15 @@ export const PosView: React.FC = () => {
   const fetchInvoices = async () => {
     try {
       setIsLoadingInvoices(true);
+      setInvoicesError(null);
       const [salesData, summaryData] = await Promise.all([
         salesApi.getRecentSales(50),
         salesApi.getSalesSummary(),
       ]);
       setRecentSales(salesData);
       setSalesSummary(summaryData);
-    } catch (err) {
-      console.error('Failed to load recent sales:', err);
+    } catch (err: unknown) {
+      setInvoicesError(err instanceof Error ? err.message : 'Unable to load recent sales invoices.');
     } finally {
       setIsLoadingInvoices(false);
     }
@@ -314,21 +397,6 @@ export const PosView: React.FC = () => {
     );
   };
 
-  const updateUnitPrice = (productId: string, unitPrice: number) => {
-    if (unitPrice < 0) return;
-    setCart((prev) =>
-      prev.map((item) =>
-        item.product.id === productId
-          ? {
-              ...item,
-              unitPrice,
-              subtotal: item.quantity * unitPrice,
-            }
-          : item
-      )
-    );
-  };
-
   const removeFromCart = (productId: string) => {
     setCart((prev) => prev.filter((item) => item.product.id !== productId));
   };
@@ -355,7 +423,7 @@ export const PosView: React.FC = () => {
         return;
       }
       addToCart(exactBarcode, true);
-      triggerScanFeedback('success', `✓ ${exactBarcode.name} (${cur} ${exactBarcode.sellingPrice})`);
+      triggerScanFeedback('success', `${exactBarcode.name} (${cur} ${exactBarcode.sellingPrice})`);
       setSearchQuery('');
       showToast({ type: 'success', title: 'Barcode Scanned', message: `Added ${exactBarcode.name} to cart.` });
       return;
@@ -374,7 +442,7 @@ export const PosView: React.FC = () => {
         return;
       }
       addToCart(match, true);
-      triggerScanFeedback('success', `✓ ${match.name} (${cur} ${match.sellingPrice})`);
+      triggerScanFeedback('success', `${match.name} (${cur} ${match.sellingPrice})`);
       setSearchQuery('');
       showToast({ type: 'success', title: 'Product Added', message: `Added ${match.name} to cart.` });
       return;
@@ -489,7 +557,7 @@ export const PosView: React.FC = () => {
         cashPaid,
         digitalPaid,
         creditPaid,
-        notes: notes || undefined,
+        notes: sanitizeInput(notes, 500) || undefined,
         items: cart.map((item) => ({
           productId: item.product.id,
           productName: item.product.name,
@@ -511,14 +579,30 @@ export const PosView: React.FC = () => {
       setIsMobileCartOpen(false);
       clearCart();
       showToast({ type: 'success', title: 'Sale Completed', message: `Invoice #${created.invoiceNumber} recorded successfully.` });
+
+      // If Bluetooth printer is connected and Auto-Print is enabled, stream ESC/POS receipt automatically!
+      if (autoBtPrint && btState.isConnected) {
+        const savedWidth =
+          typeof window !== 'undefined' && localStorage.getItem('hisabflow_receipt_paper_size') === '80mm'
+            ? '80mm'
+            : '58mm';
+        printSaleViaBluetooth(
+          created,
+          storeProfile,
+          savedWidth,
+          formatDate(created.saleDate),
+          formatLocalTime(created.saleDate)
+        ).catch(() => {
+          // Ignore silent background auto-print failure
+        });
+      }
     } catch (err: any) {
-      console.error('Checkout error:', err);
       playPosSound('error');
       showToast({ type: 'error', title: 'Checkout Failed', message: err.message || 'Failed to complete sale.' });
     } finally {
       setIsProcessing(false);
     }
-  }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData, clearCart]);
+  }, [cart, paymentMethod, selectedCustomerId, selectedCustomer, subtotal, discountAmount, taxAmount, grandTotal, changeAmount, cashTendered, splitCash, splitDigital, splitCredit, notes, showToast, refreshData, clearCart, autoBtPrint, btState.isConnected, storeProfile, formatDate]);
 
   // Process POS Sale Refund & Return
   const handleConfirmRefund = async (e: React.FormEvent) => {
@@ -528,7 +612,7 @@ export const PosView: React.FC = () => {
       setIsRefunding(true);
       const updatedSale = await salesApi.refundSale(
         saleToRefund.id,
-        refundReason.trim() || 'Customer Return'
+        sanitizeInput(refundReason, 300) || 'Customer Return'
       );
       playPosSound('beep');
       await Promise.all([fetchInvoices(), refreshData()]);
@@ -648,17 +732,89 @@ export const PosView: React.FC = () => {
           </button>
         </div>
 
-        {/* Subtle Desktop Keyboard Shortcuts Hint */}
-        <div className="hidden xl:flex items-center gap-3 text-[11px] text-slate-400 font-mono">
-          <span>
-            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F3</kbd> Search
-          </span>
-          <span>
-            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F4</kbd> {t('invoices')}
-          </span>
-          <span>
-            <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-emerald-400">F9</kbd> {t('checkout')}
-          </span>
+        {/* Bluetooth Mini Printer Controls + Desktop Keyboard Shortcuts */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
+            <select
+              id="pos-printer-transport-select"
+              value={printerTransport}
+              onChange={(e) => {
+                const next = e.target.value as PrinterTransport;
+                setPrinterTransport(next);
+                setPrinterTransportState(next);
+              }}
+              className="bg-slate-950 text-slate-300 text-[10px] font-bold rounded-lg px-1.5 py-1 border border-slate-800 focus:outline-none"
+              title="How to connect to your thermal printer"
+            >
+              <option value="rawbt">Android (RawBT)</option>
+              <option value="serial">PC (Serial/COM)</option>
+              <option value="ble">BLE Direct</option>
+            </select>
+            <button
+              id="pos-bt-printer-pair-btn"
+              type="button"
+              onClick={handlePairPosBluetoothPrinter}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+                btState.isConnected
+                  ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                  : 'text-slate-300 hover:text-white hover:bg-slate-800'
+              }`}
+              title={
+                btState.isConnected
+                  ? `Connected: ${btState.deviceName} (Click to switch Bluetooth printer)`
+                  : 'Pair a 58mm / 80mm Bluetooth Mini Thermal Printer'
+              }
+            >
+              {btState.isConnected ? (
+                <>
+                  <BluetoothConnected className="w-3.5 h-3.5 text-sky-400" />
+                  <span className="max-w-[110px] truncate">{btState.deviceName}</span>
+                </>
+              ) : (
+                <>
+                  <Bluetooth className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{language === 'np' ? 'BT प्रिन्टर' : 'BT Printer'}</span>
+                </>
+              )}
+            </button>
+
+            {btState.isConnected && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleTestPosBluetoothPrinter}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold transition-colors"
+                  title="Print ESC/POS test slip"
+                >
+                  Test
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleAutoBtPrint}
+                  className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ${
+                    autoBtPrint
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-slate-950 text-slate-400 hover:text-slate-200'
+                  }`}
+                  title="Automatically print on Bluetooth printer when completing a sale"
+                >
+                  Auto-Print: {autoBtPrint ? 'ON' : 'OFF'}
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="hidden xl:flex items-center gap-3 text-[11px] text-slate-400 font-mono ml-2">
+            <span>
+              <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F3</kbd> Search
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-slate-300">F4</kbd> {t('invoices')}
+            </span>
+            <span>
+              <kbd className="px-1.5 py-0.5 bg-slate-900 border border-slate-800 rounded text-emerald-400">F9</kbd> {t('checkout')}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -705,7 +861,12 @@ export const PosView: React.FC = () => {
                       : 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
                   }`}
                 >
-                  {scanFlash.message}
+                  {scanFlash.type === 'success' ? (
+                    <CheckCircle className="w-3.5 h-3.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  )}
+                  <span>{scanFlash.message}</span>
                 </span>
               )}
               <button
@@ -1016,7 +1177,7 @@ export const PosView: React.FC = () => {
                 </div>
 
                 {/* Grand Total */}
-                <div className="p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-950 to-slate-950 border border-amber-500/30 flex items-center justify-between">
+                <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] font-black text-amber-400 uppercase tracking-wider block">
                       {t('payableGrandTotal')}
@@ -1105,15 +1266,12 @@ export const PosView: React.FC = () => {
                   <div className="p-3.5 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-3 shadow-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                        </span>
+                        <span className="w-2 h-2 rounded-sm bg-emerald-500 shrink-0" />
                         <span className="text-xs font-bold text-emerald-400">
                           {t('dynamicQrReady')}
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-bold">
                         Auto-Fills {cur} {grandTotal.toFixed(2)}
                       </span>
                     </div>
@@ -1123,7 +1281,7 @@ export const PosView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setIsDynamicQrModalOpen(true)}
-                        className="bg-white p-1.5 rounded-xl shrink-0 cursor-pointer hover:scale-105 transition-transform shadow-md group relative block text-left border border-slate-200"
+                        className="bg-white p-1.5 rounded-xl shrink-0 cursor-pointer hover:scale-105 transition-transform duration-150 shadow-md group relative block text-left border border-slate-200"
                         title="Click to enlarge QR for customer"
                       >
                         {inlineQrUrl ? (
@@ -1134,10 +1292,10 @@ export const PosView: React.FC = () => {
                           />
                         ) : (
                           <div className="w-20 h-20 flex items-center justify-center text-slate-400">
-                            <QrCode className="w-8 h-8 animate-pulse text-emerald-500" />
+                            <QrCode className="w-8 h-8 text-emerald-500" />
                           </div>
                         )}
-                        <div className="absolute inset-0 bg-slate-950/60 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <div className="absolute inset-0 bg-slate-950/60 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-150">
                           <span className="text-[8.5px] font-bold text-white bg-slate-900 px-1 py-0.5 rounded">Enlarge</span>
                         </div>
                       </button>
@@ -1150,14 +1308,15 @@ export const PosView: React.FC = () => {
                         <p className="text-[11px] text-slate-400 truncate">
                           {storeProfile?.qrBankName || 'Fonepay (Khalti)'} • <span className="font-mono">{storeProfile?.qrAccountNumber || '2222610021768837'}</span>
                         </p>
-                        <p className="text-[10px] text-emerald-400 font-semibold">
-                          ✓ Pre-filled {cur} {grandTotal.toFixed(2)} • No manual typing
+                        <p className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
+                          <CheckCircle className="w-3 h-3 shrink-0" />
+                          <span>Pre-filled {cur} {grandTotal.toFixed(2)} • No manual typing</span>
                         </p>
 
                         <button
                           type="button"
                           onClick={() => setIsDynamicQrModalOpen(true)}
-                          className="mt-1 px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold rounded-lg border border-emerald-500/30 transition-colors flex items-center gap-1.5 shadow-sm"
+                          className="mt-1 px-2.5 py-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-[10px] font-bold rounded-lg border border-emerald-500/30 transition-colors duration-150 flex items-center gap-1.5 shadow-sm"
                         >
                           <QrCode className="w-3 h-3" />
                           <span>{t('showFullscreenQr')}</span>
@@ -1239,10 +1398,10 @@ export const PosView: React.FC = () => {
                 type="button"
                 onClick={handleCheckout}
                 disabled={isProcessing || cart.length === 0}
-                className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all ${
+                className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-colors duration-150 ${
                   isProcessing || cart.length === 0
                     ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 shadow-xl shadow-amber-500/25 active:scale-[0.99]'
+                    : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg'
                 }`}
               >
                 {isProcessing ? (
@@ -1287,42 +1446,42 @@ export const PosView: React.FC = () => {
       ) : (
         /* RECENT INVOICES VIEW */
         <div className="space-y-4">
-          {/* Summary KPIs */}
+          {/* Summary KPIs (Clear Hierarchy: One Big Number + Quiet Supporting) */}
           {salesSummary && (
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              <div className="p-4 rounded-2xl bg-slate-900 border border-amber-500/35 shadow-lg">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
                   {t('todaysPosSales')}
                 </span>
-                <div className="text-xl font-black font-mono text-emerald-400 mt-1">
+                <div className="text-2xl sm:text-3xl font-extrabold font-mono text-amber-400 mt-1">
                   {cur} {salesSummary.totalSalesAmount.toLocaleString()}
                 </div>
                 <span className="text-[11px] text-slate-400">{salesSummary.totalBillsCount} {t('invoices')}</span>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                   {t('cashCollections')}
                 </span>
-                <div className="text-xl font-black font-mono text-slate-100 mt-1">
+                <div className="text-lg font-bold font-mono text-slate-100 mt-1">
                   {cur} {salesSummary.cashSalesAmount.toLocaleString()}
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                   {t('digitalQrSales')}
                 </span>
-                <div className="text-xl font-black font-mono text-cyan-400 mt-1">
+                <div className="text-lg font-bold font-mono text-slate-100 mt-1">
                   {cur} {salesSummary.digitalSalesAmount.toLocaleString()}
                 </div>
               </div>
 
               <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                <span className="text-[10px] font-medium text-slate-400 uppercase tracking-wider block">
                   {t('khataCreditSales')}
                 </span>
-                <div className="text-xl font-black font-mono text-rose-400 mt-1">
+                <div className="text-lg font-bold font-mono text-slate-100 mt-1">
                   {cur} {salesSummary.creditSalesAmount.toLocaleString()}
                 </div>
               </div>
@@ -1354,6 +1513,12 @@ export const PosView: React.FC = () => {
 
             {isLoadingInvoices ? (
               <PageLoader text="Loading recent sales invoices..." />
+            ) : invoicesError ? (
+              <ErrorState
+                title="Unable to load recent invoices"
+                message={invoicesError}
+                onRetry={fetchInvoices}
+              />
             ) : filteredInvoices.length === 0 ? (
               <div className="py-12 text-center text-slate-500 text-xs">
                 {t('noInvoicesYet')}
@@ -1406,7 +1571,7 @@ export const PosView: React.FC = () => {
                                 ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/20'
                                 : s.paymentMethod === 3
                                 ? 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                                : 'bg-indigo-500/10 text-indigo-300 border border-indigo-500/20'
+                                : 'bg-slate-800 text-slate-300 border border-slate-700'
                             }`}
                           >
                             {s.paymentMethod === 1 ? t('cash') : s.paymentMethod === 2 ? 'QR' : s.paymentMethod === 3 ? 'Khata' : t('split')}

@@ -42,6 +42,21 @@ public class AuthController : ControllerBase
         var result = await _authService.AuthenticateAsync(request.Username, request.Password, cancellationToken);
         if (result == null)
         {
+            try
+            {
+                await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                    "Auth",
+                    request.Username.Trim(),
+                    "LOGIN_FAILED",
+                    JsonSerializer.Serialize(new { Username = request.Username.Trim() }),
+                    request.Username.Trim()
+                ), cancellationToken);
+            }
+            catch
+            {
+                // Non-blocking if database is offline in unit/dev environment
+            }
+
             return Unauthorized(new ProblemDetails
             {
                 Status = StatusCodes.Status401Unauthorized,
@@ -109,5 +124,31 @@ public class AuthController : ControllerBase
             username = _currentUser.Username,
             role = _currentUser.Role
         });
+    }
+
+    /// <summary>
+    /// Records an audited terminal logout for the active operator.
+    /// </summary>
+    [HttpPost("logout")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> Logout(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await _auditRepo.LogAsync(new CreateAuditLogRequest(
+                "Auth",
+                _currentUser.UserId ?? "unknown",
+                "LOGOUT",
+                JsonSerializer.Serialize(new { _currentUser.Username, _currentUser.Role }),
+                _currentUser.Username
+            ), cancellationToken);
+        }
+        catch
+        {
+            // Non-blocking if database is offline in unit/dev environment
+        }
+
+        return Ok(new { loggedOut = true });
     }
 }

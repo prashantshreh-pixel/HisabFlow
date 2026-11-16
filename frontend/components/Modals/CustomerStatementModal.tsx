@@ -13,14 +13,13 @@ import {
   Printer,
   CheckCircle,
   Copy,
-  User,
   FileText,
   MessageSquare,
   Send,
   Download,
 } from 'lucide-react';
 import { CreditLedgerEntry } from '@/types';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 import { exportCustomerStatementCSV } from '@/lib/exportUtils';
 import { formatLocalTime } from '@/lib/utils';
 
@@ -42,7 +41,6 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
     storeProfile,
     formatDate,
     language,
-    t,
   } = useKhata();
 
   const cur = storeProfile?.currencySymbol || 'Rs.';
@@ -50,18 +48,28 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
   const [copiedMsg, setCopiedMsg] = useState(false);
   const [localLedger, setLocalLedger] = useState<CreditLedgerEntry[]>([]);
   const [isLoadingLedger, setIsLoadingLedger] = useState(false);
+  const [ledgerError, setLedgerError] = useState<string | null>(null);
+
+  const loadLedger = React.useCallback(async () => {
+    if (!customerId) return;
+    setIsLoadingLedger(true);
+    setLedgerError(null);
+    try {
+      const data = await getCustomerLedger(customerId);
+      setLocalLedger(data);
+    } catch (err: unknown) {
+      setLedgerError(err instanceof Error ? err.message : 'Unable to load customer statement ledger.');
+    } finally {
+      setIsLoadingLedger(false);
+    }
+  }, [customerId, getCustomerLedger]);
 
   useEffect(() => {
     if (isOpen && customerId) {
-      const loadLedger = async () => {
-        setIsLoadingLedger(true);
-        const data = await getCustomerLedger(customerId);
-        setLocalLedger(data);
-        setIsLoadingLedger(false);
-      };
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadLedger();
     }
-  }, [customerId, isOpen, getCustomerLedger]);
+  }, [customerId, isOpen, loadLedger]);
 
   if (!isOpen || !customerId) return null;
 
@@ -162,19 +170,19 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           {/* Header Ribbon */}
           <div className="px-6 py-4 border-b border-slate-800 bg-slate-900/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4 sticky top-0 z-20">
             <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shadow-inner">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-xl shadow-inner">
                 {customer.name.charAt(0).toUpperCase()}
               </div>
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-bold text-slate-100">{customer.name}</h2>
                   {isOverLimit && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-full flex items-center gap-1">
+                    <span className="px-2 py-0.5 text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30 rounded-md flex items-center gap-1">
                       <ShieldAlert className="w-3 h-3" /> Over Limit
                     </span>
                   )}
                   {customer.currentBalance === 0 && (
-                    <span className="px-2 py-0.5 text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full flex items-center gap-1">
+                    <span className="px-2 py-0.5 text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-md flex items-center gap-1">
                       <CheckCircle className="w-3 h-3" /> Settled (All Clear)
                     </span>
                   )}
@@ -291,9 +299,9 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
                 </span>
               </div>
               <div className="mt-2.5">
-                <div className="w-full h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div className="w-full h-2 rounded-sm bg-slate-800 overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-300 rounded-full ${
+                    className={`h-full transition-all duration-300 rounded-sm ${
                       isOverLimit
                         ? 'bg-rose-500'
                         : limitUsedPercent > 75
@@ -326,6 +334,12 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
           <div className="flex-1 overflow-y-auto p-6">
             {isLoadingLedger ? (
               <PageLoader text="Loading customer statement ledger..." />
+            ) : ledgerError ? (
+              <ErrorState
+                title="Unable to load customer statement"
+                message={ledgerError}
+                onRetry={loadLedger}
+              />
             ) : ledger.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
                 <Receipt className="w-10 h-10 mx-auto mb-2 opacity-40 text-slate-400" />
@@ -475,7 +489,7 @@ export const CustomerStatementModal: React.FC<CustomerStatementModalProps> = ({
         </table>
 
         <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '1px solid #ddd', fontSize: '11px', textAlign: 'center', color: '#666' }}>
-          {storeProfile?.receiptFooter || `Thank you for your business! — ${storeProfile?.storeName || 'HisabFlow Digital Retail System'}`}
+          {storeProfile?.receiptFooter || `Thank you for your business! - ${storeProfile?.storeName || 'HisabFlow Digital Retail System'}`}
         </div>
       </div>
     </>

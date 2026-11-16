@@ -16,13 +16,12 @@ import {
   Boxes,
   Percent,
   Coins,
-  CheckCircle2,
   TrendingUp,
   Tag,
   Maximize2,
   ScanLine,
 } from 'lucide-react';
-import { PageLoader } from '@/components/Loader';
+import { PageLoader, ErrorState } from '@/components/Loader';
 
 interface ProductsViewProps {
   onOpenAddProduct: () => void;
@@ -37,7 +36,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
   onEditProduct,
   onQuickStockAdjust,
 }) => {
-  const { products, stats, deleteProduct, isLoading, t } = useKhata();
+  const { products, stats, deleteProduct, isLoading, error, refreshData, t } = useKhata();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -96,6 +95,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
     return <PageLoader text="Loading inventory..." />;
   }
 
+  if (error && products.length === 0) {
+    return <ErrorState title="Unable to load inventory" message={error} onRetry={refreshData} />;
+  }
+
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header & Action Buttons */}
@@ -114,10 +117,10 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
               id="product-scan-btn"
               type="button"
               onClick={onOpenScanner}
-              className="px-3.5 py-2.5 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 font-semibold text-xs rounded-xl transition-colors duration-150 flex items-center gap-1.5 cursor-pointer"
               title="Scan barcode with camera or upload packaging image"
             >
-              <ScanLine className="w-4 h-4" />
+              <ScanLine className="w-4 h-4 text-amber-400" />
               <span>{t('scanUploadBarcode')}</span>
             </button>
           )}
@@ -125,7 +128,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             id="product-add-new-btn"
             type="button"
             onClick={onOpenAddProduct}
-            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-sm transition-colors duration-150 flex items-center gap-1.5 cursor-pointer"
           >
             <PackagePlus className="w-4 h-4" />
             <span>{t('addProduct')}</span>
@@ -133,68 +136,68 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       </div>
 
-      {/* Inventory Valuation Header Strip */}
+      {/* Clear Hierarchy Valuation Strip: One Big Number + Quiet Supporting Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Stock Cost Value */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
+        {/* Hero Card: Total Stock Retail Value */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-amber-500/35 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              {t('totalStockCost')}
-            </span>
-            <div className="text-2xl font-black text-slate-100 mt-1">
-              Rs. {stats.totalInventoryCostValue.toLocaleString()}
-            </div>
-            <span className="text-[11px] text-slate-500">{products.length} {t('registeredSkus')}</span>
-          </div>
-          <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            <Coins className="w-5 h-5" />
-          </div>
-        </div>
-
-        {/* Total Stock Retail Value */}
-        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-bold text-amber-400 uppercase tracking-wider">
               {t('stockRetailWorth')}
             </span>
-            <div className="text-2xl font-black text-emerald-400 mt-1">
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-amber-400 mt-1">
               Rs. {stats.totalInventorySalesValue.toLocaleString()}
             </div>
             <span className="text-[11px] text-slate-400">
               {t('potentialProfit')}: Rs. {(stats.totalInventorySalesValue - stats.totalInventoryCostValue).toLocaleString()}
             </span>
           </div>
-          <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
             <TrendingUp className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Average Profit Margin */}
+        {/* Supporting Card: Total Stock Cost Value */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              {t('totalStockCost')}
+            </span>
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
+              Rs. {stats.totalInventoryCostValue.toLocaleString()}
+            </div>
+            <span className="text-[11px] text-slate-500">{products.length} {t('registeredSkus')}</span>
+          </div>
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
+            <Coins className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Supporting Card: Average Profit Margin */}
+        <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
+          <div>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('avgProfitMargin')}
             </span>
-            <div className="text-2xl font-black text-slate-100 mt-1">{avgMargin}%</div>
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">{avgMargin}%</div>
             <span className="text-[11px] text-slate-500">{t('markupAcrossStore')}</span>
           </div>
-          <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <Percent className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Low Stock Alert */}
+        {/* Supporting Card: Low Stock Alert */}
         <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 shadow-lg flex items-center justify-between">
           <div>
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
               {t('stockReorderAlert')}
             </span>
-            <div className="text-2xl font-black text-amber-400 mt-1">
+            <div className="text-lg sm:text-xl font-bold font-mono text-slate-100 mt-1">
               {stats.lowStockCount + stats.outOfStockCount} {t('lowEmpty')}
             </div>
             <span className="text-[11px] text-slate-500">{stats.outOfStockCount} {t('zeroStockItems')}</span>
           </div>
-          <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+          <div className="p-3 rounded-xl bg-slate-800 text-slate-400 border border-slate-700/80">
             <AlertTriangle className="w-5 h-5" />
           </div>
         </div>
@@ -244,7 +247,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <select
               id="product-sort-select"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'NAME' | 'STOCK_ASC' | 'MARGIN_DESC' | 'VALUATION_DESC')}
               className="px-3 py-2 bg-slate-950 border border-slate-700/80 rounded-xl text-xs text-slate-200 focus:ring-1 focus:ring-amber-500"
             >
               <option value="NAME">{t('nameAZ')}</option>
@@ -255,13 +258,13 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           </div>
         </div>
 
-        {/* Quick Filter Pills */}
+        {/* Quick Filter Buttons */}
         <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80 flex-wrap">
           <span className="text-[11px] text-slate-500 font-medium">{t('stockStatus')}:</span>
           <button
             type="button"
             onClick={() => setStockFilter('ALL')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               stockFilter === 'ALL'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -272,7 +275,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <button
             type="button"
             onClick={() => setStockFilter('LOW_STOCK')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               stockFilter === 'LOW_STOCK'
                 ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -283,7 +286,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <button
             type="button"
             onClick={() => setStockFilter('OUT_OF_STOCK')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               stockFilter === 'OUT_OF_STOCK'
                 ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -294,7 +297,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
           <button
             type="button"
             onClick={() => setStockFilter('IN_STOCK')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors duration-150 ${
               stockFilter === 'IN_STOCK'
                 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                 : 'text-slate-400 hover:text-slate-200 bg-slate-950 border border-slate-800'
@@ -305,7 +308,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
         </div>
       </div>
 
-      {/* Mobile Product Cards (Visible on phones) */}
+      {/* Mobile Product Cards */}
       <div className="md:hidden space-y-3">
         {filteredProducts.length === 0 ? (
           <div className="bg-slate-900 border border-slate-800 rounded-2xl p-10 text-center text-slate-500">
@@ -391,7 +394,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onQuickStockAdjust(product)}
-                    className="flex-1 py-2 px-3 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-colors duration-150"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     <span>{t('adjustStock')}</span>
@@ -399,7 +402,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => onEditProduct(product)}
-                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                    className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>{t('edit')}</span>
@@ -407,7 +410,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => deleteProduct(product.id)}
-                    className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-xl"
+                    className="p-2 bg-slate-800 hover:bg-rose-950/60 text-slate-400 hover:text-rose-400 border border-slate-700 rounded-xl transition-colors duration-150"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -425,7 +428,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
             <thead className="bg-slate-950/80 border-b border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-wider select-none">
               <tr>
                 <th className="py-3.5 px-5 min-w-[220px]">{t('products')}</th>
-                <th className="py-3.5 px-5 min-w-[210px]">Category & Unit</th>
+                <th className="py-3.5 px-5 min-w-[210px]">Category &amp; Unit</th>
                 <th className="py-3.5 px-5 text-right min-w-[130px]">{t('costPrice')} (Rs.)</th>
                 <th className="py-3.5 px-5 text-right min-w-[140px]">{t('sellingPrice')} (Rs.)</th>
                 <th className="py-3.5 px-5 text-center min-w-[110px]">{t('margin')}</th>
@@ -453,7 +456,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                   return (
                     <tr
                       key={product.id}
-                      className="hover:bg-slate-800/40 transition-colors group"
+                      className="hover:bg-slate-800/40 transition-colors duration-150 group"
                     >
                       {/* Product Name & Image */}
                       <td className="py-4 px-5">
@@ -469,9 +472,9 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                               <img
                                 src={getImageUrl(product.imageUrl)}
                                 alt={product.name}
-                                className="w-full h-full object-cover group-hover/img:scale-110 transition-transform"
+                                className="w-full h-full object-cover"
                               />
-                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity">
+                              <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover/img:opacity-100 flex items-center justify-center transition-opacity duration-150">
                                 <Maximize2 className="w-3.5 h-3.5 text-amber-400" />
                               </div>
                             </button>
@@ -533,7 +536,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                         </span>
                       </td>
 
-                      {/* Stock Level with highlight */}
+                      {/* Stock Level */}
                       <td className="py-4 px-5 text-center">
                         <div className="inline-flex flex-col items-center">
                           <span
@@ -567,7 +570,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                           id={`quick-stock-${product.id}`}
                           type="button"
                           onClick={() => onQuickStockAdjust(product)}
-                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-bold rounded-lg border border-slate-700 hover:border-amber-500/40 transition-all inline-flex items-center gap-1.5 shadow-sm"
+                          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-bold rounded-lg border border-slate-700 hover:border-amber-500/40 transition-colors duration-150 inline-flex items-center gap-1.5 shadow-sm"
                           title={t('quickStockAdjust')}
                         >
                           <RefreshCw className="w-3.5 h-3.5" />
@@ -582,7 +585,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                             id={`edit-prod-${product.id}`}
                             type="button"
                             onClick={() => onEditProduct(product)}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition-colors"
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg border border-slate-700 transition-colors duration-150"
                             title="Edit Product"
                           >
                             <Edit className="w-3.5 h-3.5" />
@@ -595,7 +598,7 @@ export const ProductsView: React.FC<ProductsViewProps> = ({
                                 deleteProduct(product.id);
                               }
                             }}
-                            className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors"
+                            className="p-1.5 bg-slate-800 hover:bg-rose-950/50 text-slate-400 hover:text-rose-400 rounded-lg border border-slate-700 transition-colors duration-150"
                             title="Delete Product"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

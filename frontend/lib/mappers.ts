@@ -1,4 +1,4 @@
-import { Customer, CreditLedgerEntry, Product, ProductUnit, Expense, Supplier, SupplierLedgerEntry, LedgerTransactionType, SupplierTransactionType } from '@/types';
+import type { Customer, CreditLedgerEntry, Product, ProductUnit, Supplier, SupplierLedgerEntry, LedgerTransactionType, SupplierTransactionType } from '@/types';
 import { ApiCustomer, ApiLedgerEntry, ApiProduct, ApiSupplier, ApiSupplierLedgerEntry } from '@/lib/api';
 
 export const mapApiCustomerToUI = (api: ApiCustomer): Customer => ({

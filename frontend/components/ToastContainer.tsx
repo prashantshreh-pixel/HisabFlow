@@ -20,7 +20,7 @@ export const ToastContainer: React.FC = () => {
           <div
             key={toast.id}
             id={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200 animate-in fade-in slide-in-from-bottom-3 ${
+            className={`pointer-events-auto flex items-start gap-3 p-4 rounded-xl border shadow-lg backdrop-blur-md transition-all duration-200 ${
               isSuccess
                 ? 'bg-emerald-950/90 border-emerald-700/60 text-emerald-100'
                 : isWarning

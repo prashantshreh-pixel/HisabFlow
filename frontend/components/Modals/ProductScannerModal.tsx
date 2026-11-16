@@ -14,9 +14,7 @@ import {
   CheckCircle2,
   ScanLine,
   Image as ImageIcon,
-  Zap,
   ArrowRight,
-  Boxes,
 } from 'lucide-react';
 
 export interface ScannedProductDraft {
@@ -131,8 +129,8 @@ async function extractBarcodeFromImage(file: File): Promise<string | null> {
       if (results && results.length > 0 && results[0]?.rawValue) {
         return results[0].rawValue.trim();
       }
-    } catch (e) {
-      console.debug('Native BarcodeDetector direct scan failed, continuing to multi-rotation:', e);
+    } catch {
+      // Continue to multi-rotation fallback
     }
   }
 
@@ -254,8 +252,8 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
           await html5QrCodeRef.current.stop();
         }
         html5QrCodeRef.current.clear();
-      } catch (err) {
-        console.warn('Error stopping scanner:', err);
+      } catch {
+        // Ignore scanner stop errors
       } finally {
         html5QrCodeRef.current = null;
         setIsScanning(false);
@@ -303,8 +301,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
             onClose();
           }, 800);
         }
-      } catch (err: any) {
-        console.warn('Barcode lookup failed:', err);
+      } catch {
         // Fallback: provide raw barcode
         setTimeout(() => {
           onProductScanned({
@@ -353,7 +350,6 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
 
       setIsScanning(true);
     } catch (err: any) {
-      console.error('Camera start error:', err);
       setIsScanning(false);
       const msg =
         err?.name === 'NotAllowedError' || err?.message?.includes('Permission')
@@ -408,8 +404,8 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
         const uploadRes = await productsApi.uploadImage(compressed);
         savedImageUrl = uploadRes.imageUrl;
         setUploadedImageUrl(savedImageUrl);
-      } catch (uploadErr) {
-        console.warn('Image upload error:', uploadErr);
+      } catch {
+        // Proceed with local barcode decode even if background image upload fails
       }
 
       // 2. Decode barcode from image with multi-orientation (0°, 90°, 270°, 180°) and native BarcodeDetector
@@ -419,14 +415,12 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
         await handleBarcodeFound(decodedBarcode, savedImageUrl);
       } else {
         playPosSound('error');
-        // Fallback: If no barcode was decoded from image, prompt user with option to use image for manual product
         setScannerError(
           'Could not detect a clear barcode from this image. Ensure the barcode is sharp, well-lit, and not cropped.'
         );
         setLookupLoading(false);
       }
     } catch (err: any) {
-      console.error('Image processing error:', err);
       setScannerError(err.message || 'Failed to process image file.');
       setLookupLoading(false);
     }
@@ -460,50 +454,51 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className={`relative w-full max-w-lg bg-surface border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all duration-300 ${
+        className={`relative w-full max-w-lg bg-slate-900 border rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] transition-all duration-200 ${
           lastScannedBarcode
             ? 'border-emerald-400 ring-2 ring-emerald-400/50 shadow-emerald-500/20'
             : scannerError
             ? 'border-rose-500/70 ring-1 ring-rose-500/40'
-            : 'border-border'
+            : 'border-slate-800'
         }`}
       >
         {/* Hidden container for file decoding */}
         <div id="hisabflow-hidden-file-scanner" className="hidden" />
 
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-surface-raised/40">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/60">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary">
-              <ScanLine className="w-5 h-5 animate-pulse" />
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <ScanLine className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
-                Scan Product & Auto-fill
+              <h3 className="text-base sm:text-lg font-bold text-slate-100 flex items-center gap-2">
+                Scan Product &amp; Auto-fill
               </h3>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-slate-400">
                 Read barcode from camera or uploaded packaging image
               </p>
             </div>
           </div>
           <button
+            type="button"
             onClick={handleClose}
-            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-surface-raised transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors duration-150"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Device Switcher Tabs */}
-        <div className="px-5 pt-3 pb-2 bg-surface">
-          <div className="flex rounded-xl bg-surface-raised/60 p-1 border border-border/60">
+        <div className="px-5 pt-3 pb-2 bg-slate-900">
+          <div className="flex rounded-xl bg-slate-950 p-1 border border-slate-800">
             <button
               type="button"
               onClick={() => setActiveTab('CAMERA')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-colors duration-150 ${
                 activeTab === 'CAMERA'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-100'
               }`}
             >
               <Camera className="w-4 h-4" />
@@ -512,10 +507,10 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
             <button
               type="button"
               onClick={() => setActiveTab('UPLOAD')}
-              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
+              className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-xs sm:text-sm font-semibold rounded-lg transition-colors duration-150 ${
                 activeTab === 'UPLOAD'
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
+                  ? 'bg-amber-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-100'
               }`}
             >
               <Upload className="w-4 h-4" />
@@ -529,20 +524,20 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
           {/* CAMERA TAB */}
           {activeTab === 'CAMERA' && (
             <div className="space-y-3">
-              <div className="relative rounded-2xl overflow-hidden bg-black aspect-video sm:aspect-square flex items-center justify-center border border-border/80 shadow-inner">
+              <div className="relative rounded-2xl overflow-hidden bg-black aspect-video sm:aspect-square flex items-center justify-center border border-slate-800 shadow-inner">
                 {/* HTML5 QR Code Mount */}
                 <div id={scannerContainerId} className="w-full h-full" />
 
                 {/* Laser Overlay Bar when Scanning */}
                 {isScanning && !lookupLoading && (
-                  <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] animate-pulse pointer-events-none" />
+                  <div className="absolute inset-x-8 top-1/2 -translate-y-1/2 h-0.5 bg-emerald-400 shadow-[0_0_12px_#34d399] pointer-events-none" />
                 )}
 
                 {/* Loading / Processing Overlay */}
                 {lookupLoading && (
                   <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20 text-white">
-                    <RefreshCw className="w-8 h-8 text-primary animate-spin" />
-                    <span className="text-sm font-medium">Recognizing Barcode & Product...</span>
+                    <RefreshCw className="w-8 h-8 text-amber-400 animate-spin" />
+                    <span className="text-sm font-medium">Recognizing Barcode &amp; Product...</span>
                   </div>
                 )}
               </div>
@@ -556,7 +551,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                     setCameraFacing((prev) => (prev === 'environment' ? 'user' : 'environment'));
                     setTimeout(() => startCamera(), 200);
                   }}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-border bg-surface-raised/40 hover:bg-surface-raised text-xs font-medium text-foreground transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-800 text-xs font-medium text-slate-200 transition-colors duration-150"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Flip Camera
@@ -577,7 +572,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                 <button
                   type="button"
                   onClick={() => mobileCameraInputRef.current?.click()}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-semibold transition-colors duration-150"
                 >
                   <Camera className="w-3.5 h-3.5" />
                   Take Photo Directly
@@ -612,7 +607,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                   const f = e.dataTransfer.files?.[0];
                   if (f) handleProcessImageFile(f);
                 }}
-                className="cursor-pointer border-2 border-dashed border-border/80 hover:border-primary/60 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center bg-surface-raised/20 hover:bg-surface-raised/40 transition-all group"
+                className="cursor-pointer border-2 border-dashed border-slate-700 hover:border-amber-500/60 rounded-2xl p-6 sm:p-8 flex flex-col items-center justify-center text-center bg-slate-950/50 hover:bg-slate-950 transition-colors duration-150 group"
               >
                 {uploadedPreview ? (
                   <div className="space-y-3 flex flex-col items-center">
@@ -620,23 +615,23 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                     <img
                       src={uploadedPreview}
                       alt="Uploaded packaging"
-                      className="max-h-48 rounded-xl object-contain shadow-md border border-border"
+                      className="max-h-48 rounded-xl object-contain shadow-md border border-slate-800"
                     />
-                    <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                    <span className="text-xs text-slate-400 group-hover:text-amber-400 transition-colors duration-150">
                       Click or drop another image to replace
                     </span>
                   </div>
                 ) : (
                   <div className="space-y-3 flex flex-col items-center">
-                    <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-105 transition-transform">
+                    <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
                       <ImageIcon className="w-7 h-7" />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-foreground">
-                        Drag & drop product photo or click to browse
+                      <p className="text-sm font-semibold text-slate-100">
+                        Drag &amp; drop product photo or click to browse
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Supports PNG, JPG, WEBP • You can also press <kbd className="px-1.5 py-0.5 rounded bg-surface border border-border text-[10px] font-mono">Ctrl+V</kbd> to paste
+                      <p className="text-xs text-slate-400 mt-1">
+                        Supports PNG, JPG, WEBP • You can also press <kbd className="px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-[10px] font-mono text-slate-200">Ctrl+V</kbd> to paste
                       </p>
                     </div>
                   </div>
@@ -644,9 +639,9 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
               </div>
 
               {lookupLoading && (
-                <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-primary/10 border border-primary/20 text-xs font-medium text-primary animate-pulse">
+                <div className="flex items-center justify-center gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs font-medium text-amber-400">
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  Analyzing image & recognizing product...
+                  Analyzing image &amp; recognizing product...
                 </div>
               )}
             </div>
@@ -670,7 +665,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                       });
                       onClose();
                     }}
-                    className="mt-2 block font-semibold text-primary hover:underline"
+                    className="mt-2 block font-semibold text-amber-400 hover:underline"
                   >
                     Continue adding product with this photo anyway &rarr;
                   </button>
@@ -686,8 +681,8 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                 <CheckCircle2 className="w-4 h-4" />
                 Product Already Exists in Store
               </div>
-              <p className="text-xs text-muted-foreground">
-                <strong className="text-foreground">{lookupResult.product.name}</strong> (Barcode:{' '}
+              <p className="text-xs text-slate-400">
+                <strong className="text-slate-100">{lookupResult.product.name}</strong> (Barcode:{' '}
                 {lookupResult.product.barcode}) is already registered with {lookupResult.product.stockQuantity}{' '}
                 {lookupResult.product.unit} in stock.
               </p>
@@ -714,7 +709,7 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
                     }
                     onClose();
                   }}
-                  className="flex-1 py-2 px-3 rounded-lg bg-emerald-500 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 py-2 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold transition-colors duration-150 flex items-center justify-center gap-1.5"
                 >
                   Edit / Adjust Stock
                   <ArrowRight className="w-3.5 h-3.5" />
@@ -725,12 +720,12 @@ export const ProductScannerModal: React.FC<ProductScannerModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3 border-t border-border bg-surface-raised/20 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Supports EAN-13, EAN-8, UPC, Code 128, & QR Codes</span>
+        <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-between text-xs text-slate-400">
+          <span>Supports EAN-13, EAN-8, UPC, Code 128, &amp; QR Codes</span>
           <button
             type="button"
             onClick={handleClose}
-            className="px-3 py-1.5 rounded-lg border border-border hover:bg-surface-raised text-foreground font-medium transition-colors"
+            className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-200 font-medium transition-colors duration-150"
           >
             Cancel
           </button>

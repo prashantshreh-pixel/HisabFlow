@@ -27,8 +27,19 @@ public class HisabFlowAuthHandler : AuthenticationHandler<AuthenticationSchemeOp
         _environment = environment;
     }
 
+    private static readonly HashSet<string> AllowedRoles = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "ADMIN", "MANAGER", "CASHIER"
+    };
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var host = Request.Host.Host;
+        var isLocal = string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase)
+            || host == "127.0.0.1"
+            || host == "::1";
+        var allowDevFallbacks = _environment.IsDevelopment() || isLocal;
+
         // 1. Check Authorization Bearer header
         var authHeader = Request.Headers.Authorization.FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
@@ -36,11 +47,11 @@ public class HisabFlowAuthHandler : AuthenticationHandler<AuthenticationSchemeOp
             var token = authHeader["Bearer ".Length..].Trim();
             if (!string.IsNullOrEmpty(token))
             {
-                // Accept development / demo synthetic tokens
-                if (token.StartsWith("hisabflow_dev_token_", StringComparison.OrdinalIgnoreCase))
+                // Accept development / demo synthetic tokens only in local/development environments
+                if (allowDevFallbacks && token.StartsWith("hisabflow_dev_token_", StringComparison.OrdinalIgnoreCase))
                 {
                     var devRole = token["hisabflow_dev_token_".Length..].ToUpperInvariant();
-                    if (string.IsNullOrEmpty(devRole)) devRole = "ADMIN";
+                    if (!AllowedRoles.Contains(devRole)) devRole = "ADMIN";
                     return Task.FromResult(CreateSuccessTicket("usr_admin", "admin", "Store Owner", devRole));
                 }
 
@@ -53,21 +64,19 @@ public class HisabFlowAuthHandler : AuthenticationHandler<AuthenticationSchemeOp
             }
         }
 
-        // 2. Fallback to X-User headers (X-User-Role, X-User-Name, X-User-Id)
-        var roleHeader = Request.Headers["X-User-Role"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(roleHeader))
+        // 2. Fallback to X-User headers and Localhost auto-session only in local/development mode
+        if (allowDevFallbacks)
         {
-            var role = roleHeader.Trim().ToUpperInvariant();
-            var username = Request.Headers["X-User-Name"].FirstOrDefault() ?? "admin";
-            var userId = Request.Headers["X-User-Id"].FirstOrDefault() ?? "usr_admin";
-            return Task.FromResult(CreateSuccessTicket(userId, username, username, role));
-        }
+            var roleHeader = Request.Headers["X-User-Role"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(roleHeader))
+            {
+                var role = roleHeader.Trim().ToUpperInvariant();
+                if (!AllowedRoles.Contains(role)) role = "CASHIER";
+                var username = Request.Headers["X-User-Name"].FirstOrDefault() ?? "admin";
+                var userId = Request.Headers["X-User-Id"].FirstOrDefault() ?? "usr_admin";
+                return Task.FromResult(CreateSuccessTicket(userId, username, username, role));
+            }
 
-        // 3. Fallback for Localhost / Development:
-        // When running locally in desktop/development mode, default to authenticated ADMIN so CRUD never fails
-        var isLocal = Request.Host.Host == "localhost" || Request.Host.Host == "127.0.0.1" || Request.Host.Host == "::1";
-        if (_environment.IsDevelopment() || isLocal)
-        {
             return Task.FromResult(CreateSuccessTicket("usr_admin", "admin", "Store Owner", "ADMIN"));
         }
 
